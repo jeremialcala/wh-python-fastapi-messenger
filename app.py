@@ -10,7 +10,7 @@ from fastapi import status, HTTPException
 from classes import Settings, ChatbotRequest, ResponseData
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE)
-from controller import ctr_create_chatbot
+from controller import ctr_create_chatbot, ctr_get_chatbot_from_uuid
 from utils import configure_logging
 
 
@@ -65,7 +65,8 @@ async def interceptor(request: Request, call_next):
 async def create_chatbot(chatbot: ChatbotRequest):
     log.info(f"this is the start of a new chatbot name: {chatbot.name}")
     try:
-        response = ctr_create_chatbot(chatbot)
+        response = await ctr_create_chatbot(chatbot)
+        log.info(f"this is the end, the response go with code:{response.status_code}")
         return response
     except Exception as e:
         raise Exception(e.args)
@@ -73,12 +74,22 @@ async def create_chatbot(chatbot: ChatbotRequest):
 
 @app.get(path="/chat", tags=["Chat"])
 async def verify_(request: Request, bot_id: str):
-    if request.query_params.get(HUB_MODE) == SUBSCRIBE:
-        if not request.query_params.get(HUB_VERIFY_TOKEN) == settings.verify_token:
-            return status.HTTP_403_FORBIDDEN, "HTTP_403_FORBIDDEN"
-        if request.query_params.get(HUB_CHALLENGE):
-            return status.HTTP_200_OK, request.query_params[HUB_CHALLENGE]
-    return status.HTTP_200_OK, "HTTP_200_OK"
+    log.info(f"this is a chatbot verification request: {bot_id}")
+    try:
+        _bot = await ctr_get_chatbot_from_uuid(bot_id)
+
+        if _bot.status_code != status.HTTP_200_OK:
+            return status.HTTP_404_NOT_FOUND, "HTTP_404_NOT_FOUND"
+
+        if request.query_params.get(HUB_MODE) == SUBSCRIBE:
+            if not request.query_params.get(HUB_VERIFY_TOKEN) == settings.verify_token:
+                return status.HTTP_403_FORBIDDEN, "HTTP_403_FORBIDDEN"
+            if request.query_params.get(HUB_CHALLENGE):
+                return status.HTTP_200_OK, request.query_params[HUB_CHALLENGE]
+        log.info(f"this is the methods end! it was successful")
+        return status.HTTP_200_OK, "HTTP_200_OK"
+    except Exception as e:
+        raise Exception(e.args)
 
 
 @app.post(path="/chat", tags=["Chat"])
