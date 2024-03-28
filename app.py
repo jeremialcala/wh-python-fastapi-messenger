@@ -73,7 +73,7 @@ async def create_chatbot(chatbot: ChatbotRequest):
 
 
 @app.get(path="/chat/{bot_id}", tags=["Chat"])
-async def verify(request: Request, bot_id: str):
+async def verify(request: Request, bot_id):
     log.info(f"this is a chatbot verification request: {bot_id}")
     try:
         _bot = await ctr_get_chatbot_from_uuid(bot_id)
@@ -98,6 +98,6 @@ async def verify(request: Request, bot_id: str):
 
 
 @app.post(path="/chat/{bot_id}", tags=["Chat"])
-async def message_processor(request: Request, bot_id: str):
+async def message_processor(request: Request, bot_id):
     pass
 

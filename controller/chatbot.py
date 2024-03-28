@@ -1,21 +1,13 @@
 # -*- coding: utf8 -*-
-import json
 import logging
-import asyncio
+from uuid import uuid4
 
 from fastapi import Response, status
-from fastapi.encoders import jsonable_encoder
-from uuid import UUID
-
-from datetime import datetime
 from mongoengine.errors import OperationError
-from uuid import uuid4
 
 from classes import ChatbotRequest, ChatBot
 from classes import Settings, ResponseData
 from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
-from utils import generate_code
-
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -32,7 +24,6 @@ async def ctr_create_chatbot(request: ChatbotRequest) -> Response:
     )
 
     try:
-        _uuid = uuid4()
         _chatbot = ChatBot.from_json(request.json())
         _chatbot.save()
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
@@ -65,7 +56,7 @@ async def ctr_get_chatbot_from_uuid(_uuid: str) -> Response:
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
     try:
-        _chatbot = ChatBot().get_chatbot_by_uuid(_uuid)
+        _chatbot = await ChatBot().get_chatbot_by_uuid(_uuid)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_chatbot.chatbot_info())
     except ValueError as e:
