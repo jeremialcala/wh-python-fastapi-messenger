@@ -35,4 +35,4 @@ class ChatBot(Document):
 
     @staticmethod
     async def get_chatbot_by_uuid(_uuid: str):
-        return [chatbot for chatbot in ChatBot.objects(uuid=UUID(_uuid))]
+        return [chatbot for chatbot in ChatBot.objects(uuid=UUID(_uuid))][-1]
