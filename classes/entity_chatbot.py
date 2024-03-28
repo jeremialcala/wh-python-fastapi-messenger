@@ -19,7 +19,7 @@ connect(
 class ChatBot(Document):
     uuid = UUIDField(required=True, unique=True, default=uuid4())
     name = StringField(required=True)
-    rol = StringField(required=True)
+    role = StringField(required=True)
     description = StringField(required=True)
     tone = StringField(required=True)
     createdAt = DateTimeField(required=True, default=datetime.now())
