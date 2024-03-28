@@ -26,11 +26,11 @@ class ChatBot(Document):
     status = IntField(required=True, default=Status.REG.value)
     statusDate = DateTimeField(required=True, default=datetime.now())
 
-    async def chatbot_info(self) -> dict:
+    def chatbot_info(self) -> dict:
         return {
             "uuid": self.uuid,
             "name": self.name,
-            "rol": self.rol
+            "rol": self.role
         }
 
     @staticmethod
