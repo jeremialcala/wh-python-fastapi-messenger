@@ -72,8 +72,8 @@ async def create_chatbot(chatbot: ChatbotRequest):
         raise Exception(e.args)
 
 
-@app.get(path="/chat", tags=["Chat"])
-async def verify_(request: Request, bot_id: str):
+@app.get(path="/chat/{bot_id}", tags=["Chat"])
+async def verify(request: Request, bot_id: str):
     log.info(f"this is a chatbot verification request: {bot_id}")
     try:
         _bot = await ctr_get_chatbot_from_uuid(bot_id)
@@ -81,18 +81,23 @@ async def verify_(request: Request, bot_id: str):
         if _bot.status_code != status.HTTP_200_OK:
             return status.HTTP_404_NOT_FOUND, "HTTP_404_NOT_FOUND"
 
+        """
+            Here is the validation that Facebook uses to confirm your webhook!
+        """
+
         if request.query_params.get(HUB_MODE) == SUBSCRIBE:
             if not request.query_params.get(HUB_VERIFY_TOKEN) == settings.verify_token:
                 return status.HTTP_403_FORBIDDEN, "HTTP_403_FORBIDDEN"
             if request.query_params.get(HUB_CHALLENGE):
                 return status.HTTP_200_OK, request.query_params[HUB_CHALLENGE]
+
         log.info(f"this is the methods end! it was successful")
         return status.HTTP_200_OK, "HTTP_200_OK"
     except Exception as e:
         raise Exception(e.args)
 
 
-@app.post(path="/chat", tags=["Chat"])
-async def message_processor(bot_id: str):
+@app.post(path="/chat/{bot_id}", tags=["Chat"])
+async def message_processor(request: Request, bot_id: str):
     pass
 
