@@ -86,7 +86,7 @@ async def verify(request: Request, bot_id):
         """
 
         if request.query_params.get(HUB_MODE) == SUBSCRIBE:
-            if not request.query_params.get(HUB_VERIFY_TOKEN) == settings.verify_token:
+            if not request.query_params.get(HUB_VERIFY_TOKEN) == _bot.body.data.verifyToken:
                 return status.HTTP_403_FORBIDDEN, "HTTP_403_FORBIDDEN"
             if request.query_params.get(HUB_CHALLENGE):
                 return status.HTTP_200_OK, request.query_params[HUB_CHALLENGE]

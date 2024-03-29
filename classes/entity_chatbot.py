@@ -42,6 +42,7 @@ class ChatBot(Document):
         _cred.set_claims(claim=self.name)
         _cred.set_jwt()
         _cred.jwt.make_signed_token(_cred.key)
+        _cred.save()
         self.verifyToken = _cred.jwt.serialize()
 
     @staticmethod
