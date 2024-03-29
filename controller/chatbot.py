@@ -25,6 +25,7 @@ async def ctr_create_chatbot(request: ChatbotRequest) -> Response:
 
     try:
         _chatbot = ChatBot.from_json(request.json())
+        _chatbot.generate_verify_token()
         _chatbot.save()
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_chatbot.chatbot_info())

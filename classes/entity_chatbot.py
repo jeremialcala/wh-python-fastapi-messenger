@@ -5,6 +5,8 @@ from uuid import uuid4, UUID
 from mongoengine import *
 from enums import Status
 from .tool_settings import Settings
+from .entity_credentials import Credentials
+
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -22,6 +24,7 @@ class ChatBot(Document):
     role = StringField(required=True)
     description = StringField(required=True)
     tone = StringField(required=True)
+    verifyToken = StringField()
     createdAt = DateTimeField(required=True, default=datetime.now())
     status = IntField(required=True, default=Status.REG.value)
     statusDate = DateTimeField(required=True, default=datetime.now())
@@ -30,8 +33,15 @@ class ChatBot(Document):
         return {
             "uuid": self.uuid,
             "name": self.name,
-            "rol": self.role
+            "rol": self.role,
+            "verifyToken": self.verifyToken
         }
+
+    def generate_verify_token(self):
+        _cred = Credentials()
+        _cred.set_claims(claim=self.uuid)
+        _cred.jwt.make_signed_token(_cred.key)
+        self.verifyToken = _cred.jwt.serialize()
 
     @staticmethod
     async def get_chatbot_by_uuid(_uuid: str):
