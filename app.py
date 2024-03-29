@@ -81,12 +81,13 @@ async def verify(request: Request, bot_id):
         if _bot.status_code != status.HTTP_200_OK:
             return status.HTTP_404_NOT_FOUND, "HTTP_404_NOT_FOUND"
 
+        _bot_info = json.loads(_bot.body)
         """
             Here is the validation that Facebook uses to confirm your webhook!
         """
 
         if request.query_params.get(HUB_MODE) == SUBSCRIBE:
-            if not request.query_params.get(HUB_VERIFY_TOKEN) == _bot.body["data"]["verifyToken"]:
+            if not request.query_params.get(HUB_VERIFY_TOKEN) == _bot_info["data"]["verifyToken"]:
                 return status.HTTP_403_FORBIDDEN, "HTTP_403_FORBIDDEN"
             if request.query_params.get(HUB_CHALLENGE):
                 return status.HTTP_200_OK, request.query_params[HUB_CHALLENGE]
