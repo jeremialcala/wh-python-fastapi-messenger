@@ -86,7 +86,7 @@ async def verify(request: Request, bot_id):
         """
 
         if request.query_params.get(HUB_MODE) == SUBSCRIBE:
-            if not request.query_params.get(HUB_VERIFY_TOKEN) == _bot.body.data.verifyToken:
+            if not request.query_params.get(HUB_VERIFY_TOKEN) == _bot.body["data"]["verifyToken"]:
                 return status.HTTP_403_FORBIDDEN, "HTTP_403_FORBIDDEN"
             if request.query_params.get(HUB_CHALLENGE):
                 return status.HTTP_200_OK, request.query_params[HUB_CHALLENGE]
@@ -99,5 +99,14 @@ async def verify(request: Request, bot_id):
 
 @app.post(path="/chat/{bot_id}", tags=["Chat"])
 async def message_processor(request: Request, bot_id):
-    pass
+    log.info(f"this is a chatbot verification request: {bot_id}")
+    try:
+        _bot = await ctr_get_chatbot_from_uuid(bot_id)
+
+        if _bot.status_code != status.HTTP_200_OK:
+            return status.HTTP_404_NOT_FOUND, "HTTP_404_NOT_FOUND"
+
+        return _bot
+    except Exception as e:
+        raise Exception(e.args)
 
