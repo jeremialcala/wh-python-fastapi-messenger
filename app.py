@@ -2,17 +2,15 @@
 import json
 import logging.config
 import time
-from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
-from fastapi import status, HTTPException
+from fastapi import status
 
 from classes import Settings, ChatbotRequest, ResponseData
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE)
 from controller import ctr_create_chatbot, ctr_get_chatbot_from_uuid
 from utils import configure_logging
-
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -90,10 +88,10 @@ async def verify(request: Request, bot_id):
             if not request.query_params.get(HUB_VERIFY_TOKEN) == _bot_info["data"]["verifyToken"]:
                 return status.HTTP_403_FORBIDDEN, "HTTP_403_FORBIDDEN"
             if request.query_params.get(HUB_CHALLENGE):
-                return status.HTTP_200_OK, request.query_params[HUB_CHALLENGE]
+                return request.query_params[HUB_CHALLENGE], status.HTTP_200_OK
 
         log.info(f"this is the methods end! it was successful")
-        return status.HTTP_200_OK, "HTTP_200_OK"
+        return "HTTP_200_OK", status.HTTP_200_OK
     except Exception as e:
         raise Exception(e.args)
 
@@ -105,9 +103,11 @@ async def message_processor(request: Request, bot_id):
         _bot = await ctr_get_chatbot_from_uuid(bot_id)
 
         if _bot.status_code != status.HTTP_200_OK:
-            return status.HTTP_404_NOT_FOUND, "HTTP_404_NOT_FOUND"
+            return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
 
-        return _bot
+        data = await request.json()
+        log.info(data)
+
+        return "HTTP_200_OK", status.HTTP_200_OK
     except Exception as e:
         raise Exception(e.args)
-

@@ -25,6 +25,7 @@ class ChatBot(Document):
     description = StringField(required=True)
     tone = StringField(required=True)
     verifyToken = StringField()
+    facebookToken = StringField()
     createdAt = DateTimeField(required=True, default=datetime.now())
     status = IntField(required=True, default=Status.REG.value)
     statusDate = DateTimeField(required=True, default=datetime.now())
