@@ -5,13 +5,13 @@ from faker import Faker
 from pydantic import BaseModel, Field
 
 from .tool_settings import Settings
-from .dto_facebook_payload import Payload
+from .dto_facebook_profile import Profile
 
 fk = Faker()
 settings = Settings()
 log = logging.getLogger(settings.environment)
 
 
-class Postback(BaseModel):
-    payload: Payload = Field(default=Payload())
-    title: str = Field(default="Demo")
+class Contact(BaseModel):
+    profile: dict | Profile = Field(default=Profile())
+    wa_id: str = Field(default="584127733522")

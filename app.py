@@ -2,14 +2,15 @@
 import json
 import logging.config
 import time
+import asyncio
 
 from fastapi import FastAPI, Request, Response
 from fastapi import status
 
-from classes import Settings, ChatbotRequest, ResponseData
+from classes import Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE)
-from controller import ctr_create_chatbot, ctr_get_chatbot_from_uuid
+from controller import ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_process_messages, ctr_add_phone_chatbot
 from utils import configure_logging
 
 settings = Settings()
@@ -97,7 +98,7 @@ async def verify(request: Request, bot_id):
 
 
 @app.post(path="/chat/{bot_id}", tags=["Chat"])
-async def message_processor(request: Request, bot_id):
+async def message_processor(request: FacebookRequest, bot_id):
     log.info(f"this is a chatbot verification request: {bot_id}")
     try:
         _bot = await ctr_get_chatbot_from_uuid(bot_id)
@@ -105,9 +106,23 @@ async def message_processor(request: Request, bot_id):
         if _bot.status_code != status.HTTP_200_OK:
             return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
 
-        data = await request.json()
-        log.info(data)
+        asyncio.ensure_future(ctr_process_messages(req=request, _bot_info=bot_id))
 
         return "HTTP_200_OK", status.HTTP_200_OK
+    except Exception as e:
+        raise Exception(e.args)
+
+
+@app.post(path="/chat/{bot_id}/phones", tags=["Chat"])
+async def add_whatsapp_phone(bot_id: str, request: ChatbotPhoneRequest):
+    log.info(f"this is a chatbot verification request: {bot_id}")
+    try:
+        _bot = await ctr_get_chatbot_from_uuid(bot_id)
+
+        if _bot.status_code != status.HTTP_200_OK:
+            return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
+
+        response = await ctr_add_phone_chatbot(bot_uuid=bot_id, req=request)
+        return response
     except Exception as e:
         raise Exception(e.args)

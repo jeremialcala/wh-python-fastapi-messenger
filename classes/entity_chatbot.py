@@ -26,6 +26,7 @@ class ChatBot(Document):
     tone = StringField(required=True)
     verifyToken = StringField()
     facebookToken = StringField()
+    whatsappToken = StringField()
     createdAt = DateTimeField(required=True, default=datetime.now())
     status = IntField(required=True, default=Status.REG.value)
     statusDate = DateTimeField(required=True, default=datetime.now())
@@ -35,7 +36,9 @@ class ChatBot(Document):
             "uuid": self.uuid,
             "name": self.name,
             "rol": self.role,
-            "verifyToken": self.verifyToken
+            "verifyToken": self.verifyToken,
+            "facebookToken": self.facebookToken,
+            "whatsappToken": self.whatsappToken
         }
 
     def generate_verify_token(self):
