@@ -89,6 +89,7 @@ async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest):
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
     try:
+        log.debug(req.json())
         _chatbot_phone = await ChatbotPhone().generate_chatbot_phone_from_request(req=req)
         _chatbot_phone.uuid = uuid4()
         _chatbot_phone.bot_id = UUID(bot_uuid)

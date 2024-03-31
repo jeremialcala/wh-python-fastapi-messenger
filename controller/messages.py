@@ -19,6 +19,7 @@ log = logging.getLogger(settings.environment)
 async def ctr_process_messages(req: FacebookRequest, _bot_info: str):
     log.info(f"Message received we have a: {req.object}")
     try:
+        log.debug(req.json())
         _entry = Entry(**req.entry[-1])
         log.info(f"EntryId: {_entry.id}")
         log.info(f"Product we received: {_entry.change.value.messaging_product}")
