@@ -13,4 +13,5 @@ log = logging.getLogger(settings.environment)
 
 
 class Text(BaseModel):
+    preview_url: bool | None = Field(default=None)
     body: str = Field(default="Hello World")

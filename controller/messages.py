@@ -2,6 +2,7 @@
 import json
 import logging
 import asyncio
+
 import requests
 from uuid import uuid4
 
@@ -9,7 +10,7 @@ from fastapi import Response, status
 from mongoengine.errors import OperationError
 
 from classes import ChatbotRequest, ChatBot, ChatbotPhone
-from classes import Settings, FacebookRequest, Entry, Changes, Value
+from classes import Settings, FacebookRequest, Entry, Changes, Value, Messaging
 from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
 
 settings = Settings()
@@ -22,15 +23,22 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str):
         log.debug(req.json())
         _entry = Entry(**req.entry[-1])
         log.info(f"EntryId: {_entry.id}")
-        log.info(f"Product we received: {_entry.change.value.messaging_product}")
-        log.info(_entry.change.value.metadata)
-        log.info(f"The name of the sender: {_entry.change.value.contacts[-1]['profile']}")
-        log.info(f"The name of the sender: {_entry.change.value.contacts[-1]['profile']}")
-        log.info(f"this is the message: {_entry.change.value.message}")
+
         _bot = await ChatBot().get_chatbot_by_uuid(_uuid=_bot_info)
 
-        # log.info(f"this is the chatbot information {_bot.chatbot_info()}")
-        asyncio.ensure_future(ctr_send_message(_bot, _entry.change.value))
+        match req.object:
+            case "page":
+                log.info(f"This is a messenger message")
+                messaging = Messaging(**_entry.messaging[-1])
+                log.info(f"The message is from this sender {messaging.sender.id}")
+
+            case "whatsapp_business_account":
+                log.info(f"Product we received: {_entry.change.value.messaging_product}")
+                log.info(_entry.change.value.metadata)
+                log.info(f"The name of the sender: {_entry.change.value.contacts[-1]['profile']}")
+                log.info(f"this is the message: {_entry.change.value.message}")
+                # log.info(f"this is the chatbot information {_bot.chatbot_info()}")
+                asyncio.ensure_future(ctr_send_message(_bot, _entry.change.value))
 
     except Exception as e:
         log.error(e.__str__())

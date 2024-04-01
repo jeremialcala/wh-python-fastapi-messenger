@@ -21,6 +21,10 @@ to respond to and from Facebook.
     * @GET: using the param bot_id={BOT-ID} (required) will do Facebook token verification challenge
     * @POST: using the param bot_id={BOT-ID} (required) will process a message send from Facebook to be processed by this instance
 
+* /chat/{BOT-ID}/phones: This operation manage the Whatsapp Phone Numbers
+    * @POST: Add a whatsapp phone number to your bot.
+    * @GET: This operation Obtains all Phones associated to this bot. With the param ?phone_id={phone_id} will give you a specific number.  
+
 * /answers: This webhook will send the process answer to the chat client using the facebook graph api.
     * @POST: Will send the content of this answer to final user conversation.
 """
@@ -35,3 +39,10 @@ TAGS_METADATA = [
         "description": "This is conversation management and communication control"
     }
 ]
+
+CONTACT = {
+      "name": "Jeremi Alcala",
+      "url": "https://jeremi.web-ones.com",
+      "email": "jeremialcala@gmail.com",
+    }
+

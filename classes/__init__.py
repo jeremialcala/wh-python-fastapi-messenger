@@ -12,5 +12,5 @@ from .dto_facebook_request import FacebookRequest
 from .dto_facebook_entry import Entry
 from .dto_facebook_changes import Changes
 from .dto_facebook_value import Value
-
+from .dto_facebook_messaging import Messaging
 

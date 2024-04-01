@@ -27,6 +27,16 @@ class ChatbotPhone(Document):
     status = IntField(required=True, default=Status.REG.value)
     statusDate = DateTimeField(required=True, default=datetime.now())
 
+    def get_phones_info(self):
+        return {
+            "uuid": str(self.uuid),
+            "phoneNumber": self.phoneNumber,
+            "phoneId": self.phoneId,
+            "environment": self.environment,
+            "status": Status(self.status).name,
+            "createdAt": self.createdAt
+        }
+
     @staticmethod
     async def get_phones_by_environment(bot_id: str, environment: str):
         log.info(f"bot_id: {bot_id}")

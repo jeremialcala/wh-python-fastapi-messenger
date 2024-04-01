@@ -109,3 +109,39 @@ async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest):
 
         log.info(f"this is the end, the response go with code:{response.status_code}")
         return response
+
+
+async def ctr_get_chatbot_phones(bot_uuid: str, phone_uuid: str | None):
+    log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
+    body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+
+    response = Response(
+        content=body.json(),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={CONTENT_TYPE: APPLICATION_JSON}
+    )
+    try:
+        match phone_uuid:
+            case None:
+                _phones = [phone.get_phones_info() for phone in ChatbotPhone.objects(bot_id=UUID(bot_uuid))]
+            case _:
+                _phones = [phone.get_phones_info() for phone in ChatbotPhone.objects(uuid=UUID(phone_uuid))][-1]
+
+        body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=_phones)
+    except ValueError as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"RECORD NOT FOUND")
+
+    except Exception as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
+                            data=e.__str__())
+    finally:
+        response.status_code = body.code
+        response.body = body.json(exclude_none=True)
+        response.headers[CONTENT_LENGTH] = str(len(response.body))
+        response.headers[CONTENT_TYPE] = APPLICATION_JSON
+
+        log.info(f"this is the end, the response go with code:{response.status_code}")
+        return response

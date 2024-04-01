@@ -9,8 +9,10 @@ from fastapi import status
 
 from classes import Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
-                       TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE)
-from controller import ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_process_messages, ctr_add_phone_chatbot
+                       TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
+                       CONTACT)
+from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_process_messages, ctr_add_phone_chatbot,
+                        ctr_get_chatbot_phones)
 from utils import configure_logging
 
 settings = Settings()
@@ -24,11 +26,7 @@ app = FastAPI(
     summary=SUMMARY,
     version=settings.version,
     terms_of_service=TERMS,
-    contact={
-      "name": "Jeremi Alcala",
-      "url": "https://jeremi.web-ones.com",
-      "email": "jeremialcala@gmail.com",
-    },
+    contact=CONTACT,
     license_info={
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
@@ -43,10 +41,11 @@ async def interceptor(request: Request, call_next):
     body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message="INTERNAL SERVER ERROR", data=None)
 
     response = Response(
-        content=body.json(),
+        content=body.json(exclude_none=True),
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
+
     try:
         log.info(request.url.path)
         log.info(request.query_params)
@@ -115,7 +114,7 @@ async def message_processor(request: FacebookRequest, bot_id):
 
 @app.post(path="/chat/{bot_id}/phones", tags=["Chat"])
 async def add_whatsapp_phone(bot_id: str, request: ChatbotPhoneRequest):
-    log.info(f"this is a chatbot verification request: {bot_id}")
+    log.info(f"Starting add_whatsapp_phone for this chatbot: {bot_id}")
     try:
         _bot = await ctr_get_chatbot_from_uuid(bot_id)
 
@@ -123,6 +122,21 @@ async def add_whatsapp_phone(bot_id: str, request: ChatbotPhoneRequest):
             return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
 
         response = await ctr_add_phone_chatbot(bot_uuid=bot_id, req=request)
+        return response
+    except Exception as e:
+        raise Exception(e.args)
+
+
+@app.get(path="/chat/{bot_id}/phones", tags=["Chat"])
+async def get_chatbot_phones(bot_id, req: Request):
+    log.info(f"Starting get_chatbot_phones for this chatbot: {bot_id}")
+    try:
+        _bot = await ctr_get_chatbot_from_uuid(bot_id)
+
+        if _bot.status_code != status.HTTP_200_OK:
+            return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
+
+        response = await ctr_get_chatbot_phones(bot_uuid=bot_id, phone_uuid=req.query_params.get("phone.id"))
         return response
     except Exception as e:
         raise Exception(e.args)
