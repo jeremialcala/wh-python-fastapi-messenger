@@ -8,12 +8,14 @@ from fastapi import FastAPI, Request, Response
 from fastapi import status
 
 from uuid import uuid4
-from classes import Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest
+from classes import Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
                        CONTACT)
+
 from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_process_messages, ctr_add_phone_chatbot,
-                        ctr_get_chatbot_phones)
+                        ctr_get_chatbot_phones, ctr_create_event)
+
 from utils import configure_logging
 
 settings = Settings()
@@ -41,6 +43,13 @@ async def interceptor(request: Request, call_next):
     s_time = time.time()
     body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message="INTERNAL SERVER ERROR", data=None)
 
+    event = EventTransport(
+        uuid=uuid4(),
+        resource=request.url.path,
+        operation=request.method,
+        origen=f"address: {request.client.host} port: {request.client.port}"
+    )
+
     response = Response(
         content=body.json(exclude_none=True),
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -50,11 +59,14 @@ async def interceptor(request: Request, call_next):
     try:
         log.info(request.url.path)
         log.info(request.query_params)
-        request.state.event_id = str(uuid4())
+        asyncio.ensure_future(ctr_create_event(event))
+
+        request.state.event_id = str(event.uuid)
+
         [log.debug(f"Header! -> {hdr}: {val}") for hdr, val in request.headers.items()]
         response = await call_next(request)
     except Exception as e:
-        log.error(e.args)
+        log.error(e.__str__())
     finally:
         process_time = "{:f}".format(time.time() - s_time)
         response.headers[PROCESSING_TIME] = str(process_time)
@@ -83,6 +95,7 @@ async def verify(request: Request, bot_id):
             return status.HTTP_404_NOT_FOUND, "HTTP_404_NOT_FOUND"
 
         _bot_info = json.loads(_bot.body)
+
         """
             Here is the validation that Facebook uses to confirm your webhook!
         """

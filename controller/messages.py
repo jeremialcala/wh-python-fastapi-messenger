@@ -37,7 +37,9 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str):
                 log.info(f"The message is from this sender {messaging.sender.id}")
                 contact = await ctr_identify_fb_contact(fbId=messaging.sender.id, _bot=_bot)
                 log.debug(f"We found this contact {contact.firstName}")
-
+                """
+                    TODO: do we have a conversation with this contact
+                """
             case "whatsapp_business_account":
                 """
                     This will handle WhatsApp Messages.
@@ -47,7 +49,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str):
                 log.info(f"The name of the sender: {_entry.change.value.contacts[-1]['profile']}")
                 log.info(f"this is the message: {_entry.change.value.message}")
                 # log.info(f"this is the chatbot information {_bot.chatbot_info()}")
-                asyncio.ensure_future(ctr_send_wa_message(_bot, _entry.change.value))
+                # asyncio.ensure_future(ctr_send_wa_message(_bot, _entry.change.value))
 
     except Exception as e:
         log.error(e.__str__())
@@ -60,15 +62,16 @@ async def ctr_send_wa_message(_bot: ChatBot, msg: Value):
             bot_id=str(_bot.uuid),
             environment=settings.environment
         )
-        log.info(chatbot_phone)
+
         headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {_bot.whatsappToken}'
         }
+
         url = settings.facebook_whatsapp_message.format(
                 version=settings.facebook_graph_version,
                 PhoneNumberId=chatbot_phone.phoneId)
-        log.info(url)
+
         data = json.dumps({
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
@@ -79,6 +82,7 @@ async def ctr_send_wa_message(_bot: ChatBot, msg: Value):
                 "body": "this is a new message"
             }
         })
+
         response = requests.request(
             method="POST",
             headers=headers,

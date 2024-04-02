@@ -24,7 +24,9 @@ class Settings(BaseSettings):
     qms_user: str
     qms_password: str
 
-    jwe_key_size: int
+    key_size: int
+    private_key_filename: str
+    public_key_filename: str
 
     environment: str
     version: str
