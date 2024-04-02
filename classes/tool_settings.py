@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     verify_token: str
 
     facebook_graph_url: str
+    facebook_whatsapp_message: str
     facebook_graph_version: str
 
     model_config = SettingsConfigDict(env_file="config.env")

@@ -42,3 +42,4 @@ class Credentials(Document):
 
     def set_jwt(self):
         self.jwt = jwt.JWT(header=self._header, claims=self._claims)
+        self.save()

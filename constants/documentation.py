@@ -23,7 +23,7 @@ to respond to and from Facebook.
 
 * /chat/{BOT-ID}/phones: This operation manage the Whatsapp Phone Numbers
     * @POST: Add a whatsapp phone number to your bot.
-    * @GET: This operation Obtains all Phones associated to this bot. With the param ?phone_id={phone_id} will give you a specific number.  
+    * @GET: This operation Obtains all Phones associated to this bot. With the param ?phone.id={phone_id} will give you a specific number.  
 
 * /answers: This webhook will send the process answer to the chat client using the facebook graph api.
     * @POST: Will send the content of this answer to final user conversation.

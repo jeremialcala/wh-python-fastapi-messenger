@@ -48,4 +48,7 @@ pytest>=8.1.1
 segno>=1.6.1
 
 # Pillow for image rendering
-pillow>=10.2.0
+pillow>=10.3.0
+
+# AMQP for RABBITMQ
+pika>=1.3.2

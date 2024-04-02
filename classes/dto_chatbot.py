@@ -3,7 +3,7 @@ import logging
 
 from faker import Faker
 from pydantic import BaseModel, Field
-
+from fastapi import Request
 from .tool_settings import Settings
 
 fk = Faker()
@@ -16,3 +16,4 @@ class ChatbotRequest(BaseModel):
     role: str = Field(examples=["Sales Assistant", "Office Assistant", "Tech Support"])
     description: str = Field(examples=["Please ensure that your responses are socially unbiased and positive in nature."])
     tone: str = Field(examples=["helpful", "respectful", "honest"])
+    state: dict | None = Field(default=None)

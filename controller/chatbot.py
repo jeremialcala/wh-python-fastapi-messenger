@@ -13,7 +13,7 @@ settings = Settings()
 log = logging.getLogger(settings.environment)
 
 
-async def ctr_create_chatbot(request: ChatbotRequest) -> Response:
+async def ctr_create_chatbot(request: ChatbotRequest, eventId: str = None) -> Response:
     log.info(f"We are creating this chatbot {request.name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 
@@ -26,7 +26,7 @@ async def ctr_create_chatbot(request: ChatbotRequest) -> Response:
     try:
         _chatbot = ChatBot.from_json(request.json())
         _chatbot.uuid = uuid4()
-        _chatbot.generate_verify_token()
+        _chatbot.generate_verification_token()
         _chatbot.save()
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_chatbot.chatbot_info())
@@ -48,7 +48,7 @@ async def ctr_create_chatbot(request: ChatbotRequest) -> Response:
         return response
 
 
-async def ctr_get_chatbot_from_uuid(_uuid: str) -> Response:
+async def ctr_get_chatbot_from_uuid(_uuid: str, eventId: str = None) -> Response:
     log.info(f"We are looking for this chatbot {_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 
@@ -79,7 +79,7 @@ async def ctr_get_chatbot_from_uuid(_uuid: str) -> Response:
         return response
 
 
-async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest):
+async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str = None):
     log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 

@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from uuid import uuid4, UUID
 from mongoengine import *
-from enums import Status
+from enums import Status, Environment
 from .tool_settings import Settings
 from .dto_chatbot_phone import ChatbotPhoneRequest
 
@@ -40,12 +40,12 @@ class ChatbotPhone(Document):
     @staticmethod
     async def get_phones_by_environment(bot_id: str, environment: str):
         log.info(f"bot_id: {bot_id}")
-        return [phone for phone in ChatbotPhone.objects(bot_id=UUID(bot_id))][-1]
+        return [phone for phone in ChatbotPhone.objects(bot_id=UUID(bot_id), environment=environment)][-1]
 
     @staticmethod
     async def generate_chatbot_phone_from_request(req: ChatbotPhoneRequest):
         return ChatbotPhone(
-            environment=req.environment if req.environment is not None else "development",
+            environment=req.environment if req.environment is not None else Environment.development.name,
             phoneNumber=req.phoneNumber,
             phoneId=req.phoneId
         )

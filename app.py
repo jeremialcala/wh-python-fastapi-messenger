@@ -7,6 +7,7 @@ import asyncio
 from fastapi import FastAPI, Request, Response
 from fastapi import status
 
+from uuid import uuid4
 from classes import Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
@@ -49,6 +50,7 @@ async def interceptor(request: Request, call_next):
     try:
         log.info(request.url.path)
         log.info(request.query_params)
+        request.state.event_id = str(uuid4())
         [log.debug(f"Header! -> {hdr}: {val}") for hdr, val in request.headers.items()]
         response = await call_next(request)
     except Exception as e:
@@ -60,9 +62,10 @@ async def interceptor(request: Request, call_next):
 
 
 @app.post(path="/bot", tags=["Bot"], )
-async def create_chatbot(chatbot: ChatbotRequest):
+async def create_chatbot(chatbot: ChatbotRequest, request: Request):
     log.info(f"this is the start of a new chatbot name: {chatbot.name}")
     try:
+        log.info(request.state.__dict__)
         response = await ctr_create_chatbot(chatbot)
         log.info(f"this is the end, the response go with code:{response.status_code}")
         return response
