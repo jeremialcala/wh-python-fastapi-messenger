@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+from inspect import currentframe
 from jwcrypto import jwk
 from datetime import datetime
 from uuid import uuid4, UUID
@@ -32,6 +33,7 @@ class Jwk(Document):
 
     @staticmethod
     async def create_key_for_event(event_id: UUID) -> UUID:
+        log.info(f"Starting: {currentframe().f_code.co_name}")
         """
             This method creates a key to be used in each event, and create an event_key entity with be an index to
             control this keys/event relationship.
@@ -60,7 +62,7 @@ class Jwk(Document):
         _jwk.save(force_insert=True)
 
         EventJwk(eventId=event_id, jwkId=_uuid).save()
-
+        log.info(f"Ending: {currentframe().f_code.co_name}")
         return _uuid
 
 

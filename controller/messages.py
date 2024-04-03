@@ -5,7 +5,7 @@ import asyncio
 
 import requests
 from uuid import uuid4
-
+from inspect import currentframe
 from fastapi import Response, status
 from mongoengine.errors import OperationError
 
@@ -19,6 +19,7 @@ log = logging.getLogger(settings.environment)
 
 
 async def ctr_process_messages(req: FacebookRequest, _bot_info: str):
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Message received we have a: {req.object}")
     try:
         log.debug(req.json())
@@ -41,7 +42,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str):
                 log.debug(f"We found this contact {contact.firstName}")
 
                 """
-                    TODO: do we have a conversation with this contact
+                    TODO: do we have a conversation with this contact                    
                 """
 
             case "whatsapp_business_account":
@@ -59,6 +60,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str):
                 # log.info(f"this is the chatbot information {_bot.chatbot_info()}")
                 # asyncio.ensure_future(ctr_send_wa_message(_bot, _entry.change.value))
 
+        log.info(f"Ending: {currentframe().f_code.co_name}")
     except Exception as e:
         log.error(e.__str__())
 

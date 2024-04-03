@@ -6,6 +6,8 @@ import asyncio
 import requests
 from uuid import uuid4
 
+from inspect import currentframe
+
 from fastapi import Response, status
 from mongoengine.errors import OperationError
 
@@ -18,7 +20,9 @@ log = logging.getLogger(settings.environment)
 
 
 async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot) -> Contact:
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Connecting to Facebook to get user profile: {fb_id}")
+    log.info(ctr_identify_fb_contact.__name__)
     try:
         url = settings.facebook_graph_url.format(fb_id=fb_id, ACCESSTOKEN=_bot.facebookToken)
         resp = requests.get(url)
@@ -28,6 +32,7 @@ async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot) -> Contact
             raise Exception(resp.status_code, resp.text)
 
         _profile = ProfileInfo(**resp.json())
+        log.info(f"Ending: {currentframe().f_code.co_name}")
         return await Contact.generate_contact_from_fb(_bot.uuid, _profile)
 
     except Exception as e:
@@ -35,6 +40,7 @@ async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot) -> Contact
 
 
 async def ctr_identify_fb_contact(fbId: str, _bot: ChatBot) -> Contact:
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Identifying this contact {fbId}")
     contact = None
     try:
@@ -50,6 +56,7 @@ async def ctr_identify_fb_contact(fbId: str, _bot: ChatBot) -> Contact:
         raise Exception(e.args)
 
     finally:
+        log.info(f"Ending: {currentframe().f_code.co_name}")
         return contact
 
 

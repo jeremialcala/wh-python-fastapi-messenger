@@ -4,6 +4,7 @@ from uuid import uuid4, UUID
 
 from fastapi import Response, status
 from mongoengine.errors import OperationError
+from inspect import currentframe
 
 from classes import ChatbotRequest, ChatBot, ChatbotPhone
 from classes import Settings, ResponseData, ChatbotPhoneRequest
@@ -49,6 +50,7 @@ async def ctr_create_chatbot(request: ChatbotRequest, eventId: str = None) -> Re
 
 
 async def ctr_get_chatbot_from_uuid(_uuid: str, eventId: str = None) -> Response:
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"We are looking for this chatbot {_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 
@@ -75,11 +77,12 @@ async def ctr_get_chatbot_from_uuid(_uuid: str, eventId: str = None) -> Response
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
-        log.info(f"this is the end, the response go with code:{response.status_code}")
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
         return response
 
 
 async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str = None):
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 
@@ -107,11 +110,12 @@ async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
-        log.info(f"this is the end, the response go with code:{response.status_code}")
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
         return response
 
 
 async def ctr_get_chatbot_phones(bot_uuid: str, phone_uuid: str | None):
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 
@@ -143,5 +147,5 @@ async def ctr_get_chatbot_phones(bot_uuid: str, phone_uuid: str | None):
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
-        log.info(f"this is the end, the response go with code:{response.status_code}")
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
         return response

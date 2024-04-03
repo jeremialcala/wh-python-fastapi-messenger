@@ -6,7 +6,7 @@ import asyncio
 
 from fastapi import FastAPI, Request, Response
 from fastapi import status
-
+from inspect import currentframe
 from uuid import uuid4
 from classes import Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
@@ -39,6 +39,7 @@ app = FastAPI(
 
 @app.middleware("http")
 async def interceptor(request: Request, call_next):
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"This is a new request {request.client}")
     s_time = time.time()
     body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message="INTERNAL SERVER ERROR", data=None)
@@ -68,6 +69,7 @@ async def interceptor(request: Request, call_next):
     except Exception as e:
         log.error(e.__str__())
     finally:
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
         process_time = "{:f}".format(time.time() - s_time)
         response.headers[PROCESSING_TIME] = str(process_time)
         return response
@@ -75,11 +77,12 @@ async def interceptor(request: Request, call_next):
 
 @app.post(path="/bot", tags=["Bot"], )
 async def create_chatbot(chatbot: ChatbotRequest, request: Request):
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"this is the start of a new chatbot name: {chatbot.name}")
     try:
         log.info(request.state.__dict__)
         response = await ctr_create_chatbot(chatbot)
-        log.info(f"this is the end, the response go with code:{response.status_code}")
+        log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
         raise Exception(e.args)
@@ -87,6 +90,7 @@ async def create_chatbot(chatbot: ChatbotRequest, request: Request):
 
 @app.get(path="/chat/{bot_id}", tags=["Chat"])
 async def verify(request: Request, bot_id):
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"this is a chatbot verification request: {bot_id}")
     try:
         _bot = await ctr_get_chatbot_from_uuid(bot_id)
@@ -106,7 +110,7 @@ async def verify(request: Request, bot_id):
             if request.query_params.get(HUB_CHALLENGE):
                 return request.query_params[HUB_CHALLENGE], status.HTTP_200_OK
 
-        log.info(f"this is the methods end! it was successful")
+        log.info(f"Ending: {currentframe().f_code.co_name}s")
         return "HTTP_200_OK", status.HTTP_200_OK
     except Exception as e:
         raise Exception(e.args)
@@ -114,6 +118,7 @@ async def verify(request: Request, bot_id):
 
 @app.post(path="/chat/{bot_id}", tags=["Chat"])
 async def message_processor(request: FacebookRequest, bot_id):
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"this is a chatbot verification request: {bot_id}")
     try:
         _bot = await ctr_get_chatbot_from_uuid(bot_id)
@@ -123,6 +128,7 @@ async def message_processor(request: FacebookRequest, bot_id):
 
         asyncio.ensure_future(ctr_process_messages(req=request, _bot_info=bot_id))
 
+        log.info(f"Ending: {currentframe().f_code.co_name}")
         return "HTTP_200_OK", status.HTTP_200_OK
     except Exception as e:
         raise Exception(e.args)
@@ -138,13 +144,17 @@ async def add_whatsapp_phone(bot_id: str, request: ChatbotPhoneRequest):
             return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
 
         response = await ctr_add_phone_chatbot(bot_uuid=bot_id, req=request)
+
+        log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
+        log.error(e.__str__())
         raise Exception(e.args)
 
 
 @app.get(path="/chat/{bot_id}/phones", tags=["Chat"])
 async def get_chatbot_phones(bot_id, req: Request):
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Starting get_chatbot_phones for this chatbot: {bot_id}")
     try:
         _bot = await ctr_get_chatbot_from_uuid(bot_id)
@@ -153,6 +163,8 @@ async def get_chatbot_phones(bot_id, req: Request):
             return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
 
         response = await ctr_get_chatbot_phones(bot_uuid=bot_id, phone_uuid=req.query_params.get("phone.id"))
+
+        log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
         raise Exception(e.args)

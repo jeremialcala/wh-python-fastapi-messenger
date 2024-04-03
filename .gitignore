@@ -108,6 +108,7 @@ venv.bak/
 .certs/
 certs/
 images/
+prototypes/
 config.env
 .log
 env_variables

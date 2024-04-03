@@ -3,6 +3,8 @@ import logging
 from datetime import datetime
 from uuid import uuid4, UUID
 from mongoengine import *
+from inspect import currentframe
+
 from enums import Status
 from .tool_settings import Settings
 from .entity_credentials import Credentials
@@ -32,6 +34,7 @@ class ChatBot(Document):
     statusDate = DateTimeField(required=True, default=datetime.now())
 
     def chatbot_info(self) -> dict:
+        log.info(f"Executing: {currentframe().f_code.co_name}")
         return {
             "uuid": self.uuid,
             "name": self.name,
@@ -42,7 +45,8 @@ class ChatBot(Document):
         }
 
     def generate_verification_token(self):
-        _cred = Credentials()
+        log.info(f"Executing: {currentframe().f_code.co_name}")
+        _cred = Credentials()s
         _cred.set_claims(claim=self.name)
         _cred.set_jwt()
         _cred.jwt.make_signed_token(_cred.key)
@@ -50,4 +54,5 @@ class ChatBot(Document):
 
     @staticmethod
     async def get_chatbot_by_uuid(_uuid: str):
+        log.info(f"Executing: {currentframe().f_code.co_name}")
         return [chatbot for chatbot in ChatBot.objects(uuid=UUID(_uuid))][-1]
