@@ -35,11 +35,15 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str):
                 log.info(f"This is a messenger message")
                 messaging = Messaging(**_entry.messaging[-1])
                 log.info(f"The message is from this sender {messaging.sender.id}")
+
                 contact = await ctr_identify_fb_contact(fbId=messaging.sender.id, _bot=_bot)
+
                 log.debug(f"We found this contact {contact.firstName}")
+
                 """
                     TODO: do we have a conversation with this contact
                 """
+
             case "whatsapp_business_account":
                 """
                     This will handle WhatsApp Messages.
@@ -47,7 +51,11 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str):
                 log.info(f"Product we received: {_entry.change.value.messaging_product}")
                 log.info(_entry.change.value.metadata)
                 log.info(f"The name of the sender: {_entry.change.value.contacts[-1]['profile']}")
-                log.info(f"this is the message: {_entry.change.value.message}")
+                log.debug(f"this is the message: {_entry.change.value.message}")
+
+                """
+                    TODO: need to create a context for each conversation 
+                """
                 # log.info(f"this is the chatbot information {_bot.chatbot_info()}")
                 # asyncio.ensure_future(ctr_send_wa_message(_bot, _entry.change.value))
 
