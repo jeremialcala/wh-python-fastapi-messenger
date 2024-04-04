@@ -23,8 +23,14 @@ class EventAction(Document):
     eventId = UUIDField(required=True)
     operation = StringField()
     method = StringField()
-    step = StringField()
+    step = IntField()
     description = StringField()
+    totalTime = IntField()
     createdAt = DateTimeField(required=True, default=datetime.now())
     status = IntField(required=True, default=Status.REG.value)
     statusDate = DateTimeField(required=True, default=datetime.now())
+
+    @staticmethod
+    def get_event_action_by_uuid(_uuid: UUID):
+        return [action for action in EventAction.objects(uuid=_uuid)][-1]
+

@@ -20,4 +20,3 @@ connect(
 class EventJwk(Document):
     eventId = UUIDField(required=True)
     jwkId = UUIDField(required=True)
-

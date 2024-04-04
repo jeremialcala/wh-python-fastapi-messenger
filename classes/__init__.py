@@ -5,12 +5,14 @@ from .entity_chatbot_phones import ChatbotPhone
 from .entity_contact import Contact
 from .entity_amqp_message import QueueMessage
 from .entity_event import Event
+from .entity_event_action import EventAction
 from .entity_jwk import Jwk
 
 from .dto_chatbot import ChatbotRequest
 from .dto_response import ResponseData
 from .dto_chatbot_phone import ChatbotPhoneRequest
 from .dto_event import EventTransport
+from .dto_message_body import MessageBody
 
 # Let's bring Facebook Objects
 from .dto_facebook_request import FacebookRequest

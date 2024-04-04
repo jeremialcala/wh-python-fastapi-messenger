@@ -41,7 +41,7 @@ class Contact(Document):
 
     @staticmethod
     async def update_whatsapp_id(wa_id: str, _uuid: str, bot_id: str):
-        (Contact.objects(_uuid=_uuid, bot_id=bot_id).update_ones(set__waId=wa_id))
+        (Contact.objects(_uuid=_uuid, bot_id=bot_id).update_one(set__waId=wa_id))
 
     @staticmethod
     async def generate_contact_from_fb(botId: str, fb_info: ProfileInfo):

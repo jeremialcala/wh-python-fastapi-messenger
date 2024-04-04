@@ -31,3 +31,4 @@ class Event(Document):
     async def prepare_event(self):
         ensure_future(Jwk.create_key_for_event(self.uuid))
         self.save()
+

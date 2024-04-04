@@ -1,6 +1,7 @@
 # -*- coding: utf8 -*-
 import logging
 from uuid import uuid4, UUID
+from asyncio import ensure_future
 
 from fastapi import Response, status
 from mongoengine.errors import OperationError
@@ -9,14 +10,25 @@ from inspect import currentframe
 from classes import ChatbotRequest, ChatBot, ChatbotPhone
 from classes import Settings, ResponseData, ChatbotPhoneRequest
 from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
+from .events import ctr_notify_action
 from enums import Status
 settings = Settings()
 log = logging.getLogger(settings.environment)
 
 
 async def ctr_create_chatbot(request: ChatbotRequest, eventId: str = None) -> Response:
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"We are creating this chatbot {request.name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+    _action = uuid4()
+
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
 
     response = Response(
         content=body.json(),
@@ -31,21 +43,33 @@ async def ctr_create_chatbot(request: ChatbotRequest, eventId: str = None) -> Re
         _chatbot.save()
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_chatbot.chatbot_info())
+
     except OperationError as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message=f"This chatbot already exists {request.name}",
                             data=None)
+
     except Exception as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
+
     finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
         response.status_code = body.code
         response.body = body.json(exclude_none=True)
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
-        log.info(f"this is the end, the response go with code:{response.status_code}")
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
         return response
 
 
@@ -54,11 +78,21 @@ async def ctr_get_chatbot_from_uuid(_uuid: str, eventId: str = None) -> Response
     log.info(f"We are looking for this chatbot {_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 
+    _action = uuid4()
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
+
     response = Response(
         content=body.json(),
         status_code=status.HTTP_400_BAD_REQUEST,
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
+
     try:
         _chatbot = await ChatBot().get_chatbot_by_uuid(_uuid)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
@@ -72,6 +106,15 @@ async def ctr_get_chatbot_from_uuid(_uuid: str, eventId: str = None) -> Response
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
     finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
         response.status_code = body.code
         response.body = body.json(exclude_none=True)
         response.headers[CONTENT_LENGTH] = str(len(response.body))
@@ -85,6 +128,15 @@ async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+
+    _action = uuid4()
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
 
     response = Response(
         content=body.json(),
@@ -105,19 +157,36 @@ async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=e.__dict__)
     finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
         response.status_code = body.code
         response.body = body.json(exclude_none=True)
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
-
         log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
         return response
 
 
-async def ctr_get_chatbot_phones(bot_uuid: str, phone_uuid: str | None):
+async def ctr_get_chatbot_phones(bot_uuid: str, phone_uuid: str | None, eventId:str = None):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+
+    _action = uuid4()
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
 
     response = Response(
         content=body.json(),
@@ -142,6 +211,16 @@ async def ctr_get_chatbot_phones(bot_uuid: str, phone_uuid: str | None):
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=e.__str__())
     finally:
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                operation="",
+                method=currentframe().f_code.co_name,
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
         response.status_code = body.code
         response.body = body.json(exclude_none=True)
         response.headers[CONTENT_LENGTH] = str(len(response.body))

@@ -6,6 +6,7 @@ from datetime import datetime
 from uuid import uuid4, UUID
 from mongoengine import *
 from enums import Status, KeyTypes
+
 from .tool_settings import Settings
 from .entity_event_jwk import EventJwk
 
@@ -30,6 +31,22 @@ class Jwk(Document):
     createdAt = DateTimeField(required=True, default=datetime.now())
     status = IntField(required=True, default=Status.REG.value)
     statusDate = DateTimeField(required=True, default=datetime.now())
+
+    def get_jwk(self) -> jwk.JWK:
+        _key = jwk.JWK.from_json(
+            {
+                "kid": str(self.kid),
+                "kty": self.kty,
+                "n": self.n,
+                "e": self.e,
+                "use": self.use,
+                "x5t": self.x5t
+            })
+        return _key
+
+    @staticmethod
+    def get_jwk_from_uuid(kid: UUID):
+        return [_jwk for _jwk in Jwk.objects(kid=kid)][-1]
 
     @staticmethod
     async def create_key_for_event(event_id: UUID) -> UUID:
