@@ -168,3 +168,15 @@ async def get_chatbot_phones(bot_id, req: Request):
         return response
     except Exception as e:
         raise Exception(e.args)
+
+
+@app.get(path="/chat/{bot_id}/info", tags=["Chat"])
+async def get_chatbot_phones(bot_id, req: Request):
+    log.info(f"Starting: {currentframe().f_code.co_name}")
+    log.info(f"Starting get_chatbot_phones for this chatbot: {bot_id}")
+    try:
+        response = await ctr_get_chatbot_from_uuid(bot_id, eventId=req.state.event_id)
+        log.info(f"Ending: {currentframe().f_code.co_name}")
+        return response
+    except Exception as e:
+        raise Exception(e.args)
