@@ -60,9 +60,9 @@ async def interceptor(request: Request, call_next):
     try:
         log.info(request.url.path)
         log.info(request.query_params)
-        asyncio.ensure_future(ctr_create_event(event))
+        # asyncio.ensure_future(ctr_create_event(event))
 
-        request.state.event_id = str(event.uuid)
+        request.state.event_id = None
 
         [log.debug(f"Header! -> {hdr}: {val}") for hdr, val in request.headers.items()]
         response = await call_next(request)
@@ -162,7 +162,7 @@ async def get_chatbot_phones(bot_id, req: Request):
         if _bot.status_code != status.HTTP_200_OK:
             return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
 
-        response = await ctr_get_chatbot_phones(bot_uuid=bot_id, phone_uuid=req.query_params.get("phone.id"))
+        response = await ctr_get_chatbot_phones(bot_uuid=bot_id, environment=req.query_params.get("environment"))
 
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response

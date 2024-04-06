@@ -174,7 +174,7 @@ async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str
         return response
 
 
-async def ctr_get_chatbot_phones(bot_uuid: str, phone_uuid: str | None, eventId:str = None):
+async def ctr_get_chatbot_phones(bot_uuid: str, environment: str | None, eventId: str = None):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
@@ -194,11 +194,11 @@ async def ctr_get_chatbot_phones(bot_uuid: str, phone_uuid: str | None, eventId:
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
     try:
-        match phone_uuid:
+        match environment:
             case None:
                 _phones = [phone.get_phones_info() for phone in ChatbotPhone.objects(bot_id=UUID(bot_uuid))]
             case _:
-                _phones = [phone.get_phones_info() for phone in ChatbotPhone.objects(uuid=UUID(phone_uuid))][-1]
+                _phones = [phone.get_phones_info() for phone in ChatbotPhone.objects(bot_id=UUID(bot_uuid), environment=environment)][-1]
 
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_phones)
