@@ -11,5 +11,3 @@ class ResponseData(BaseModel):
     message: str = Field(default="PROCESS COMPLETED SUCCESSFULLY")
     data: dict | list | object | None = None
     timestamp: datetime = datetime.now()
-
-

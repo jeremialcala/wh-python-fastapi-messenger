@@ -3,17 +3,21 @@ import logging
 from uuid import uuid4, UUID
 from asyncio import ensure_future
 
+from typing import List
 from fastapi import Response, status
 from mongoengine.errors import OperationError
 from inspect import currentframe
 
-from classes import ChatbotRequest, ChatBot, ChatbotPhone
+from classes import ChatbotRequest, ChatBot, ChatbotPhone, Rule, RulesRequest
 from classes import Settings, ResponseData, ChatbotPhoneRequest
 from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
 from .events import ctr_notify_action
 from enums import Status
 settings = Settings()
 log = logging.getLogger(settings.environment)
+B_INST, E_INST = "[INST]", "[/INST]"
+B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
+B_SEN, E_SEN = "<s>", "</s>"
 
 
 async def ctr_create_chatbot(request: ChatbotRequest, eventId: str = None) -> Response:
@@ -217,6 +221,124 @@ async def ctr_get_chatbot_phones(bot_uuid: str, environment: str | None, eventId
                 event_id=UUID(eventId),
                 operation="",
                 method=currentframe().f_code.co_name,
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
+        response.status_code = body.code
+        response.body = body.json(exclude_none=True)
+        response.headers[CONTENT_LENGTH] = str(len(response.body))
+        response.headers[CONTENT_TYPE] = APPLICATION_JSON
+
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
+        return response
+
+
+async def ctr_get_chatbot_rules_from_uuid(_uuid: str, eventId: str = None) -> Response:
+    log.info(f"Starting: {currentframe().f_code.co_name}")
+    log.info(f"We are looking for this chatbot {_uuid}")
+    body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+    rules_size = 0
+    _action = uuid4()
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
+
+    response = Response(
+        content=body.json(),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={CONTENT_TYPE: APPLICATION_JSON}
+    )
+
+    try:
+        _chatbot = [chatbot for chatbot in ChatBot.objects(uuid=UUID(_uuid))][-1]
+        rules = (f"{B_SEN} "
+                 f"{B_SYS} "
+                 f"Tu nombre es {_chatbot.name} "
+                 f"to rol es {_chatbot.role} "
+                 f"el tono de tu conversación es {_chatbot.tone} ")
+
+        body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=None)
+
+        for rule in Rule.objects(botId=UUID(_uuid)):
+            rules += f"{rule.rule} "
+        rules += f" {E_SYS}"
+        body.data = rules
+        log.info(body.json())
+
+    except ValueError as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {_uuid} was not found",
+                            data=None)
+    except Exception as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
+                            data=None)
+    finally:
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
+        response.status_code = body.code
+        response.body = body.json(exclude_none=True)
+        response.headers[CONTENT_LENGTH] = str(len(response.body) + rules_size)
+        response.headers[CONTENT_TYPE] = APPLICATION_JSON
+
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
+        return response
+
+
+async def ctr_create_chatbot_rules(request: RulesRequest, bot_id: str, eventId: str = None) -> Response:
+    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
+
+    body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+    _action = uuid4()
+
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
+
+    response = Response(
+        content=body.json(),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={CONTENT_TYPE: APPLICATION_JSON}
+    )
+
+    try:
+        [log.info(rule) for rule in request.rules]
+        [Rule(uuid=uuid4(), botId=bot_id, rule=rule).save() for rule in request.rules]
+        body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=None)
+
+    except OperationError as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message=f"This chatbot already exists {request.name}",
+                            data=None)
+
+    except Exception as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
+                            data=None)
+
+    finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
                 description=body.json(),
                 status=Status.COM.value
             ))

@@ -4,17 +4,20 @@ import logging.config
 import time
 import asyncio
 
+from starlette.concurrency import iterate_in_threadpool
 from fastapi import FastAPI, Request, Response
 from fastapi import status
 from inspect import currentframe
 from uuid import uuid4
-from classes import Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport
+from classes import (Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport,
+                     RulesRequest)
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
                        CONTACT)
 
 from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_process_messages, ctr_add_phone_chatbot,
-                        ctr_get_chatbot_phones, ctr_create_event)
+                        ctr_get_chatbot_phones, ctr_create_event, ctr_get_chatbot_rules_from_uuid,
+                        ctr_create_chatbot_rules)
 
 from utils import configure_logging
 
@@ -56,22 +59,26 @@ async def interceptor(request: Request, call_next):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
-
+    response_body = b""
     try:
         log.info(request.url.path)
         log.info(request.query_params)
         # asyncio.ensure_future(ctr_create_event(event))
 
         request.state.event_id = None
-
         [log.debug(f"Header! -> {hdr}: {val}") for hdr, val in request.headers.items()]
+
         response = await call_next(request)
+        response_body = [chunk async for chunk in response.body_iterator]
+        response.body_iterator = iterate_in_threadpool(iter(response_body))
+        log.info(f"response_body= {response[0].decode()}")
     except Exception as e:
         log.error(e.__str__())
     finally:
-        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
         process_time = "{:f}".format(time.time() - s_time)
         response.headers[PROCESSING_TIME] = str(process_time)
+        [log.debug(f"Header! -> {hdr}: {val}") for hdr, val in response.headers.items()]
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code} time: {process_time}")
         return response
 
 
@@ -180,3 +187,27 @@ async def get_chatbot_phones(bot_id, req: Request):
         return response
     except Exception as e:
         raise Exception(e.args)
+
+
+@app.get(path="/chat/{bot_id}/rules", tags=["Chat"])
+async def get_chatbot_rules(bot_id, req: Request):
+    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+
+    try:
+        response = await ctr_get_chatbot_rules_from_uuid(bot_id, eventId=req.state.event_id)
+        log.info(f"Ending: {currentframe().f_code.co_name}")
+        return response
+    except Exception as e:
+        raise Exception(e.args)
+
+
+@app.post(path="/chat/{bot_id}/rules", tags=["Chat"])
+async def add_chatbot_rule(bot_id, req: Request, rules: RulesRequest):
+    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+    try:
+        response = await ctr_create_chatbot_rules(request=rules, bot_id=bot_id, eventId=req.state.event_id)
+        log.info(f"Ending: {currentframe().f_code.co_name}")
+        return response
+    except Exception as e:
+        raise Exception(e.args)
+
