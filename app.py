@@ -10,7 +10,7 @@ from fastapi import status
 from inspect import currentframe
 from uuid import uuid4
 from classes import (Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport,
-                     RulesRequest)
+                     RulesRequest, BotResponse)
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
                        CONTACT)
@@ -82,7 +82,7 @@ async def interceptor(request: Request, call_next):
         return response
 
 
-@app.post(path="/bot", tags=["Bot"], )
+@app.post(path="/bot", tags=["Bot"], response_model=BotResponse)
 async def create_chatbot(chatbot: ChatbotRequest, request: Request):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"this is the start of a new chatbot name: {chatbot.name}")
@@ -178,7 +178,7 @@ async def get_chatbot_phones(bot_id, req: Request):
 
 
 @app.get(path="/chat/{bot_id}/info", tags=["Chat"])
-async def get_chatbot_phones(bot_id, req: Request):
+async def get_chatbot_info(bot_id, req: Request):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Starting get_chatbot_phones for this chatbot: {bot_id}")
     try:

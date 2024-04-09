@@ -2,12 +2,12 @@
 import logging
 from datetime import datetime
 from uuid import uuid4, UUID
+
 from mongoengine import *
+
 from enums import Status
-from .tool_settings import Settings
-from .entity_credentials import Credentials
-from .entity_chatbot import ChatBot
 from .dto_facebook_info import ProfileInfo
+from .tool_settings import Settings
 
 settings = Settings()
 log = logging.getLogger(settings.environment)

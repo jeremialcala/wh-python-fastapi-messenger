@@ -39,6 +39,7 @@ class ChatBot(Document):
             "uuid": self.uuid,
             "name": self.name,
             "rol": self.role,
+            "tone": self.tone,
             "verifyToken": self.verifyToken,
             "facebookToken": self.facebookToken,
             "whatsappToken": self.whatsappToken

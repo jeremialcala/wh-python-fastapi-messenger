@@ -10,7 +10,7 @@ from .entity_jwk import Jwk
 from .entity_chatbot_rules import Rule
 
 from .dto_chatbot import ChatbotRequest
-from .dto_response import ResponseData
+from .dto_response import ResponseData, BotResponse
 from .dto_chatbot_phone import ChatbotPhoneRequest
 from .dto_event import EventTransport
 from .dto_message_body import MessageBody
