@@ -50,13 +50,14 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                 contact = await ctr_identify_fb_contact(fbId=messaging.sender.id, _bot=_bot)
 
                 log.debug(f"We found this contact {contact.firstName}")
-
-                body = MessageBody(
-                    botId=str(_bot.uuid),
-                    type=req.object,
-                    contact={"name": contact.firstName, "fbId": contact.fbId},
-                    message=_entry.messaging[-1]
-                )
+                log.info(f"{messaging.message}")
+                if "is_echo" not in messaging.message:
+                    body = MessageBody(
+                        botId=str(_bot.uuid),
+                        type=req.object,
+                        contact={"name": contact.firstName, "fbId": contact.fbId},
+                        message=_entry.messaging[-1]
+                    )
 
                 """
                     TODO: do we have a conversation with this contact                    
@@ -83,7 +84,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                     botId=str(_bot.uuid),
                     type=req.object,
                     contact={"name": contact.firstName, "waId": contact.waId},
-                    message=_entry.change.value.message
+                    message=_entry.change.value
                 )
                 log.info(body.json())
 
@@ -146,4 +147,3 @@ async def ctr_send_wa_message(_bot: ChatBot, msg: Value):
         log.info(response.json())
     except Exception as e:
         log.error(e.__str__())
-

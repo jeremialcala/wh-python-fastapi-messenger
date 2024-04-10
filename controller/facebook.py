@@ -1,18 +1,14 @@
 # -*- coding: utf8 -*-
-import json
 import logging
 from asyncio import ensure_future
-import requests
+from inspect import currentframe
 from uuid import uuid4, UUID
 
-from inspect import currentframe
+import requests
+from fastapi import status
 
-from fastapi import Response, status
-from mongoengine.errors import OperationError
-
-from classes import ChatbotRequest, ChatBot, ChatbotPhone, Contact, ProfileInfo
-from classes import Settings, FacebookRequest, Entry, Changes, Value, Messaging
-from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
+from classes import ChatBot, Contact, ProfileInfo
+from classes import Settings
 from enums import Status
 from .events import ctr_notify_action
 
@@ -20,7 +16,7 @@ settings = Settings()
 log = logging.getLogger(settings.environment)
 
 
-async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot, eventId: str=None) -> Contact:
+async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot, eventId: str = None) -> Contact:
     """
 
     :param fb_id:
@@ -73,7 +69,7 @@ async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot, eventId: s
         log.error(e.__str__())
 
 
-async def ctr_identify_fb_contact(fbId: str, _bot: ChatBot, eventId: str=None) -> Contact:
+async def ctr_identify_fb_contact(fbId: str, _bot: ChatBot, eventId: str = None) -> Contact:
     """
 
     :param fbId:
@@ -183,4 +179,3 @@ async def ctr_identify_contact_by_wa_id(wa_id: str, name: str, _bot: ChatBot, ev
             ))
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return contact
-
