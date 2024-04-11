@@ -84,7 +84,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                     botId=str(_bot.uuid),
                     type=req.object,
                     contact={"name": contact.firstName, "waId": contact.waId},
-                    message=_entry.change.value
+                    message=_entry.change.value.dict
                 )
                 log.info(body.json())
 
