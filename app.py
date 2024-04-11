@@ -69,8 +69,7 @@ async def interceptor(request: Request, call_next):
         [log.debug(f"Header! -> {hdr}: {val}") for hdr, val in request.headers.items()]
 
         response = await call_next(request)
-        response_body = [chunk async for chunk in response.body_iterator]
-        response.body_iterator = iterate_in_threadpool(iter(response_body))
+
         log.info(f"response_body= {response[0].decode()}")
     except Exception as e:
         log.error(e.__str__())

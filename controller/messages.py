@@ -84,7 +84,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                     botId=str(_bot.uuid),
                     type=req.object,
                     contact={"name": contact.firstName, "waId": contact.waId},
-                    message=_entry.change.value.dict
+                    message=_entry.change.value.__dict__
                 )
                 log.info(body.json())
 
@@ -93,7 +93,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                 eventId=eventId,
                 jwe_body=body.__dict__
             )
-            q_message.set_jwe_body(body)
+            # q_message.set_jwe_body(body)
             ensure_future(send_message_to_queue(queue="llm", message=q_message))
 
         if eventId is not None:
