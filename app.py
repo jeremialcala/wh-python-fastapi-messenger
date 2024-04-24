@@ -59,7 +59,7 @@ async def interceptor(request: Request, call_next):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
-    response_body = b""
+
     try:
         log.info(request.url.path)
         log.info(request.query_params)
