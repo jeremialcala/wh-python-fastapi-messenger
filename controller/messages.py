@@ -31,6 +31,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                 status=Status.ACT.value,
                 method=currentframe().f_code.co_name
             ))
+
         log.debug(req.json())
         _entry = Entry(**req.entry[-1])
         log.info(f"EntryId: {_entry.id}")
@@ -78,6 +79,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                     _bot=_bot,
                     eventId=eventId
                 )
+
                 log.debug(f"We found this contact {contact.firstName}")
 
                 body = MessageBody(
@@ -86,6 +88,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                     contact={"name": contact.firstName, "waId": contact.waId},
                     message=_entry.change.value.__dict__
                 )
+
                 log.info(body.json())
 
         if body is not None:
