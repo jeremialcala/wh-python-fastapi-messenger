@@ -8,3 +8,4 @@ class Status(Enum):
     DIS = 3  # Disable
     OVR = 4  # Overdue
     ERR = 5  # Error
+    COM = 6  # Completed
