@@ -59,7 +59,7 @@ async def interceptor(request: Request, call_next):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
-    response_body = b""
+
     try:
         log.info(request.url.path)
         log.info(request.query_params)
@@ -69,8 +69,7 @@ async def interceptor(request: Request, call_next):
         [log.debug(f"Header! -> {hdr}: {val}") for hdr, val in request.headers.items()]
 
         response = await call_next(request)
-        response_body = [chunk async for chunk in response.body_iterator]
-        response.body_iterator = iterate_in_threadpool(iter(response_body))
+
         log.info(f"response_body= {response[0].decode()}")
     except Exception as e:
         log.error(e.__str__())
@@ -79,7 +78,7 @@ async def interceptor(request: Request, call_next):
         response.headers[PROCESSING_TIME] = str(process_time)
         [log.debug(f"Header! -> {hdr}: {val}") for hdr, val in response.headers.items()]
         log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code} time: {process_time}")
-        return response
+    return response
 
 
 @app.post(path="/bot", tags=["Bot"], response_model=BotResponse)

@@ -16,4 +16,3 @@ class ChatbotRequest(BaseModel):
     role: str = Field(default=choice(["Sales Assistant", "Office Assistant", "Tech Support"]), examples=["Sales Assistant", "Office Assistant", "Tech Support"])
     description: str = Field(default=["Please ensure that your responses are socially unbiased and positive in nature."])
     tone: str = Field(default=choice(["helpful", "respectful", "honest"]))
-    state: dict | None = Field(default=None)
