@@ -27,6 +27,7 @@ class Contact(Document):
     profilePic = URLField()
     fbId = StringField()
     waId = StringField()
+    isAdmin = BooleanField(default=False)
     createdAt = DateTimeField(required=True, default=datetime.now())
     status = IntField(required=True, default=Status.REG.value)
     statusDate = DateTimeField(required=True, default=datetime.now())

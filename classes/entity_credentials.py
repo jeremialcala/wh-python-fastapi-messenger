@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 import logging
+import json
 from jwcrypto import jwk, jwt
 from datetime import datetime
 from uuid import uuid4, UUID
 from mongoengine import *
 from enums import Status
+from inspect import currentframe
 from .tool_settings import Settings
 
 
@@ -27,7 +29,7 @@ class Credentials(Document):
     uuid = UUIDField(required=True, unique=True, default=uuid4())
     _header = DictField(required=True, default={"alg": "HS256"})
     _claims = DictField()
-    _key = DictField(default=jwk.JWK(generate='oct', size=256).export_symmetric())
+    _key = StringField(default=jwk.JWK(generate='oct', size=256).export_symmetric())
     jwt = StringField()
 
     @property
@@ -38,8 +40,8 @@ class Credentials(Document):
         self._header = {"alg": alg}
 
     def set_claims(self, claim):
+        log.info(f"executing: {currentframe().f_code.co_name}")
         self._claims = {"info": claim}
 
     def set_jwt(self):
         self.jwt = jwt.JWT(header=self._header, claims=self._claims)
-        self.save()

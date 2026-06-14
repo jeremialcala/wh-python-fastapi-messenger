@@ -31,6 +31,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                 status=Status.ACT.value,
                 method=currentframe().f_code.co_name
             ))
+
         log.debug(req.json())
         _entry = Entry(**req.entry[-1])
         log.info(f"EntryId: {_entry.id}")
@@ -50,13 +51,14 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                 contact = await ctr_identify_fb_contact(fbId=messaging.sender.id, _bot=_bot)
 
                 log.debug(f"We found this contact {contact.firstName}")
-
-                body = MessageBody(
-                    botId=str(_bot.uuid),
-                    type=req.object,
-                    contact={"name": contact.firstName, "fbId": contact.fbId},
-                    message=_entry.messaging[-1]
-                )
+                log.info(f"{messaging.message}")
+                if "is_echo" not in messaging.message:
+                    body = MessageBody(
+                        botId=str(_bot.uuid),
+                        type=req.object,
+                        contact={"name": contact.firstName, "fbId": contact.fbId},
+                        message=_entry.messaging[-1]
+                    )
 
                 """
                     TODO: do we have a conversation with this contact                    
@@ -77,14 +79,16 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                     _bot=_bot,
                     eventId=eventId
                 )
+
                 log.debug(f"We found this contact {contact.firstName}")
 
                 body = MessageBody(
                     botId=str(_bot.uuid),
                     type=req.object,
                     contact={"name": contact.firstName, "waId": contact.waId},
-                    message=_entry.change.value.message
+                    message=_entry.change.value.__dict__
                 )
+
                 log.info(body.json())
 
         if body is not None:
@@ -92,7 +96,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                 eventId=eventId,
                 jwe_body=body.__dict__
             )
-            q_message.set_jwe_body(body)
+            # q_message.set_jwe_body(body)
             ensure_future(send_message_to_queue(queue="llm", message=q_message))
 
         if eventId is not None:
@@ -146,4 +150,3 @@ async def ctr_send_wa_message(_bot: ChatBot, msg: Value):
         log.info(response.json())
     except Exception as e:
         log.error(e.__str__())
-

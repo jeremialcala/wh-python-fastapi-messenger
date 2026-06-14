@@ -13,7 +13,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt --break-system-packages
 COPY . ./
 
 CMD ["uvicorn", "app:app","--host", "0.0.0.0", "--port", "5002", "--workers", "4"]

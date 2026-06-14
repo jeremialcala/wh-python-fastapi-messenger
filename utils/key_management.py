@@ -12,6 +12,7 @@ from classes import Settings
 settings = Settings()
 log = logging.getLogger(settings.environment)
 
+
 def get_private_key_pem(_uuid: str):
     with open(settings.private_key_filename.format(UUID=_uuid), "r") as key:
         pem_data = key.read()
