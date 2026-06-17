@@ -1,4 +1,4 @@
-FROM python:latest
+FROM python:3.12
 LABEL authors="Jeremi"
 RUN mkdir /usr/src/app
 RUN mkdir /usr/src/app/certs
