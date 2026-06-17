@@ -1,7 +1,7 @@
 """
     This is a test Module for the status code
 """
-from enums import Status
+from src.domain.enums import Status
 
 
 def test_status_codes():

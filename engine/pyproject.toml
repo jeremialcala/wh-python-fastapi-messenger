@@ -1,0 +1,17 @@
+# Configuración de herramientas de calidad.
+# pylint se configura aquí (y no en tox.ini) para evitar la colisión de
+# secciones INI entre las claves de tox/testenv y las de pylint.
+
+[tool.pylint.main]
+ignore = ["test"]
+
+[tool.pylint."messages control"]
+# Desactiva la categoría "refactor" (R): too-few-public-methods (interfaces/puertos),
+# too-many-arguments, etc., esperables en esta arquitectura por capas.
+disable = ["R"]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.reports]
+reports = false

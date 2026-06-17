@@ -1,7 +1,7 @@
 """
     This is test module for enums/Response
 """
-from enums import ResponseCodes
+from src.domain.enums import ResponseCodes
 
 
 def test_response_codes():

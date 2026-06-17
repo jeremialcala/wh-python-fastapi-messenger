@@ -26,6 +26,15 @@ cryptography==42.0.8
 cffi==1.16.0
 pycparser==2.22
 
+# AI engine (Ollama) — detección de intención
+ollama==0.3.3
+
+# AI safety layer (NVIDIA NeMo Guardrails)
+# Nota: arrastra 'annoy', que requiere un compilador C++ para construirse.
+# En la imagen Docker (Linux) compila con build-essential; en Windows usar
+# Docker/WSL para el desarrollo y los tests.
+nemoguardrails==0.22.0
+
 # ============================================================
 #  Development / Testing  (used by tox.ini)
 # ============================================================
