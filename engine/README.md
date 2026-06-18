@@ -17,7 +17,7 @@ El servicio consume webhooks crudos de Meta desde una cola de **RabbitMQ (AMQP)*
 
 ## Pipeline
 
-```
+```text
 [RabbitMQ: cola de entrada]
         │
         ▼
@@ -52,7 +52,7 @@ La orquestación vive en [`ProcesarMensajeUseCase`](src/application/procesar_men
 
 ## Estructura
 
-```
+```text
 main.py                              # entrypoint; delega en presentation
 src/
 ├── domain/
