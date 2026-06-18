@@ -7,19 +7,13 @@ import json
 from typing import Any, Union
 
 from src.domain.models import MensajeEntrante
-from src.domain.ports import WebhookParser
+from src.domain.ports import MessageNormalizer, OrigenNoSoportado, WebhookParser
 from .messenger import MessengerParser
 from .whatsapp import WhatsAppParser
 from .instagram import InstagramParser
 
 
-class OrigenNoSoportado(ValueError):
-    """
-        Se lanza cuando ningún parser registrado soporta el payload recibido.
-    """
-
-
-class WebhookResolver:
+class WebhookResolver(MessageNormalizer):
     """
         Identificador de origen (Messenger / WhatsApp / Instagram). Recorre los
         parsers registrados y delega en el primero que soporte el payload.

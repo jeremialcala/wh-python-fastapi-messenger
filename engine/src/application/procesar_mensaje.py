@@ -14,8 +14,9 @@ from inspect import currentframe
 
 from src.domain.enums import TipoRespuesta
 from src.domain.models import MensajeEntrante, ResultadoClasificado
-from src.domain.ports import GuardrailsPolicy, IntentEngine, MessagePublisher
-from src.infrastructure.adapters import WebhookResolver, OrigenNoSoportado
+from src.domain.ports import (
+    GuardrailsPolicy, IntentEngine, MessageNormalizer, MessagePublisher, OrigenNoSoportado
+)
 from src.infrastructure.shared import (
     STARTING_AT, ENDING_AT, enmascarar,
     AUDIT_RECIBIDO, AUDIT_BLOQUEADO, AUDIT_INTENCION, AUDIT_PUBLICADO,
@@ -30,7 +31,7 @@ class ProcesarMensajeUseCase:
         resultado clasificado. Registra auditoría con PII enmascarada (SOC2).
     """
 
-    def __init__(self, resolver: WebhookResolver, guardrails: GuardrailsPolicy,
+    def __init__(self, resolver: MessageNormalizer, guardrails: GuardrailsPolicy,
                  intent_engine: IntentEngine, publisher: MessagePublisher):
         self._resolver = resolver
         self._guardrails = guardrails
