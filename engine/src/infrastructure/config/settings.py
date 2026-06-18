@@ -1,7 +1,13 @@
 """
     This is a Pydantic Settings file, we use it for config files and some other variables.
 """
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Ruta por defecto a la config de guardrails, derivada de la ubicación de este
+# módulo para que no dependa del directorio de trabajo del proceso.
+_DEFAULT_GUARDRAILS_PATH = str(Path(__file__).resolve().parent.parent / "guardrails" / "config")
 
 
 class Settings(BaseSettings):
@@ -16,7 +22,7 @@ class Settings(BaseSettings):
     db_password: str
 
     qms_server: str
-    qms_port: str
+    qms_port: int
 
     qms_user: str
     qms_password: str
@@ -35,7 +41,7 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.1"
 
     # --- NeMo Guardrails ---
-    guardrails_config_path: str = "src/infrastructure/guardrails/config"
+    guardrails_config_path: str = _DEFAULT_GUARDRAILS_PATH
 
     key_size: int
     private_key_filename: str

@@ -46,11 +46,14 @@ class WhatsAppParser(WebhookParser):
             media = mensaje.get(tipo) or {}
             # WhatsApp incluye 'caption' en imágenes/vídeos/documentos.
             texto = sanitizar_texto(media.get("caption", ""))
-            adjuntos.append(Adjunto(
-                tipo=tipo,
-                url_o_id=sanitizar_id(media.get("id")),
-                mime_type=media.get("mime_type"),
-            ))
+            media_id = sanitizar_id(media.get("id"))
+            # Solo se adjunta si hay un media-id usable para descargar el archivo.
+            if media_id:
+                adjuntos.append(Adjunto(
+                    tipo=tipo,
+                    url_o_id=media_id,
+                    mime_type=media.get("mime_type"),
+                ))
         else:
             # interactive, location, contacts, etc.: se preserva el texto si lo hay.
             texto = sanitizar_texto((mensaje.get("text") or {}).get("body", ""))
@@ -72,9 +75,14 @@ class WhatsAppParser(WebhookParser):
             Ignora cambios que solo traen `statuses` (entregado/leído).
         """
         for entry in payload.get("entry", []) or []:
+            if not isinstance(entry, dict):
+                continue
             for change in entry.get("changes", []) or []:
-                mensajes = (change.get("value") or {}).get("messages") or []
-                if mensajes:
+                if not isinstance(change, dict):
+                    continue
+                valor = change.get("value")
+                mensajes = (valor.get("messages") if isinstance(valor, dict) else None) or []
+                if mensajes and isinstance(mensajes[0], dict):
                     return mensajes[0]
         return None
 

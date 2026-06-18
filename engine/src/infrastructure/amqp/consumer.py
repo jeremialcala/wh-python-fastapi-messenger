@@ -30,7 +30,7 @@ def get_amqp_connection_parameters(host=_set.qms_server, port=_set.qms_port):
     log.info(STARTING_AT, currentframe().f_code.co_name)
     credentials = pika.credentials.PlainCredentials(username=_set.qms_user,
                                                     password=_set.qms_password)
-    conn_parameters = pika.ConnectionParameters(host=host, port=port,
+    conn_parameters = pika.ConnectionParameters(host=host, port=int(port),
                                                 credentials=credentials)
     log.info(ENDING_AT, currentframe().f_code.co_name)
     return conn_parameters
@@ -44,6 +44,17 @@ def ack_message(channel, delivery_tag) -> None:
     log.info(STARTING_AT, currentframe().f_code.co_name)
     if channel.is_open:
         channel.basic_ack(delivery_tag)
+    log.info(ENDING_AT, currentframe().f_code.co_name)
+
+
+def nack_message(channel, delivery_tag) -> None:
+    """
+        Rechaza un mensaje (sin reencolar) para que sea descartado o enrutado a
+        una dead-letter queue. Debe usar el mismo canal del que se recibió.
+    """
+    log.info(STARTING_AT, currentframe().f_code.co_name)
+    if channel.is_open:
+        channel.basic_nack(delivery_tag, requeue=False)
     log.info(ENDING_AT, currentframe().f_code.co_name)
 
 
@@ -71,18 +82,20 @@ class AmqpConsumer:
         log.info(STARTING_AT, currentframe().f_code.co_name)
         threads: list[threading.Thread] = []
         connection = pika.BlockingConnection(self._params)
+        try:
+            channel = connection.channel()
+            channel.queue_declare(queue=queue, auto_delete=False, durable=False)
+            channel.queue_bind(queue=queue, exchange=exchange, routing_key=routing_key)
+            channel.basic_qos(prefetch_count=1)
 
-        channel = connection.channel()
-        channel.queue_declare(queue=queue, auto_delete=False, durable=False)
-        channel.queue_bind(queue=queue, exchange=exchange, routing_key=routing_key)
-        channel.basic_qos(prefetch_count=1)
-
-        on_message_callback = functools.partial(self._on_message, args=(connection, threads))
-        channel.basic_consume(queue=queue, on_message_callback=on_message_callback)
-        channel.start_consuming()
-
-        for thread in threads:
-            thread.join()
+            on_message_callback = functools.partial(self._on_message, args=(connection, threads))
+            channel.basic_consume(queue=queue, on_message_callback=on_message_callback)
+            channel.start_consuming()
+        finally:
+            for thread in threads:
+                thread.join()
+            if connection.is_open:
+                connection.close()
         log.info(ENDING_AT, currentframe().f_code.co_name)
 
     def _on_message(self, channel: Channel, method_frame, _header_frame, body, args) -> None:
@@ -91,6 +104,8 @@ class AmqpConsumer:
         """
         log.info(STARTING_AT, currentframe().f_code.co_name)
         (_connection, _threads) = args
+        # Limpia referencias a hilos ya terminados para acotar el crecimiento.
+        _threads[:] = [thread for thread in _threads if thread.is_alive()]
         t = threading.Thread(
             target=self._execute,
             args=(_connection, channel, method_frame.delivery_tag, body)
@@ -101,16 +116,18 @@ class AmqpConsumer:
 
     def _execute(self, connection, channel, delivery_tag, body) -> None:
         """
-            Ejecuta el handler en el hilo y confirma el mensaje (ACK threadsafe).
+            Ejecuta el handler en el hilo. Confirma (ACK) el mensaje solo si el
+            handler termina con éxito; en caso de error lo rechaza (NACK) para
+            descarte o dead-lettering. El (n)ack se hace de forma threadsafe.
         """
         log.info(STARTING_AT, currentframe().f_code.co_name)
         thread_id = threading.get_ident()
         log.info('Thread id: %s Delivery tag: %s', thread_id, delivery_tag)
         try:
             self._handler(body)
+            cb = functools.partial(ack_message, channel, delivery_tag)
         except Exception:  # pylint: disable=broad-except
             log.exception("Error procesando mensaje delivery_tag=%s", delivery_tag)
-        finally:
-            cb = functools.partial(ack_message, channel, delivery_tag)
-            connection.add_callback_threadsafe(cb)
+            cb = functools.partial(nack_message, channel, delivery_tag)
+        connection.add_callback_threadsafe(cb)
         log.info(ENDING_AT, currentframe().f_code.co_name)

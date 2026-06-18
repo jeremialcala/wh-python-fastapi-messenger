@@ -55,11 +55,20 @@ class MessagingStyleParser(WebhookParser):
     @staticmethod
     def _primer_evento(payload: dict[str, Any]) -> dict[str, Any] | None:
         """
-            Devuelve el primer evento de `messaging` que contenga un `message`.
+            Devuelve el primer evento de `messaging` que sea un mensaje válido,
+            es decir, que tenga `message` con `mid` y un `sender.id`. Si el primer
+            evento no es válido, sigue buscando en el resto (webhooks por lotes).
         """
         for entry in payload.get("entry", []) or []:
+            if not isinstance(entry, dict):
+                continue
             for evento in entry.get("messaging", []) or []:
-                if evento.get("message"):
+                if not isinstance(evento, dict):
+                    continue
+                mensaje = evento.get("message")
+                if not isinstance(mensaje, dict) or not mensaje.get("mid"):
+                    continue
+                if (evento.get("sender") or {}).get("id"):
                     return evento
         return None
 

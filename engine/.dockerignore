@@ -15,3 +15,10 @@ dep_install.log
 .idea
 images
 prototypes
+
+# Secrets / credenciales: nunca deben entrar en las capas de la imagen.
+config.env
+*.env
+certs
+*.pem
+*.key

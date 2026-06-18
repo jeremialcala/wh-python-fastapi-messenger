@@ -24,6 +24,7 @@ def test_send_message_to_queue_publica():
         channel.queue_declare.assert_called_once_with(queue="q")
         channel.basic_publish.assert_called_once_with(
             exchange="ex", routing_key="rk", body="payload")
+        mock_conn.return_value.close.assert_called_once()
 
 
 def test_amqp_publisher_serializa_resultado():
@@ -42,3 +43,4 @@ def test_amqp_publisher_serializa_resultado():
         _, kwargs = channel.basic_publish.call_args
         assert kwargs["routing_key"] == "out.rk"
         assert '"mensaje_id":"m1"' in kwargs["body"].replace(" ", "")
+        mock_conn.return_value.close.assert_called_once()

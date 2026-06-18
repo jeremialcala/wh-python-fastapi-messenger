@@ -60,9 +60,12 @@ class OllamaIntentEngine(IntentEngine):
     """
 
     def __init__(self, host: str, model: str, client: Client | None = None,
-                 system_prompt: str | None = None, user_template: str | None = None):
+                 system_prompt: str | None = None, user_template: str | None = None,
+                 timeout_s: float = 15):
         self._model = model
-        self._client = client or Client(host=host)
+        # El timeout se fija en el cliente (ollama lo propaga a httpx) para
+        # evitar que una llamada colgada bloquee el hilo de procesamiento.
+        self._client = client or Client(host=host, timeout=timeout_s)
         self._system_prompt = system_prompt or SYSTEM_PROMPT
         self._user_template = user_template or USER_TEMPLATE
 

@@ -15,4 +15,10 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt --break-system-packages
 COPY . ./
 
+# Ejecutar como usuario no-root (seguridad). Necesita escribir application.log
+# en el directorio de trabajo, por eso se le asigna la propiedad.
+RUN useradd --create-home --uid 10001 appuser \
+    && chown -R appuser:appuser /usr/src/app
+USER appuser
+
 CMD ["python", "main.py"]

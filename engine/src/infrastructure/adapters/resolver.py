@@ -20,11 +20,10 @@ class WebhookResolver(MessageNormalizer):
     """
 
     def __init__(self, parsers: list[WebhookParser] | None = None):
-        self._parsers = parsers or [
-            MessengerParser(),
-            WhatsAppParser(),
-            InstagramParser(),
-        ]
+        # `is None` (no `or`) para permitir pasar explícitamente una lista vacía.
+        if parsers is None:
+            parsers = [MessengerParser(), WhatsAppParser(), InstagramParser()]
+        self._parsers = parsers
 
     def parsear(self, raw: Union[bytes, str, dict[str, Any]]) -> MensajeEntrante:
         """

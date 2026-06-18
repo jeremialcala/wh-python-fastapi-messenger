@@ -30,10 +30,13 @@ def send_message_to_queue(queue: str, routing_key: str, message,
     connection = pika.BlockingConnection(
         connection_parameters or get_amqp_connection_parameters()
     )
-    channel = connection.channel()
-    channel.queue_declare(queue=queue)
-    channel.basic_publish(exchange=exchange, routing_key=routing_key, body=message)
-    connection.close()
+    try:
+        channel = connection.channel()
+        channel.queue_declare(queue=queue)
+        channel.basic_publish(exchange=exchange, routing_key=routing_key, body=message)
+    finally:
+        if connection.is_open:
+            connection.close()
     log.info(ENDING_AT, currentframe().f_code.co_name)
 
 
