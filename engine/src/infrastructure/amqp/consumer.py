@@ -92,8 +92,16 @@ class AmqpConsumer:
             channel.basic_consume(queue=queue, on_message_callback=on_message_callback)
             channel.start_consuming()
         finally:
+            # Give each worker thread a bounded time to finish to avoid
+            # hanging shutdowns if a thread becomes unresponsive.
+            join_timeout = 5  # seconds per thread
             for thread in threads:
-                thread.join()
+                thread.join(timeout=join_timeout)
+                if thread.is_alive():
+                    log.warning(
+                        "Worker thread %s (ident=%s) failed to terminate within %s seconds",
+                        getattr(thread, "name", None), getattr(thread, "ident", None), join_timeout
+                    )
             if connection.is_open:
                 connection.close()
         log.info(ENDING_AT, currentframe().f_code.co_name)
