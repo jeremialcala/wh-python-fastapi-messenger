@@ -15,10 +15,12 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt --break-system-packages
 COPY . ./
 
-# Ejecutar como usuario no-root (seguridad). Necesita escribir application.log
-# en el directorio de trabajo, por eso se le asigna la propiedad.
+# Ejecutar como usuario no-root (seguridad). El código fuente queda de solo
+# lectura (propiedad de root); solo el directorio de logs es escribible por el
+# usuario de runtime, que es lo único que la app necesita escribir.
 RUN useradd --create-home --uid 10001 appuser \
-    && chown -R appuser:appuser /usr/src/app
+    && mkdir -p /usr/src/app/logs \
+    && chown -R appuser:appuser /usr/src/app/logs
 USER appuser
 
 CMD ["python", "main.py"]
