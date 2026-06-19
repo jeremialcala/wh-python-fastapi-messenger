@@ -104,6 +104,42 @@ def fixture_whatsapp_payload():
     }
 
 
+@pytest.fixture(name="whatsapp_envelope_payload")
+def fixture_whatsapp_envelope_payload():
+    """Sobre custom (mensaje ya desencriptado y persistido) con jwe_body.message."""
+    return {
+        "_uuid": {"$uuid": "7b646bdfbb4b4199bf5991f57fa3a1ad"},
+        "jwe_body": {
+            "botId": "088e4866-55cc-4a7b-8816-79e3ed8bac56",
+            "type": "whatsapp_business_account",
+            "contact": {"name": "Jeremi Alcala", "waId": "584127733522"},
+            "message": {
+                "messaging_product": "whatsapp",
+                "metadata": [
+                    ["display_phone_number", "584242042403"],
+                    ["phone_number_id", "1213746745147852"],
+                ],
+                "contacts": [{
+                    "profile": {"name": "Jeremi Alcala"},
+                    "wa_id": "584127733522",
+                    "user_id": "VE.1414757914006274",
+                }],
+                "messages": [{
+                    "from": "584127733522",
+                    "from_user_id": "VE.1414757914006274",
+                    "id": "wamid.HBgMNTg0MTI3NzMzNTIyFQIAEhgWM0VCMDVBN0I0OEU0MzE2NDQwRjEyMgA=",
+                    "timestamp": "1781831809",
+                    "text": {"body": "Que pasa"},
+                    "type": "text",
+                }],
+            },
+        },
+        "createdAt": {"$date": 1781831801534},
+        "status": 0,
+        "statusDate": {"$date": 1781831801534},
+    }
+
+
 @pytest.fixture(name="whatsapp_image_payload")
 def fixture_whatsapp_image_payload():
     """Webhook de WhatsApp con un adjunto de imagen."""

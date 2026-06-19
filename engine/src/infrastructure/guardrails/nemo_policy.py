@@ -23,6 +23,20 @@ os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 SENTINEL_BLOQUEO = "GUARDRAIL_BLOQUEADO"
 
 
+def _openai_compat_url(host: str) -> str:
+    """
+        NeMo 0.22 trata todos los engines como OpenAI-compatibles: su cliente
+        postea a `{base_url}/chat/completions`. Para hablar con Ollama hay que
+        apuntar a su API OpenAI-compat, cuyo prefijo es `/v1`. El IntentEngine,
+        en cambio, usa el cliente nativo de Ollama (`/api/chat`) sobre el host
+        pelado, por eso la transformación vive aquí y no en Settings.
+    """
+    base = host.rstrip("/")
+    if base.endswith("/v1"):
+        return base
+    return f"{base}/v1"
+
+
 class NeMoGuardrailsPolicy(GuardrailsPolicy):
     """
         Política de guardrails basada en NeMo. Carga la configuración del
@@ -51,7 +65,7 @@ class NeMoGuardrailsPolicy(GuardrailsPolicy):
         yaml_content = (
             yaml_content
             .replace("${OLLAMA_MODEL}", self._ollama_model)
-            .replace("${OLLAMA_BASE_URL}", self._ollama_base_url)
+            .replace("${OLLAMA_BASE_URL}", _openai_compat_url(self._ollama_base_url))
         )
         colang_content = (base / "rails.co").read_text(encoding="utf-8")
 

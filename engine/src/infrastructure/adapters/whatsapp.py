@@ -5,6 +5,10 @@
     Estructura: entry[].changes[].value.messages[] con `type` indicando el
     contenido (text, image, audio, video, document, ...).
     Ref: https://developers.facebook.com/documentation/business-messaging/whatsapp/calling
+
+    También admite un sobre custom usado aguas arriba (mensaje ya desencriptado y
+    persistido), con la forma { "jwe_body": { "type": "whatsapp_business_account",
+    "message": { "messages": [...] } } }.
 """
 from datetime import datetime, timezone
 from typing import Any
@@ -24,7 +28,14 @@ class WhatsAppParser(WebhookParser):
     """
 
     def soporta(self, payload: dict[str, Any]) -> bool:
-        return isinstance(payload, dict) and payload.get("object") == "whatsapp_business_account"
+        if not isinstance(payload, dict):
+            return False
+        # Webhook estándar de la Cloud API.
+        if payload.get("object") == "whatsapp_business_account":
+            return True
+        # Sobre custom: { "jwe_body": { "type": "whatsapp_business_account", ... } }.
+        jwe = payload.get("jwe_body")
+        return isinstance(jwe, dict) and jwe.get("type") == "whatsapp_business_account"
 
     def parsear(self, payload: dict[str, Any]) -> MensajeEntrante:
         mensaje = self._primer_mensaje(payload)
@@ -68,10 +79,14 @@ class WhatsAppParser(WebhookParser):
             raw=mensaje,
         )
 
-    @staticmethod
-    def _primer_mensaje(payload: dict[str, Any]) -> dict[str, Any] | None:
+    @classmethod
+    def _primer_mensaje(cls, payload: dict[str, Any]) -> dict[str, Any] | None:
         """
-            Devuelve el primer mensaje en entry[].changes[].value.messages[].
+            Devuelve el primer mensaje, soportando dos envolturas:
+
+            - Webhook estándar Cloud API: entry[].changes[].value.messages[].
+            - Sobre custom:               jwe_body.message.messages[].
+
             Ignora cambios que solo traen `statuses` (entregado/leído).
         """
         for entry in payload.get("entry", []) or []:
@@ -81,9 +96,20 @@ class WhatsAppParser(WebhookParser):
                 if not isinstance(change, dict):
                     continue
                 valor = change.get("value")
-                mensajes = (valor.get("messages") if isinstance(valor, dict) else None) or []
-                if mensajes and isinstance(mensajes[0], dict):
-                    return mensajes[0]
+                mensaje = cls._extraer_mensaje(valor)
+                if mensaje is not None:
+                    return mensaje
+        jwe = payload.get("jwe_body")
+        if isinstance(jwe, dict):
+            return cls._extraer_mensaje(jwe.get("message"))
+        return None
+
+    @staticmethod
+    def _extraer_mensaje(valor: Any) -> dict[str, Any] | None:
+        """Devuelve el primer `messages[]` de un contenedor `value`/`message`."""
+        mensajes = (valor.get("messages") if isinstance(valor, dict) else None) or []
+        if mensajes and isinstance(mensajes[0], dict):
+            return mensajes[0]
         return None
 
     @staticmethod

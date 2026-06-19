@@ -38,6 +38,15 @@ def test_whatsapp_texto(whatsapp_payload):
     assert msg.texto == "Quiero información"
 
 
+def test_whatsapp_sobre_custom(whatsapp_envelope_payload):
+    """Sobre custom (jwe_body.message) -> origen WHATSAPP y body extraído."""
+    msg = WebhookResolver().parsear(whatsapp_envelope_payload)
+    assert msg.origen == Origen.WHATSAPP
+    assert msg.remitente == "584127733522"
+    assert msg.mensaje_id.startswith("wamid.")
+    assert msg.texto == "Que pasa"
+
+
 def test_whatsapp_imagen(whatsapp_image_payload):
     """WhatsApp imagen -> adjunto con media id y caption como texto."""
     msg = WebhookResolver().parsear(whatsapp_image_payload)

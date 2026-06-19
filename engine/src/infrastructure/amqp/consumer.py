@@ -84,8 +84,11 @@ class AmqpConsumer:
         connection = pika.BlockingConnection(self._params)
         try:
             channel = connection.channel()
-            channel.queue_declare(queue=queue, auto_delete=False, durable=False)
-            channel.queue_bind(queue=queue, exchange=exchange, routing_key=routing_key)
+            channel.queue_declare(queue=queue, auto_delete=False, durable=True)
+            # The default exchange ("") binds every queue to itself implicitly and
+            # forbids explicit binds (403 ACCESS_REFUSED). Only bind to a named exchange.
+            if exchange:
+                channel.queue_bind(queue=queue, exchange=exchange, routing_key=routing_key)
             channel.basic_qos(prefetch_count=1)
 
             on_message_callback = functools.partial(self._on_message, args=(connection, threads))

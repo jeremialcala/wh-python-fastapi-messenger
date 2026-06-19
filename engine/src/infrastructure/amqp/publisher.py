@@ -31,8 +31,9 @@ def send_message_to_queue(queue: str, routing_key: str, message,
         connection_parameters or get_amqp_connection_parameters()
     )
     try:
+        log.info("Publicando mensaje en AMQP: %s", message)
         channel = connection.channel()
-        channel.queue_declare(queue=queue)
+        channel.queue_declare(queue=queue, durable=True)
         channel.basic_publish(exchange=exchange, routing_key=routing_key, body=message)
     finally:
         if connection.is_open:

@@ -21,7 +21,7 @@ def test_send_message_to_queue_publica():
         send_message_to_queue("q", "rk", "payload", params, exchange="ex")
 
         mock_conn.assert_called_once_with(params)
-        channel.queue_declare.assert_called_once_with(queue="q")
+        channel.queue_declare.assert_called_once_with(queue="q", durable=True)
         channel.basic_publish.assert_called_once_with(
             exchange="ex", routing_key="rk", body="payload")
         mock_conn.return_value.close.assert_called_once()

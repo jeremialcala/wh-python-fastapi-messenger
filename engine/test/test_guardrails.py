@@ -6,6 +6,18 @@
 from unittest.mock import MagicMock
 
 from src.infrastructure.guardrails import NeMoGuardrailsPolicy, SENTINEL_BLOQUEO
+from src.infrastructure.guardrails.nemo_policy import _openai_compat_url
+
+
+def test_openai_compat_url_anade_v1():
+    """El host pelado recibe el prefijo /v1 de la API OpenAI-compat de Ollama."""
+    assert _openai_compat_url("http://192.168.1.44:11434") == "http://192.168.1.44:11434/v1"
+
+
+def test_openai_compat_url_idempotente():
+    """No duplica /v1 ni deja barra final."""
+    assert _openai_compat_url("http://h:11434/v1") == "http://h:11434/v1"
+    assert _openai_compat_url("http://h:11434/") == "http://h:11434/v1"
 
 
 def _policy_con_rails(respuesta):

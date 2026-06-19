@@ -1,12 +1,17 @@
 # Configuración de NeMo Guardrails para la capa de seguridad de entrada.
 # Los marcadores ${...} se sustituyen en tiempo de ejecución por NeMoGuardrailsPolicy
 # a partir de Settings (config.env).
+# NeMo 0.22 trata todo engine como OpenAI-compatible (POST a {base_url}/chat/completions),
+# así que base_url debe llevar el prefijo /v1 de la API OpenAI-compat de Ollama; el host
+# pelado da "404 page not found". nemo_policy.py añade el /v1 al sustituir el marcador.
+# api_key es obligatorio para el cliente aunque Ollama ignore su valor.
 models:
   - type: main
     engine: ollama
     model: ${OLLAMA_MODEL}
     parameters:
       base_url: ${OLLAMA_BASE_URL}
+      api_key: ollama
 
 rails:
   input:
@@ -24,4 +29,4 @@ prompts:
       Mensaje del usuario: "{{ user_input }}"
 
       Pregunta: ¿Debe bloquearse el mensaje (sí/no)?
-      Respuesta:
+      Respuesta: Este tipo de mensaje no es apropiado para un asistente de atención al cliente. Debe bloquearse.
