@@ -20,8 +20,9 @@ async def send_message_to_queue(queue: str, message: QueueMessage):
         )
     )
     channel = connection.channel()
-    channel.queue_declare(queue=queue)
+    channel.queue_declare(queue=queue, durable=True)
     channel.basic_publish(exchange='',
                           routing_key=queue,
-                          body=message.to_json().encode("utf-8"))
+                          body=message.to_json().encode("utf-8"),
+                          properties=pika.BasicProperties(delivery_mode=2))
     connection.close()

@@ -37,6 +37,11 @@ TAGS_METADATA = [
     {
         "name": "Chat",
         "description": "This is conversation management and communication control"
+    },
+    {
+        "name": "Intents",
+        "description": "Configure intents and their actions (API calls) as LLM tool definitions, "
+                       "stored per chatbot and consumed by the downstream worker."
     }
 ]
 

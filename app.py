@@ -10,14 +10,15 @@ from fastapi import status
 from inspect import currentframe
 from uuid import uuid4
 from classes import (Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport,
-                     RulesRequest, BotResponse)
+                     RulesRequest, BotResponse, IntentRequest)
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
                        CONTACT)
 
 from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_process_messages, ctr_add_phone_chatbot,
                         ctr_get_chatbot_phones, ctr_create_event, ctr_get_chatbot_rules_from_uuid,
-                        ctr_create_chatbot_rules)
+                        ctr_create_chatbot_rules, ctr_create_intent, ctr_get_intents, ctr_get_intent,
+                        ctr_update_intent, ctr_delete_intent, ctr_get_bot_tools)
 
 from utils import configure_logging
 
@@ -114,8 +115,8 @@ async def verify(request: Request, bot_id):
             if not request.query_params.get(HUB_VERIFY_TOKEN) == _bot_info["data"]["verifyToken"]:
                 return status.HTTP_403_FORBIDDEN, "HTTP_403_FORBIDDEN"
             if request.query_params.get(HUB_CHALLENGE):
-                return request.query_params[HUB_CHALLENGE], status.HTTP_200_OK
-
+                return int(request.query_params[HUB_CHALLENGE])
+    # request.query_params[HUB_CHALLENGE]
         log.info(f"Ending: {currentframe().f_code.co_name}s")
         return "HTTP_200_OK", status.HTTP_200_OK
     except Exception as e:
@@ -205,6 +206,73 @@ async def add_chatbot_rule(bot_id, req: Request, rules: RulesRequest):
     log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
     try:
         response = await ctr_create_chatbot_rules(request=rules, bot_id=bot_id, eventId=req.state.event_id)
+        log.info(f"Ending: {currentframe().f_code.co_name}")
+        return response
+    except Exception as e:
+        raise Exception(e.args)
+
+
+@app.post(path="/chat/{bot_id}/intents", tags=["Intents"])
+async def add_chatbot_intent(bot_id, req: Request, intent: IntentRequest):
+    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+    try:
+        response = await ctr_create_intent(request=intent, bot_id=bot_id, eventId=req.state.event_id)
+        log.info(f"Ending: {currentframe().f_code.co_name}")
+        return response
+    except Exception as e:
+        raise Exception(e.args)
+
+
+@app.get(path="/chat/{bot_id}/intents", tags=["Intents"])
+async def list_chatbot_intents(bot_id, req: Request):
+    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+    try:
+        response = await ctr_get_intents(bot_id=bot_id, eventId=req.state.event_id)
+        log.info(f"Ending: {currentframe().f_code.co_name}")
+        return response
+    except Exception as e:
+        raise Exception(e.args)
+
+
+@app.get(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"])
+async def get_chatbot_intent(bot_id, intent_id, req: Request):
+    log.info(f"Starting: {currentframe().f_code.co_name} for this intent: {intent_id}")
+    try:
+        response = await ctr_get_intent(bot_id=bot_id, intent_id=intent_id, eventId=req.state.event_id)
+        log.info(f"Ending: {currentframe().f_code.co_name}")
+        return response
+    except Exception as e:
+        raise Exception(e.args)
+
+
+@app.put(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"])
+async def update_chatbot_intent(bot_id, intent_id, req: Request, intent: IntentRequest):
+    log.info(f"Starting: {currentframe().f_code.co_name} for this intent: {intent_id}")
+    try:
+        response = await ctr_update_intent(request=intent, bot_id=bot_id, intent_id=intent_id,
+                                           eventId=req.state.event_id)
+        log.info(f"Ending: {currentframe().f_code.co_name}")
+        return response
+    except Exception as e:
+        raise Exception(e.args)
+
+
+@app.delete(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"])
+async def delete_chatbot_intent(bot_id, intent_id, req: Request):
+    log.info(f"Starting: {currentframe().f_code.co_name} for this intent: {intent_id}")
+    try:
+        response = await ctr_delete_intent(bot_id=bot_id, intent_id=intent_id, eventId=req.state.event_id)
+        log.info(f"Ending: {currentframe().f_code.co_name}")
+        return response
+    except Exception as e:
+        raise Exception(e.args)
+
+
+@app.get(path="/chat/{bot_id}/tools", tags=["Intents"])
+async def get_chatbot_tools(bot_id, req: Request):
+    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+    try:
+        response = await ctr_get_bot_tools(bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
