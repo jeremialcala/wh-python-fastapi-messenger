@@ -241,8 +241,7 @@ Open `http://localhost:5002/docs` for the Swagger UI.
 docker build -t wh-python-fastapi-messenger:latest .
 
 # Run it (exposes port 5002, 4 uvicorn workers)
-docker run -it -p 5002:5002 --name wh-python-fastapi-messenger -d \
-  wh-python-fastapi-messenger:latest
+docker run -it -p 5002:5002 --name wh-python-fastapi-messenger -d wh-python-fastapi-messenger:latest
 ```
 
 Or use the convenience script [bootstrap.sh](bootstrap.sh), which clones the repo (`develop` branch), prunes old images/containers, rebuilds, and runs the container.
