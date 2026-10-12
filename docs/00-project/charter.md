@@ -27,8 +27,9 @@ respuestas, protegiendo los datos personales de los usuarios finales conforme al
     derechos de acceso, supresión y portabilidad.
   - Empaquetado y despliegue continuo en el servidor propio (`midgard`), detrás de un túnel de Cloudflare.
 - **No incluye (no-scope):**
-  - Generar las respuestas y ejecutar las acciones que pida el usuario. Lo hace el motor de respuestas,
-    `ms-python-metamsghandler`, un servicio aparte que consume la cola `llm`.
+  - Generar las respuestas, ejecutar las acciones que pida el usuario y enviar la respuesta al destinatario.
+    Lo hace el motor de respuestas, `ms-python-metamsghandler`, un servicio aparte que consume la cola `llm`
+    ([ADR-0002](adr/0002-el-motor-entrega-las-respuestas.md)).
   - Interfaz web para los clientes. La administración es por API.
   - Facturación, planes y medición de consumo.
   - Canales que no sean Messenger y WhatsApp Business.
@@ -115,6 +116,6 @@ mindmap
 |---|---|---|
 | El modelo multi-cliente no existe en el código | Hoy cualquier poseedor de la clave única ve todos los bots y sus tokens | Requisito RS01; no admitir un segundo cliente hasta cerrarlo |
 | Los datos personales se guardan en claro | Una fuga de la base expone números, nombres y tokens de Meta | Requisitos RS05 y RS06 |
-| El ciclo no se cierra con el motor de respuestas | `ms-python-metamsghandler` clasifica el mensaje pero no responde, no está desplegado, rechaza los mensajes de Messenger del gateway y descarta el bot de destino | Requisitos RF07 y RF12; contrato AsyncAPI común en el Gate 1 |
+| El ciclo no se cierra con el motor de respuestas | `ms-python-metamsghandler` está en implementación: clasifica el mensaje pero todavía no responde, no está desplegado, rechaza los mensajes de Messenger del gateway y descarta el bot de destino. Además necesitará los tokens de Meta de cada cliente para enviar | Requisitos RF07, RF12 y RS06; contrato AsyncAPI común en el Gate 1 |
 | Servidor doméstico sin UPS | Un corte largo deja el webhook caído y Meta puede dejar de entregar | Aceptado con vigilancia; se revisa en el placement del Gate 1 |
 | Dependencias de 2024 | FastAPI y Starlette fijados en versiones antiguas, en un servicio público | Gate 2 |

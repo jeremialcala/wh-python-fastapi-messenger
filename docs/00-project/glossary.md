@@ -30,7 +30,7 @@ del modelo BaaS que todavía no tienen representación en el código.
 | **Mensaje** (`MessageBody`) | El contenido normalizado que sale del gateway: bot, canal, contacto y mensaje original. | Mensajería entrante |
 | **Cola `llm`** | Cola durable de RabbitMQ donde el gateway publica cada mensaje. Es la frontera con el motor de respuestas. | Mensajería entrante |
 | **Hermod** | La instancia de RabbitMQ de la plataforma en `midgard`. | Mensajería entrante |
-| **Motor de respuestas** (`ms-python-metamsghandler`) | Servicio aparte, con su propio repositorio, que consume la cola `llm`: normaliza el mensaje, lo filtra con guardrails y clasifica la intención del usuario. Es quien debe generar la respuesta o ejecutar la acción que el usuario pide; esa parte está sin construir. | Mensajería entrante |
+| **Motor de respuestas** (`ms-python-metamsghandler`) | Servicio aparte, con su propio repositorio, que consume la cola `llm`: normaliza el mensaje, lo filtra con guardrails y clasifica la intención del usuario. Es también quien genera la respuesta o ejecuta la acción que el usuario pide, y quien envía la respuesta al destinatario (ADR-0002); esa parte está en implementación. | Mensajería entrante |
 | **Resultado clasificado** | Lo que el motor de respuestas publica en la cola `meta-classified` por cada mensaje: si se permite, su intención y el tipo de respuesta que requiere (texto, acción o adjunto). | Mensajería entrante |
 | **Usuario final** | Persona que escribe a un bot. Es el interesado en términos del GDPR. | Contactos |
 | **Contacto** (`Contact`) | El registro de un usuario final para un bot: nombre, foto de perfil e identificador en el canal. | Contactos |
