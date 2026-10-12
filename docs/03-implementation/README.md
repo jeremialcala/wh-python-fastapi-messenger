@@ -1,0 +1,12 @@
+# 03 — Implementación (Gate 2)
+
+El código vive en `src/`, no aquí. Esta carpeta documenta lo transversal de la implementación:
+
+- Estándares de código (estilo, manejo de errores, logging).
+- `repo-history.md`: grafo e historial del repositorio, derivados de `git log` y nunca escritos a mano.
+- Evidencia de SAST, SCA, escaneo de secretos y cobertura.
+
+Cierra con `.ai-dlc/gates/gate-2-implementation.md`: SAST limpio, dependencias verificadas, cobertura por ramas
+de al menos el 80 %, dual review y ningún secreto en el código.
+
+Todavía vacía.

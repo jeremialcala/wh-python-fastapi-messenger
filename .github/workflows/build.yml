@@ -33,7 +33,7 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - run: pytest test
+      - run: pytest
 
   build:
     # Nothing is published, and so nothing is deployed, unless the tests pass.

@@ -82,36 +82,43 @@ Full pinned list lives in [requirements.txt](requirements.txt).
 
 ```
 .
-├── app.py                  # FastAPI app: middleware + all route definitions
-├── Dockerfile              # python:3.12-slim image, unprivileged user, uvicorn on :5002
-├── .dockerignore           # Keeps config.env, certs/ and dev files out of the image
+├── src/                    # The application (this is all the image contains)
+│   ├── app.py                  # FastAPI app: middleware, auth dependencies and all route definitions
+│   ├── logging_config.yaml     # Per-environment logging configuration
+│   ├── classes/                # Pydantic DTOs + mongoengine entities
+│   │   ├── tool_settings.py        # Settings (reads config.env)
+│   │   ├── entity_*.py             # MongoDB documents (ChatBot, Contact, Event, Jwk, ...)
+│   │   └── dto_*.py                # Request/response & Facebook payload models
+│   ├── controller/             # Business logic layer
+│   │   ├── chatbot.py              # CRUD for bots, phones and rules
+│   │   ├── intents.py              # CRUD for intents and their tool schemas
+│   │   ├── facebook.py             # Contact identification + Graph API profile lookups
+│   │   ├── messages.py             # Inbound message processing + WhatsApp send
+│   │   ├── events.py               # Event / EventAction tracking
+│   │   └── amqp_broker.py          # RabbitMQ publisher
+│   ├── constants/              # Static strings: docs metadata, headers, FB keys, formats
+│   ├── enums/                  # Status, Environment, KeyTypes enums
+│   └── utils/                  # logging config, code generators, signature check, JWK/PEM key helpers
+│
+├── tests/                  # Test pyramid: unit/ integration/ contract/ e2e/ security/ (see tests/README.md)
+├── docs/                   # AI-DLC documentation, one folder per phase (00-project ... 06-monitoring)
+├── .ai-dlc/                # Gate checklists, templates and OWASP mapping
 ├── deploy/                 # docker-compose.yml for the server (see Deployment)
-├── .github/workflows/      # ci (pull requests) and build (image to GHCR on main)
+├── .github/                # Workflows (ci, build, GitFlow guard) and CODEOWNERS
+│
+├── Dockerfile              # python:3.12-slim image, unprivileged user, uvicorn on :5002
+├── .dockerignore           # Keeps config.env, certs/ and dev files out of the build context
+├── requirements.txt        # Python dependencies
+├── pytest.ini              # Puts src/ on the path: run `pytest` from the root
+├── config.env.example      # Template for config.env (git-ignored, loaded by pydantic-settings)
+├── CHANGELOG.md  SECURITY.md  CONTRIBUTING.md
 ├── bootstrap.sh            # Legacy: clone + rebuild + run. It prunes ALL unused Docker data on the host
 ├── compose-dev.yaml        # Docker "dev environment" helper (not the app runtime)
-├── requirements.txt        # Python dependencies
-├── config.env.example      # Template for config.env (git-ignored, loaded by pydantic-settings)
-├── logging_config.yaml     # Per-environment logging configuration
-│
-├── classes/                # Pydantic DTOs + mongoengine entities
-│   ├── tool_settings.py        # Settings (reads config.env)
-│   ├── entity_*.py             # MongoDB documents (ChatBot, Contact, Event, Jwk, ...)
-│   └── dto_*.py                # Request/response & Facebook payload models
-│
-├── controller/             # Business logic layer
-│   ├── chatbot.py              # CRUD for bots, phones and rules
-│   ├── facebook.py             # Contact identification + Graph API profile lookups
-│   ├── messages.py             # Inbound message processing + WhatsApp send
-│   ├── events.py               # Event / EventAction tracking
-│   └── amqp_broker.py          # RabbitMQ publisher
-│
-├── constants/              # Static strings: docs metadata, headers, FB keys, formats
-├── enums/                  # Status, Environment, KeyTypes enums
-├── utils/                  # logging config, code generators, JWK/PEM key helpers
 ├── certs/                  # Per-event RSA private keys (*.pem), git-ignored
-├── prototypes/             # Throwaway experiments (ignored in .gitignore)
-└── test/                   # pytest suite (runs without MongoDB, RabbitMQ or config.env)
+└── prototypes/             # Throwaway experiments (ignored in .gitignore)
 ```
+
+The repository follows the AI-DLC structure for a single service ([ADR-0001](docs/00-project/adr/0001-adopcion-estructura-ai-dlc.md)). The methodology documents under `docs/` and `.ai-dlc/` are written in Spanish.
 
 ### Package responsibilities
 
@@ -127,7 +134,7 @@ Full pinned list lives in [requirements.txt](requirements.txt).
 
 ## Request lifecycle
 
-Defined in [app.py](app.py):
+Defined in [src/app.py](src/app.py):
 
 1. **`interceptor` HTTP middleware** runs for every request:
    - Records start time and sets `X-Processing-Time` on the response.
@@ -166,7 +173,7 @@ Only the two webhook routes (`GET` and `POST /chat/{bot_id}`) and `GET /health` 
 | `GET`  | `/chat/{bot_id}/rules` | Build and return the assembled LLM system prompt from the bot's persona + stored rules. |
 | `POST` | `/chat/{bot_id}/rules` | Add one or more rules (`RulesRequest.rules: list[str]`) to the bot. |
 
-> The `/answers` endpoint is described in the OpenAPI prose but is **not yet implemented** in `app.py`.
+> The `/answers` endpoint is described in the OpenAPI prose but is **not yet implemented** in `src/app.py`.
 
 ---
 
@@ -192,14 +199,14 @@ All entities are mongoengine `Document`s and connect to the database configured 
 ## Event tracking & cryptography
 
 - **Per-event RSA keys** — `Jwk.create_key_for_event()` generates an RSA keypair (size from `KEY_SIZE`, default 3072), writes the private key to `certs/{UUID}_private.pem`, and persists only the public JWK in MongoDB.
-- **JWE payloads** — Before publishing to RabbitMQ, `QueueMessage.set_jwe_body()` looks up the event's JWK and encrypts the normalized `MessageBody` (botId, type, contact, message) as a compact JWE. Downstream consumers decrypt with the corresponding private PEM (see `utils/key_management.py`).
+- **JWE payloads** — Before publishing to RabbitMQ, `QueueMessage.set_jwe_body()` looks up the event's JWK and encrypts the normalized `MessageBody` (botId, type, contact, message) as a compact JWE. Downstream consumers decrypt with the corresponding private PEM (see `src/utils/key_management.py`).
 - **Bot verification tokens** — `Credentials` builds an HS256-signed JWT stored as the bot's `verifyToken`, compared against Meta's `hub.verify_token` during webhook setup.
 
 ---
 
 ## Configuration
 
-Settings are loaded by `classes/tool_settings.py` (`pydantic-settings`) from **`config.env`**; start from [config.env.example](config.env.example). Environment variables override the file. Required variables:
+Settings are loaded by `src/classes/tool_settings.py` (`pydantic-settings`) from **`config.env`**; start from [config.env.example](config.env.example). Environment variables override the file. Required variables:
 
 | Variable | Description |
 |---|---|
@@ -237,10 +244,10 @@ pip install -r requirements.txt
 #    MongoDB / RabbitMQ / Meta credentials and the ADMIN_API_KEY
 
 # 4. Run the API
-uvicorn app:app --host 0.0.0.0 --port 5002 --reload
+uvicorn app:app --app-dir src --host 0.0.0.0 --port 5002 --reload
 
 # 5. Run the tests (no services nor config.env needed)
-pytest test
+pytest
 ```
 
 Open `http://localhost:5002/docs` for the Swagger UI.
@@ -299,7 +306,7 @@ The container listens on loopback only. The tunnel in front of it must publish `
 
 ## Logging
 
-Configured via [logging_config.yaml](logging_config.yaml), applied on startup by `utils.configure_logging` (registered as a FastAPI `on_startup` hook). Logger selection is driven by `ENVIRONMENT`:
+Configured via [src/logging_config.yaml](src/logging_config.yaml), applied on startup by `utils.configure_logging` (registered as a FastAPI `on_startup` hook). Logger selection is driven by `ENVIRONMENT`:
 
 | Environment | Level | Handlers |
 |---|---|---|
@@ -320,7 +327,7 @@ Configured via [logging_config.yaml](logging_config.yaml), applied on startup by
 - **App Secret lookup** — the chatbot's own `appSecret` if the document has one, else `FACEBOOK_APP_SECRET`. With neither, every notification is rejected. Like the page and WhatsApp tokens, `appSecret` is written straight into the chatbot document; no endpoint returns it.
 - **Delivery** — a notification gets its `200` only after RabbitMQ confirms the publish. Meta redelivers on `503`, so the consumer of the `llm` queue must tolerate duplicates (deduplicate on the message id).
 - **Logs** — the request interceptor logs neither query strings nor headers, and the key that signs a bot's `verifyToken` is no longer written to the log.
-- **Still open** — `/docs`, `/redoc` and `/openapi.json` are served without a key, and there is no rate limiting: publish only `/chat/{bot_id}` at the edge and keep everything else on the private network. `controller/messages.py` still logs the content of inbound messages at `INFO`.
+- **Still open** — `/docs`, `/redoc` and `/openapi.json` are served without a key, and there is no rate limiting: publish only `/chat/{bot_id}` at the edge and keep everything else on the private network. `src/controller/messages.py` still logs the content of inbound messages at `INFO`.
 
 To sign a test notification by hand:
 
