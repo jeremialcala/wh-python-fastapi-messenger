@@ -20,6 +20,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Cambiado
 - El código pasa a `src/` y las pruebas a `tests/unit/`; `pytest` se ejecuta desde la raíz sin argumentos.
+- El README pasa a español, documenta los endpoints de intents y `/health`, y deja de afirmar que el mensaje se
+  cifra como JWE y que cada petición se registra como evento: ambas cosas están implementadas pero desactivadas.
 - La configuración de logging se localiza junto al código, no en el directorio de trabajo.
 - El webhook espera a que RabbitMQ confirme el mensaje antes de responder `200`, y responde `503` si el broker no
   está disponible. El consumidor de la cola `llm` debe tolerar duplicados.

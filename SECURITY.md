@@ -22,4 +22,4 @@ todavía no se genera SBOM ni se ejecuta SCA: son requisitos de los gates 2 y 4,
 ## OWASP
 
 El mapeo de controles está en [.ai-dlc/owasp-mapping.md](.ai-dlc/owasp-mapping.md) (Top 10:2025), sin adaptar
-todavía a este servicio. Los controles ya implementados están descritos en la sección Security del README.
+todavía a este servicio. Los controles ya implementados están descritos en la sección Seguridad del README.

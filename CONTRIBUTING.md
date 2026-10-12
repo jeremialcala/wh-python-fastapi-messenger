@@ -5,7 +5,7 @@
 - El trabajo sale de `develop` en ramas `feature/*` y vuelve a `develop` por pull request.
 - `main` solo recibe pull requests desde `develop`, `release/*` o `hotfix/*`. Lo comprueba el workflow
   `GitFlow guard` y lo exige el ruleset que protege `main`.
-- Un merge a `main` construye la imagen y la despliega: ver la sección Deployment del [README](README.md).
+- Un merge a `main` construye la imagen y la despliega: ver la sección Despliegue del [README](README.md).
 
 ## Flujo: Red-Green-Refactor-Secure
 
@@ -26,11 +26,10 @@ Cada fase cierra su gate (`.ai-dlc/gates/`) antes de avanzar. Un criterio sin ev
 
 ## Commits y changelog
 
-- Commits: `tipo(scope): mensaje` (`feat`, `fix`, `docs`, `test`, `chore`, `refactor`, `sec`), en inglés como el
-  resto del historial.
+- Commits: `tipo(scope): mensaje` (`feat`, `fix`, `docs`, `test`, `chore`, `refactor`, `sec`).
 - Todo cambio notable añade su entrada en la sección `[Unreleased]` de [CHANGELOG.md](CHANGELOG.md).
 
 ## Idioma
 
-Los artefactos AI-DLC (`docs/`, `.ai-dlc/`, changelog) se escriben en español. El código, sus comentarios, el
-README y los commits, en inglés.
+La documentación se escribe en español: `docs/`, `.ai-dlc/`, el changelog y el README. Los mensajes de commit
+pueden ir en inglés. El código existente, con sus identificadores y comentarios, está en inglés y no se traduce.

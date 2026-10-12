@@ -47,12 +47,12 @@ hueco se deja visible en su checklist en vez de darlo por cumplido.
   dependencias de 2024, solo pruebas unitarias). Quedan abiertos, no maquillados.
 - Impacto en threat model: ninguno todavía; el threat model es el primer entregable del Gate 1.
 
-## Abierto
+## Decisiones de adopción
 
-Decisiones que este ADR no cierra y que requieren confirmación humana:
+Confirmadas por Jeremi Alcala el 2026-10-12:
 
-- **Idioma.** Los artefactos AI-DLC se escriben en español, como pide el estándar; el código, el README y los
-  commits siguen en inglés, como el resto del historial. Es el valor por defecto adoptado, no una decisión tomada.
-- **Ubicación del repositorio.** Sigue en la cuenta personal; no se ha decidido si pasa a la organización.
-- **Versionado.** Solo existe el tag `v0.0.1`. La convención del estándar corta 0.1.0 al cerrar el Gate 0 y 1.0.0
-  al cerrar el Gate 5.
+- **Idioma.** La documentación se escribe en español, incluido el README. Los mensajes de commit pueden ir en
+  inglés en este repositorio.
+- **Ubicación del repositorio.** Se mantiene en la cuenta personal `jeremialcala`; no pasa a la organización.
+- **Versionado.** El que refleja el `CHANGELOG.md`: Keep a Changelog y SemVer, partiendo del tag `v0.0.1`. Los
+  cambios se acumulan en `[Unreleased]` y se cortan a una versión al publicar.

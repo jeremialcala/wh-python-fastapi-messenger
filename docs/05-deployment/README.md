@@ -8,4 +8,4 @@ El pipeline vive en `.github/workflows/` y el compose del servidor en `deploy/`.
 
 Cierra con `.ai-dlc/gates/gate-4-deployment.md`.
 
-Todavía vacía. El flujo de despliegue actual está resumido en la sección Deployment del README.
+Todavía vacía. El flujo de despliegue actual está resumido en la sección Despliegue del README.
