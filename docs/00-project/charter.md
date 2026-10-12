@@ -22,7 +22,8 @@ respuestas, protegiendo los datos personales de los usuarios finales conforme al
   - Verificación del webhook ante Meta y recepción de notificaciones de Messenger y WhatsApp.
   - Identificación de contactos y publicación de cada mensaje en la cola `llm` de RabbitMQ.
   - Exposición de los intents de cada bot como herramientas para el motor de respuestas.
-  - Aislamiento entre clientes: un cliente solo ve y administra lo suyo.
+  - Registro de clientes y aislamiento entre ellos: cada cliente se autentica con su propio material de clave y
+    solo ve y administra lo suyo.
   - Protección de datos personales: números de teléfono cifrados con una clave por cliente, y soporte a los
     derechos de acceso, supresión y portabilidad.
   - Empaquetado y despliegue continuo en el servidor propio (`midgard`), detrás de un túnel de Cloudflare.
