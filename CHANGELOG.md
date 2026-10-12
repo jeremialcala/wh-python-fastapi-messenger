@@ -7,6 +7,16 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Añadido
+- Documentos del Gate 1, en revisión: arquitectura (C4, flujos, ciclo de vida del mensaje, modelo de datos) y
+  threat model (21 amenazas con STRIDE y DREAD, y seis hallazgos del diseño).
+- Contratos: OpenAPI generado de la aplicación y AsyncAPI de la cola `llm`, con pruebas de contrato que los
+  verifican contra el código (`tests/contract`).
+- ADR-0006 a ADR-0008, que registran decisiones ya construidas o tomadas: publicación confirmada, App Secret por
+  bot y despliegue en el servidor propio.
+- ADR-0009 a ADR-0012, propuestos: parámetros del token, clave de cifrado de datos por cliente, contrato de la
+  cola y aislamiento por cliente en la capa de datos.
+
 ## [0.1.0] - 2026-10-12
 
 Cierre del Gate 0 (requisitos). Primera versión con la estructura AI-DLC.
