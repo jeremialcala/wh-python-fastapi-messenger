@@ -33,6 +33,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - FastAPI pasa de 0.110.0 a 0.143.0 y Starlette de 0.36.3 a 1.7.0. La versión anterior de Starlette tenía 14
   vulnerabilidades conocidas; con las dependencias nuevas, `pip-audit` no encuentra ninguna.
 
+### Seguridad
+- Los valores de ejemplo de los modelos del webhook llevaban números de teléfono reales, uno de ellos también
+  codificado dentro de un identificador de mensaje de WhatsApp. Se sustituyen por números del rango reservado
+  para ficción. Siguen en la historia de git y en las imágenes ya publicadas.
+
 ## [0.2.0] - 2026-10-12
 
 Cierre del Gate 1 (diseño).
