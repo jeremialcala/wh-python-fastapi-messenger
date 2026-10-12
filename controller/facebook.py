@@ -37,7 +37,11 @@ async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot, eventId: s
         ))
     try:
         url = settings.facebook_graph_url.format(fb_id=fb_id, ACCESSTOKEN=_bot.facebookToken)
-        resp = requests.get(url)
+        try:
+            resp = requests.get(url, timeout=5)
+        except requests.RequestException as e:
+            # The exception text carries the URL, and the URL carries the page access token.
+            raise Exception(f"Graph API request failed: {type(e).__name__}") from None
         log.debug(resp.text)
         if resp.status_code != status.HTTP_200_OK:
             log.error(f"There is an error on this request: {resp.text}")
