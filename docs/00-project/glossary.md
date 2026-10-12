@@ -1,6 +1,6 @@
 # Glosario / Lenguaje ubicuo
 
-* **Estado:** review
+* **Estado:** approved (Gate 0, 2026-10-12)
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 00-project
@@ -24,7 +24,7 @@ del modelo BaaS que todavía no tienen representación en el código.
 | **`bot_id`** (`uuid`) | El UUID de un bot. Forma parte de la URL de su webhook, viaja en cada mensaje de la cola y es la llave con la que el motor de respuestas pide la configuración del bot (ADR-0003). Identifica, pero no autoriza: no es un secreto. | Gestión de bots |
 | **Persona** | Nombre, rol, descripción y tono con los que el bot se presenta. Encabeza su system prompt. | Gestión de bots |
 | **Regla** (`Rule`) | Instrucción en lenguaje natural que se añade al system prompt de un bot. | Gestión de bots |
-| **Número del bot** (`ChatbotPhone`) | Número de WhatsApp Business de un cliente asociado a un bot y a un entorno. Lleva el número (`phoneNumber`) y su identificador en Meta (`phoneId`). | Gestión de bots |
+| **Número del bot** (`ChatbotPhone`) | Número de WhatsApp Business de un cliente asociado a un bot y a un entorno. Lleva el número (`phoneNumber`) y su identificador en Meta (`phoneId`). Debe guardarse cifrado con la clave de cifrado de datos del cliente. | Gestión de bots |
 | **Token de verificación** (`verifyToken`) | Secreto por bot que Meta devuelve al verificar el webhook. | Gestión de bots |
 | **Token de página** (`facebookToken`) y **token de WhatsApp** (`whatsappToken`) | Credenciales de Meta del cliente con las que el gateway consulta perfiles y envía mensajes en su nombre. | Gestión de bots |
 | **App Secret** (`appSecret`, `FACEBOOK_APP_SECRET`) | Secreto de la app de Meta con el que se verifica la firma de cada notificación. | Mensajería entrante |

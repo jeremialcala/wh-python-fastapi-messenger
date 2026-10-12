@@ -7,8 +7,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-12
+
+Cierre del Gate 0 (requisitos). Primera versión con la estructura AI-DLC.
+
 ### Añadido
-- Borradores del Gate 0, en revisión: charter, glosario, clasificación de datos (GDPR, con el cliente como
+- Documentos del Gate 0, aprobados: charter, glosario, clasificación de datos (GDPR, con el cliente como
   responsable y la plataforma como encargada) y el PRD BAAS-001 del gateway como servicio BaaS, con el estado
   construido, parcial o pendiente de cada requisito.
 - El Gate 0 identifica el motor de respuestas, `ms-python-metamsghandler`, y registra lo que falta entre los dos
@@ -53,5 +57,6 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 Primera versión etiquetada. Los cambios entre esta versión y la adopción de este changelog (2026-10-12) no se
 registraron aquí; están en el historial de git.
 
-[Unreleased]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/jeremialcala/wh-python-fastapi-messenger/releases/tag/v0.0.1
