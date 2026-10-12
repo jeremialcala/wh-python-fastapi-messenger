@@ -13,7 +13,8 @@ os.environ.update({
     "NATIONAL_ID_URL": "http://127.0.0.1:1",
 
     "DB_NAME": "test",
-    # Nothing listens on port 1: a test that forgets to mock the database fails fast instead of writing somewhere.
+    # Nothing listens on port 1, and the connection is replaced by an in-memory database further down: no test
+    # can write anywhere real.
     "DB_HOST": "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=500",
     "DB_USERNAME": "test",
     "DB_PASSWORD": "test",
@@ -44,3 +45,45 @@ os.environ.update({
     "FACEBOOK_WHATSAPP_MESSAGE": "http://127.0.0.1:1/{version}/{PhoneNumberId}/messages",
     "FACEBOOK_GRAPH_VERSION": "v19.0",
 })
+
+# Every entity module connects to MongoDB when it is imported. The connection is swapped here, before any of them
+# is, for an in-memory database: the tests run real queries against real documents without a server.
+import bson  # noqa: E402
+import mongoengine  # noqa: E402
+import mongomock  # noqa: E402
+import mongomock.collection  # noqa: E402
+import pytest  # noqa: E402
+from bson.binary import UuidRepresentation  # noqa: E402
+
+# mongoengine stores UUIDs the legacy way unless told otherwise, and that is what the service does today.
+LEGACY_UUID = bson.codec_options.CodecOptions(uuid_representation=UuidRepresentation.PYTHON_LEGACY)
+
+
+class _SizeCheck(bson.BSON):
+    """mongomock encodes each document only to measure it, and does it without the codec options of the client."""
+
+    @classmethod
+    def encode(cls, document, check_keys=False, codec_options=LEGACY_UUID):
+        return super().encode(document, check_keys, LEGACY_UUID)
+
+
+mongomock.collection.BSON = _SizeCheck
+
+_connect = mongoengine.connect
+
+
+def _connect_in_memory(*args, **kwargs):
+    return _connect(*args, **{**kwargs, "mongo_client_class": mongomock.MongoClient,
+                              "uuidRepresentation": "pythonLegacy"})
+
+
+mongoengine.connect = _connect_in_memory
+
+
+@pytest.fixture(autouse=True)
+def empty_database():
+    """Each test starts with an empty database."""
+    import classes  # noqa: F401  The entities register the connection.
+
+    mongoengine.get_connection().drop_database(os.environ["DB_NAME"])
+    yield

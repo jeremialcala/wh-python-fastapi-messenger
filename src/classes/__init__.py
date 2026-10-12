@@ -1,5 +1,6 @@
 from .tool_settings import Settings
 
+from .entity_client import Client
 from .entity_chatbot import ChatBot
 from .entity_chatbot_phones import ChatbotPhone
 from .entity_contact import Contact

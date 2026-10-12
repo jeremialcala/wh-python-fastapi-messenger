@@ -11,6 +11,7 @@ from classes import Settings, ResponseData
 from classes import Intent, Action, ApiCall, ActionParameter, IntentRequest
 from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
 from enums import Status
+from repository import TenantRepository, NotFound
 from .events import ctr_notify_action
 
 settings = Settings()
@@ -48,7 +49,7 @@ def _build_actions(request: IntentRequest) -> list:
     return actions
 
 
-async def ctr_create_intent(request: IntentRequest, bot_id: str, eventId: str = None) -> Response:
+async def ctr_create_intent(repo: TenantRepository, request: IntentRequest, bot_id: str, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
@@ -70,15 +71,19 @@ async def ctr_create_intent(request: IntentRequest, bot_id: str, eventId: str = 
     try:
         _intent = Intent(
             uuid=uuid4(),
-            botId=UUID(bot_id),
             name=request.name,
             description=request.description,
             samplePhrases=request.samplePhrases,
             actions=_build_actions(request)
         )
-        _intent.save()
+        repo.add_intent(bot_id, _intent)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_intent.intent_info())
+
+    except NotFound as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_id} was not found",
+                            data=None)
 
     except OperationError as e:
         log.error(e.__str__())
@@ -109,7 +114,7 @@ async def ctr_create_intent(request: IntentRequest, bot_id: str, eventId: str = 
         return response
 
 
-async def ctr_get_intents(bot_id: str, eventId: str = None) -> Response:
+async def ctr_get_intents(repo: TenantRepository, bot_id: str, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
@@ -129,9 +134,14 @@ async def ctr_get_intents(bot_id: str, eventId: str = None) -> Response:
     )
 
     try:
-        _intents = [intent.intent_info() for intent in await Intent.get_intents_by_bot(bot_id)]
+        _intents = [intent.intent_info() for intent in repo.list_intents(bot_id)]
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_intents)
+
+    except NotFound as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_id} was not found",
+                            data=None)
 
     except Exception as e:
         log.error(e.__str__())
@@ -157,7 +167,7 @@ async def ctr_get_intents(bot_id: str, eventId: str = None) -> Response:
         return response
 
 
-async def ctr_get_intent(bot_id: str, intent_id: str, eventId: str = None) -> Response:
+async def ctr_get_intent(repo: TenantRepository, bot_id: str, intent_id: str, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name} for this intent {intent_id}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
@@ -177,11 +187,11 @@ async def ctr_get_intent(bot_id: str, intent_id: str, eventId: str = None) -> Re
     )
 
     try:
-        _intent = await Intent.get_intent_by_uuid(intent_id)
+        _intent = repo.get_intent(bot_id, intent_id)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_intent.intent_info())
 
-    except (ValueError, IndexError) as e:
+    except (ValueError, IndexError, NotFound) as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_404_NOT_FOUND,
                             message=f"This intent {intent_id} was not found", data=None)
@@ -210,7 +220,7 @@ async def ctr_get_intent(bot_id: str, intent_id: str, eventId: str = None) -> Re
         return response
 
 
-async def ctr_update_intent(request: IntentRequest, bot_id: str, intent_id: str,
+async def ctr_update_intent(repo: TenantRepository, request: IntentRequest, bot_id: str, intent_id: str,
                             eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name} for this intent {intent_id}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
@@ -231,17 +241,17 @@ async def ctr_update_intent(request: IntentRequest, bot_id: str, intent_id: str,
     )
 
     try:
-        _intent = await Intent.get_intent_by_uuid(intent_id)
+        _intent = repo.get_intent(bot_id, intent_id)
         _intent.name = request.name
         _intent.description = request.description
         _intent.samplePhrases = request.samplePhrases
         _intent.actions = _build_actions(request)
         _intent.statusDate = _intent.statusDate
-        _intent.save()
+        repo.save_intent(_intent)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_intent.intent_info())
 
-    except (ValueError, IndexError) as e:
+    except (ValueError, IndexError, NotFound) as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_404_NOT_FOUND,
                             message=f"This intent {intent_id} was not found", data=None)
@@ -270,7 +280,7 @@ async def ctr_update_intent(request: IntentRequest, bot_id: str, intent_id: str,
         return response
 
 
-async def ctr_delete_intent(bot_id: str, intent_id: str, eventId: str = None) -> Response:
+async def ctr_delete_intent(repo: TenantRepository, bot_id: str, intent_id: str, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name} for this intent {intent_id}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
@@ -290,13 +300,13 @@ async def ctr_delete_intent(bot_id: str, intent_id: str, eventId: str = None) ->
     )
 
     try:
-        _intent = await Intent.get_intent_by_uuid(intent_id)
+        _intent = repo.get_intent(bot_id, intent_id)
         _intent.status = Status.DIS.value
-        _intent.save()
+        repo.save_intent(_intent)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=None)
 
-    except (ValueError, IndexError) as e:
+    except (ValueError, IndexError, NotFound) as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_404_NOT_FOUND,
                             message=f"This intent {intent_id} was not found", data=None)
@@ -325,7 +335,7 @@ async def ctr_delete_intent(bot_id: str, intent_id: str, eventId: str = None) ->
         return response
 
 
-async def ctr_get_bot_tools(bot_id: str, eventId: str = None) -> Response:
+async def ctr_get_bot_tools(repo: TenantRepository, bot_id: str, eventId: str = None) -> Response:
     """
     Aggregate every active action of every active intent of the bot into a flat
     list of LLM tool definitions. This is the bridge consumed by the worker.
@@ -350,10 +360,15 @@ async def ctr_get_bot_tools(bot_id: str, eventId: str = None) -> Response:
 
     try:
         _tools = []
-        for intent in await Intent.get_intents_by_bot(bot_id):
+        for intent in repo.list_intents(bot_id):
             _tools.extend(intent.tool_definitions())
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_tools)
+
+    except NotFound as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_id} was not found",
+                            data=None)
 
     except Exception as e:
         log.error(e.__str__())

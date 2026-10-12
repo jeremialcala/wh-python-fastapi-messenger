@@ -10,6 +10,7 @@ from fastapi import status
 from classes import ChatBot, Contact, ProfileInfo
 from classes import Settings
 from enums import Status
+from repository import TenantRepository
 from .events import ctr_notify_action
 
 settings = Settings()
@@ -93,12 +94,13 @@ async def ctr_identify_fb_contact(fbId: str, _bot: ChatBot, eventId: str = None)
             method=currentframe().f_code.co_name
         ))
     try:
-        contact = await Contact.get_contact_by_fb_id(fbId, _bot.uuid)
+        # The contact is stored under the client that owns the chatbot.
+        repo = TenantRepository(_bot.clientId)
+        contact = repo.find_contact_by_fb_id(_bot.uuid, fbId)
+        if contact is None:
+            contact = await ctr_get_contact_from_facebook_id(fb_id=fbId, _bot=_bot)
+            repo.add_contact(_bot.uuid, contact)
         log.info(contact)
-    except IndexError as e:
-        log.error(e.__str__())
-        contact = await ctr_get_contact_from_facebook_id(fb_id=fbId, _bot=_bot)
-        contact.save()
 
     except Exception as e:
         log.error(e.__str__())
@@ -151,12 +153,12 @@ async def ctr_identify_contact_by_wa_id(wa_id: str, name: str, _bot: ChatBot, ev
 
     contact = None
     try:
-        contact = await Contact.get_contact_by_wa_id(wa_id, _bot.uuid)
+        # The contact is stored under the client that owns the chatbot.
+        repo = TenantRepository(_bot.clientId)
+        contact = repo.find_contact_by_wa_id(_bot.uuid, wa_id)
+        if contact is None:
+            contact = repo.add_contact(_bot.uuid, Contact(_uuid=uuid4(), firstName=name, waId=wa_id))
         log.info(contact)
-    except IndexError as e:
-        log.error(e.__str__())
-        contact = Contact(_uuid=uuid4(), botId=_bot.uuid, firstName=name, waId=wa_id)
-        contact.save()
 
     except Exception as e:
         log.error(e.__str__())

@@ -8,9 +8,10 @@ from fastapi import Response, status
 from mongoengine.errors import OperationError
 from inspect import currentframe
 
-from classes import ChatbotRequest, ChatBot, ChatbotPhone, Rule, RulesRequest
+from classes import ChatbotRequest, ChatBot, ChatbotPhone, RulesRequest
 from classes import Settings, ResponseData, ChatbotPhoneRequest
 from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
+from repository import TenantRepository, NotFound
 from .events import ctr_notify_action
 from enums import Status
 settings = Settings()
@@ -20,7 +21,7 @@ B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
 B_SEN, E_SEN = "<s>", "</s>"
 
 
-async def ctr_create_chatbot(request: ChatbotRequest, eventId: str = None) -> Response:
+async def ctr_create_chatbot(repo: TenantRepository, request: ChatbotRequest, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"We are creating this chatbot {request.name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
@@ -44,7 +45,7 @@ async def ctr_create_chatbot(request: ChatbotRequest, eventId: str = None) -> Re
         _chatbot = ChatBot.from_json(request.json())
         _chatbot.uuid = uuid4()
         _chatbot.generate_verification_token()
-        _chatbot.save()
+        repo.add_bot(_chatbot)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_chatbot.chatbot_info())
 
@@ -77,7 +78,7 @@ async def ctr_create_chatbot(request: ChatbotRequest, eventId: str = None) -> Re
     return response
 
 
-async def ctr_get_chatbot_from_uuid(_uuid: str, eventId: str = None) -> Response:
+async def ctr_get_chatbot_from_uuid(repo: TenantRepository, _uuid: str, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"We are looking for this chatbot {_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
@@ -98,10 +99,10 @@ async def ctr_get_chatbot_from_uuid(_uuid: str, eventId: str = None) -> Response
     )
 
     try:
-        _chatbot = await ChatBot().get_chatbot_by_uuid(_uuid)
+        _chatbot = repo.get_bot(_uuid)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_chatbot.chatbot_info())
-    except ValueError as e:
+    except (ValueError, NotFound) as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {_uuid} was not found",
                             data=None)
@@ -128,7 +129,7 @@ async def ctr_get_chatbot_from_uuid(_uuid: str, eventId: str = None) -> Response
     return response
 
 
-async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str = None):
+async def ctr_add_phone_chatbot(repo: TenantRepository, bot_uuid, req: ChatbotPhoneRequest, eventId: str = None):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
@@ -151,10 +152,13 @@ async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str
         log.debug(req.json())
         _chatbot_phone = await ChatbotPhone().generate_chatbot_phone_from_request(req=req)
         _chatbot_phone.uuid = uuid4()
-        _chatbot_phone.bot_id = UUID(bot_uuid)
         _chatbot_phone.status = Status.ACT.value
-        _chatbot_phone.save()
+        repo.add_phone(bot_uuid, _chatbot_phone)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=None)
+    except NotFound as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_uuid} was not found",
                             data=None)
     except Exception as e:
         log.error(e.__str__())
@@ -178,7 +182,7 @@ async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str
     return response
 
 
-async def ctr_get_chatbot_phones(bot_uuid: str, environment: str | None, eventId: str = None):
+async def ctr_get_chatbot_phones(repo: TenantRepository, bot_uuid: str, environment: str | None, eventId: str = None):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
@@ -198,15 +202,16 @@ async def ctr_get_chatbot_phones(bot_uuid: str, environment: str | None, eventId
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
     try:
-        match environment:
-            case None:
-                _phones = [phone.get_phones_info() for phone in ChatbotPhone.objects(bot_id=UUID(bot_uuid))]
-            case _:
-                _phones = [phone.get_phones_info() for phone in ChatbotPhone.objects(bot_id=UUID(bot_uuid), environment=environment)][-1]
+        _phones = [phone.get_phones_info() for phone in repo.list_phones(bot_uuid, environment)]
+        if environment is not None:
+            # Asking for one environment answers with a single phone, the last one registered for it.
+            if not _phones:
+                raise NotFound(environment)
+            _phones = _phones[-1]
 
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_phones)
-    except ValueError as e:
+    except (ValueError, NotFound) as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"RECORD NOT FOUND")
 
@@ -234,7 +239,7 @@ async def ctr_get_chatbot_phones(bot_uuid: str, environment: str | None, eventId
     return response
 
 
-async def ctr_get_chatbot_rules_from_uuid(_uuid: str, eventId: str = None) -> Response:
+async def ctr_get_chatbot_rules_from_uuid(repo: TenantRepository, _uuid: str, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"We are looking for this chatbot {_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
@@ -255,7 +260,7 @@ async def ctr_get_chatbot_rules_from_uuid(_uuid: str, eventId: str = None) -> Re
     )
 
     try:
-        _chatbot = [chatbot for chatbot in ChatBot.objects(uuid=UUID(_uuid))][-1]
+        _chatbot = repo.get_bot(_uuid)
         rules = (f"{B_SEN} "
                  f"{B_SYS} "
                  f"Tu nombre es {_chatbot.name} "
@@ -265,13 +270,13 @@ async def ctr_get_chatbot_rules_from_uuid(_uuid: str, eventId: str = None) -> Re
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=None)
 
-        for rule in Rule.objects(botId=UUID(_uuid)):
+        for rule in repo.list_rules(_uuid):
             rules += f"{rule.rule} "
         rules += f" {E_SYS}"
         body.data = rules
         log.info(body.json())
 
-    except ValueError as e:
+    except (ValueError, NotFound) as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {_uuid} was not found",
                             data=None)
@@ -297,7 +302,7 @@ async def ctr_get_chatbot_rules_from_uuid(_uuid: str, eventId: str = None) -> Re
     return response
 
 
-async def ctr_create_chatbot_rules(request: RulesRequest, bot_id: str, eventId: str = None) -> Response:
+async def ctr_create_chatbot_rules(repo: TenantRepository, request: RulesRequest, bot_id: str, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
 
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
@@ -319,8 +324,13 @@ async def ctr_create_chatbot_rules(request: RulesRequest, bot_id: str, eventId: 
 
     try:
         [log.info(rule) for rule in request.rules]
-        [Rule(uuid=uuid4(), botId=bot_id, rule=rule).save() for rule in request.rules]
+        repo.add_rules(bot_id, request.rules)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=None)
+
+    except NotFound as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_id} was not found",
                             data=None)
 
     except OperationError as e:
