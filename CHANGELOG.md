@@ -28,12 +28,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   guardaban como fecha de creación la hora de arranque del proceso, todos los mensajes de la cola compartían
   `_uuid`, y todas las credenciales compartían la clave con la que se firma el token de verificación.
 - La marca de tiempo de las respuestas de la API era también la hora de arranque.
+- Las respuestas de los endpoints de gestión llegaban rotas al cliente desde la actualización de Starlette: los
+  controladores enviaban el cuerpo como texto, y la versión nueva ya no lo convierte. Ahora lo envían en bytes, y
+  `Content-Length` cuenta bytes y no caracteres, que no coincidían en cuanto había una tilde.
 
 ### Seguridad
 - FastAPI pasa de 0.110.0 a 0.143.0 y Starlette de 0.36.3 a 1.7.0. La versión anterior de Starlette tenía 14
   vulnerabilidades conocidas; con las dependencias nuevas, `pip-audit` no encuentra ninguna.
-
-### Seguridad
 - Los valores de ejemplo de los modelos del webhook llevaban números de teléfono reales, uno de ellos también
   codificado dentro de un identificador de mensaje de WhatsApp. Se sustituyen por números del rango reservado
   para ficción. Siguen en la historia de git y en las imágenes ya publicadas.
