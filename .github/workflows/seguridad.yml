@@ -89,6 +89,11 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    env:
+      # En un pull request CodeQL solo informa de los hallazgos que caen en las líneas del diff. Para un gate eso
+      # no sirve: el PR pasa y la rama se rompe al fusionar, cuando el análisis ya es completo. Con esto el PR y
+      # el push miden lo mismo.
+      CODEQL_ACTION_DIFF_INFORMED_QUERIES: "false"
     steps:
       - uses: actions/checkout@v7
 
