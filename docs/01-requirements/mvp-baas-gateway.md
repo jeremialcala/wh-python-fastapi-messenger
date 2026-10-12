@@ -1,13 +1,13 @@
 # PRD — MVP del gateway BaaS de mensajería
 
-* **Estado:** review
+* **Estado:** approved (Gate 0, 2026-10-12)
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 01-requirements
 * **Versión:** 0.1.0
 * **Gate:** 0
 * **Feature ID:** BAAS-001
-* **Nivel ASVS objetivo:** L2 (propuesto; ver [Decisiones abiertas](#decisiones-abiertas))
+* **Nivel ASVS objetivo:** L2
 
 ## Problema y contexto
 
@@ -162,13 +162,13 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 
 | ID | Requisito | Estado |
 |---|---|---|
-| RNF01 | El webhook responde a Meta dentro del plazo que evita reintentos: `<TODO: fijar SLO>` | Sin medir |
+| RNF01 | El webhook responde a Meta dentro del plazo que evita reintentos. No se compromete una cifra hasta medirlo en producción | Sin medir |
 | RNF02 | Una notificación recibe `200` solo cuando RabbitMQ ha confirmado el mensaje; si no, `503` | Construido |
 | RNF03 | El gateway no pasa de 512 MB de RAM ni de 1 CPU en el servidor | Construido (tope del compose) |
 | RNF04 | Un mensaje entregado dos veces por Meta, o reenviado por un tercero, no se procesa dos veces | Pendiente: ni el gateway ni el motor deduplican |
-| RNF05 | Cada dato personal tiene un plazo de retención y se borra al vencer, también en cola, logs y respaldos | Pendiente; plazos sin definir |
+| RNF05 | Cada dato personal tiene un plazo de retención y se borra al vencer, también en cola, logs y respaldos. Máximos de la plataforma, que cada cliente puede acortar: 24 horas para un mensaje en la cola y 12 meses sin actividad para un contacto | Pendiente: no se borra nada por plazo |
 | RNF06 | El servicio arranca solo tras un apagón del servidor | Pendiente: no hay unidad de arranque para el gateway |
-| RNF07 | Disponibilidad mensual del webhook: `<TODO: fijar SLO>` | Sin medir |
+| RNF07 | Disponibilidad del webhook: sin cifra comprometida mientras el servidor no tenga UPS. Se mide desde el primer despliegue | Sin medir |
 
 ## Trazabilidad de requisitos
 
@@ -251,11 +251,11 @@ OWASP Top 10 en su edición 2025.
 | RS02 | Todo endpoint que no sea el webhook se autentica con un JWT firmado por el cliente y metido dentro de un JWE ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md), [ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)): el gateway verifica la firma con la clave pública registrada del cliente, y el token caduca y no se puede reutilizar | Pendiente: hoy lo sustituye una única clave de operador, `X-API-Key`, de 32 caracteres o más y comparada en tiempo constante. Las piezas de JWE existen en el código, por evento y desactivadas | V2.10, V3.5, V6.2 | A07 |
 | RS03 | Solo se procesan notificaciones con `X-Hub-Signature-256` válida sobre el cuerpo crudo | Construido | V2.10, V9.2 | A08 |
 | RS04 | El token de verificación se compara en tiempo constante, y un bot sin token no se puede verificar | Construido | V2.10 | A07 |
-| RS05 | El número de teléfono de un contacto se guarda cifrado con una clave propia del cliente dueño del bot, y el contacto se puede localizar sin guardar el número en claro | Pendiente | V6.2, V8.3 | A04 |
+| RS05 | El número de teléfono de un contacto y el número de WhatsApp de un bot se guardan cifrados con una clave propia del cliente dueño del bot, y el contacto se puede localizar sin guardar el número en claro | Pendiente | V6.2, V8.3 | A04 |
 | RS06 | Los tokens de Meta y el App Secret de un bot se guardan cifrados; la API de gestión no los devuelve a los clientes, y solo el motor de respuestas obtiene los tokens, pidiéndolos al gateway por `bot_id` con una credencial de servicio propia y dejando registro | Pendiente: en claro, y `/info` devuelve los tokens a quien tenga la clave única | V6.4, V8.3 | A04 |
 | RS07 | Ningún log contiene números, nombres, contenido de mensajes ni credenciales, en ningún nivel | Parcial: el interceptor no registra query strings ni cabeceras; `messages.py` y `facebook.py` sí registran contenido y números por debajo de `production` | V7.1 | A09 |
 | RS08 | El mensaje viaja y reposa protegido entre el gateway y el motor: broker en red privada, con usuario propio, y contenido cifrado | Parcial: red privada y usuario propio previstos con Hermod; el cifrado JWE existe y está desactivado | V6.2, V9.2 | A04 |
-| RS09 | En internet solo se publica `/chat/<uuid>`; la gestión y la documentación de la API no | Pendiente: sin desplegar | V14.3 | A02 |
+| RS09 | En internet solo se publica `/chat/<uuid>`. La gestión y la documentación de la API se quedan en red privada hasta que existan el registro de clientes y la autenticación con JWE (RS01, RS02); a partir de entonces la gestión se publica | Pendiente: sin desplegar | V14.3 | A02 |
 | RS10 | El borde limita la tasa de peticiones por origen y por bot | Pendiente | V11.1 | A06 |
 | RS11 | Toda entrada se valida contra un esquema estricto y con límite de tamaño | Parcial: Pydantic valida, pero `FacebookRequest` acepta listas sin tipar y no hay límite de tamaño | V5.1, V13.2 | A05 |
 | RS12 | Imagen base por digest, dependencias fijadas y analizadas en cada build, y SBOM publicado | Parcial: imagen por digest; sin lockfile, SCA ni SBOM | V14.2 | A03 |
@@ -335,26 +335,40 @@ control construido y una prueba que lo verifica.
 - **MongoDB Atlas.** Los datos personales viven fuera del servidor; su región y sus respaldos están sin confirmar.
 - **Servidor sin UPS.** Limita la disponibilidad que se puede prometer (RNF07).
 
-## Decisiones abiertas
+## Decisiones
 
-Requieren respuesta humana antes de aprobar el Gate 0. Ninguna está decidida en este documento.
+### Tomadas al aprobar el Gate 0 (2026-10-12, Jeremi Alcala)
 
-1. **Parámetros del token de autenticación.** Está decidido que es un JWT firmado por el cliente dentro de un JWE
-   ([ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)). Falta fijar los algoritmos permitidos, el contenido obligatorio del JWT, su duración y cómo
-   registra y rota cada parte su clave pública.
-2. **Contrato de la cola.** El sobre del gateway, el único que lleva el `bot_id`, es el contrato para los dos
-   canales ([ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md)), y la firma del webhook no viaja con el mensaje ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)). Falta fijarlo en un
-   AsyncAPI común con el motor (RF12).
-3. **Exposición de la gestión.** Con JWE por cliente, la API de gestión podría publicarse en internet; RS09 dice
-   hoy que no se publica. Hay que elegir: API pública autenticada con JWE, o acceso solo por red privada.
-4. **Alcance de "los números".** Si el cifrado con la clave del cliente cubre solo el número del contacto o también
-   el número del bot.
-5. **Custodia de la clave de cifrado de datos.** La clave con la que el cliente firma la guarda el propio cliente
-   y el gateway solo registra su parte pública ([ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)). Esa clave no sirve para cifrar los números: el
-   gateway y el motor necesitan leerlos para localizar al contacto y responderle. Falta decidir qué clave cifra
-   los datos de cada cliente, quién la genera y dónde vive.
-6. **Nivel ASVS.** Se propone L2 por tratar datos personales de terceros en un servicio multi-cliente.
-7. **Retención.** Plazo de cada dato personal (RNF05).
-8. **SLO.** Tiempo de respuesta y disponibilidad del webhook (RNF01, RNF07).
-9. **Protección de datos.** Delegado de protección de datos, región de Atlas, contrato de encargo y procedimiento
-   de aviso de brechas, detallados en la [clasificación de datos](../00-project/data-classification.md).
+| Decisión | Resultado | Dónde queda |
+|---|---|---|
+| Quién entrega la respuesta al usuario | El motor de respuestas | [ADR-0002](../00-project/adr/0002-el-motor-entrega-las-respuestas.md), RF07 |
+| Cómo obtiene el motor la configuración del bot | Se la pide al gateway con el `bot_id` del mensaje | [ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md), RF05 |
+| Autenticación | Firma de Meta solo en el webhook; JWT firmado por el cliente dentro de un JWE en el resto | [ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md), [ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md), RS02 |
+| Exposición de la gestión | Privada hasta que existan el registro de clientes y el JWE; después, pública | RS09 |
+| Alcance de "los números" | El número del contacto y el número del bot | RS05 |
+| Nivel ASVS | L2 | Cabecera de este documento |
+| Retención | Máximos de plataforma que el cliente puede acortar: 24 horas en la cola y 12 meses sin actividad para un contacto | RNF05 |
+| SLO del webhook | Sin cifra comprometida; se mide desde el primer despliegue | RNF01, RNF07 |
+
+### Pasan al Gate 1
+
+El requisito está fijado; falta el diseño.
+
+1. **Parámetros del token de autenticación** (RS02): algoritmos permitidos, contenido obligatorio del JWT,
+   duración, y registro y rotación de las claves públicas.
+2. **Contrato de la cola** (RF12): un AsyncAPI común con el motor de respuestas, con el sobre del gateway como
+   formato para los dos canales.
+3. **Custodia de la clave de cifrado de datos** (RS05, RS06): qué clave cifra los datos de cada cliente, quién la
+   genera y dónde vive.
+
+### Datos por aportar
+
+No cambian ningún requisito, pero siguen sin respuesta:
+
+- Si se designa un delegado de protección de datos o se confirma que no aplica.
+- La región del clúster de MongoDB Atlas, de la que depende si hay transferencia internacional.
+
+### Entregables anteriores al primer cliente externo
+
+- Modelo de contrato de encargo del tratamiento (GDPR, art. 28) y registro de actividades (art. 30).
+- Procedimiento de aviso de brechas a los clientes (art. 33.2).

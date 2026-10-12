@@ -1,6 +1,6 @@
 # Project Charter — Gateway BaaS (Bot as a Service) de mensajería
 
-* **Estado:** review
+* **Estado:** approved (Gate 0, 2026-10-12)
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 00-project
@@ -108,8 +108,8 @@ mindmap
 | Números de teléfono en claro en la base, los logs o los respaldos | Cero |
 | Mensajes aceptados con `200` que no llegan a la cola | Cero |
 | Notificaciones sin firma válida procesadas | Cero |
-| Tiempo de respuesta del webhook a Meta | `<TODO: fijar SLO>` |
-| Disponibilidad mensual del webhook | `<TODO: fijar SLO, condicionado a la falta de UPS>` |
+| Tiempo de respuesta del webhook a Meta | Sin cifra comprometida; se mide desde el primer despliegue |
+| Disponibilidad mensual del webhook | Sin cifra comprometida mientras el servidor no tenga UPS; se mide desde el primer despliegue |
 
 ## Riesgos de alto nivel
 

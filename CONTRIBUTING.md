@@ -28,7 +28,7 @@ Cada fase cierra su gate (`.ai-dlc/gates/`) antes de avanzar. Un criterio sin ev
 
 - Commits: `tipo(scope): mensaje` (`feat`, `fix`, `docs`, `test`, `chore`, `refactor`, `sec`).
 - Todo cambio notable añade su entrada en la sección `[Unreleased]` de [CHANGELOG.md](CHANGELOG.md).
-- Las versiones siguen SemVer a partir de `v0.0.1`. La próxima es la `0.1.0` y se corta al cerrar el Gate 0.
+- Las versiones siguen SemVer a partir de `v0.0.1`. La `0.1.0` se cortó al cerrar el Gate 0.
 
 ## Idioma
 
