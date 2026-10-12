@@ -6,16 +6,31 @@
 - [ ] Dual review completado (humano + IA)
 - [ ] Sin secretos en el código
 
-## Estado (2026-10-12): sin empezar
+## Estado (2026-10-12): en curso
 
-Punto de partida medido: cobertura por ramas del 60 %, FastAPI 0.110.0 y Starlette 0.36.3 fijados por
-`starlette~=0.36.3`, sin SAST, sin SCA y sin escaneo de secretos en el pipeline.
+| Criterio | Estado | Evidencia |
+|---|---|---|
+| SAST sin hallazgos críticos o altos | Gate activo | Workflow `Seguridad`, trabajo `sast`: CodeQL, y el build se rompe con cualquier hallazgo de nivel `error` |
+| Dependencias verificadas (SCA) | Gate activo | `requirements.lock` y `requirements-dev.lock` con hashes; trabajo `dependencias` con `pip-audit` sobre el lock. Al añadirlo: 14 vulnerabilidades conocidas con las dependencias anteriores, todas de Starlette 0.36.3, y ninguna con las nuevas |
+| Cobertura ≥ 80 % por ramas | **No cumple: 61 %** | El CI exige un suelo del 60 % para que no baje. `controller/chatbot.py`, `intents.py` y `facebook.py` están entre el 10 y el 14 % |
+| Dual review | Pendiente | — |
+| Sin secretos en el código | Gate activo | Trabajo `secretos`: gitleaks sobre la historia completa. Al añadirlo: 56 commits, ningún hallazgo |
+
+"Gate activo" significa que el control existe y rompe el build; la casilla se marca al cerrar el gate, con el
+resto de criterios cumplidos.
+
+### Hecho en la base
+
+- Dependencias actualizadas: FastAPI 0.110 → 0.143 y Starlette 0.36 → 1.7. Se retiran once paquetes que el código
+  no importaba.
+- La imagen instala solo las dependencias de ejecución, desde el lock y verificando hashes.
+- Corregido el hallazgo H1: los valores por defecto de las entidades se calculan por objeto.
 
 ## Heredado del Gate 1
 
 - Los siete trabajos de la sección "Brecha entre lo construido y el diseño" de
   [`architecture.md`](../../docs/02-design/architecture.md), en el orden que marca el threat model.
-- Los hallazgos H1 a H6 de [`threat-model.md`](../../docs/02-design/threat-model.md), empezando por los valores
-  por defecto que se calculan al importar (H1).
+- Los hallazgos H2 a H6 de [`threat-model.md`](../../docs/02-design/threat-model.md). H1, los valores por defecto
+  que se calculaban al importar, está corregido.
 - Si cambia la API o el mensaje de la cola, los contratos de `docs/02-design/contracts/` cambian con ellos: las
   pruebas de `tests/contract` lo exigen.

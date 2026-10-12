@@ -16,6 +16,27 @@
 
 Las pruebas se ejecutan con `pytest` desde la raíz y no necesitan servicios externos ni `config.env`.
 
+## Dependencias
+
+Las dependencias se declaran como rangos en `requirements.txt` (ejecución) y `requirements-dev.txt` (pruebas), y
+se fijan con hashes en sus `.lock`. Para añadir, quitar o actualizar una:
+
+```bash
+pip install uv
+uv pip compile --universal --python-version 3.12 --generate-hashes requirements.txt -o requirements.lock
+uv pip compile --universal --python-version 3.12 --generate-hashes requirements-dev.txt -o requirements-dev.lock
+pip install --require-hashes -r requirements-dev.lock
+python .ai-dlc/scripts/gen_openapi.py
+```
+
+Los `.lock` no se editan a mano. El último paso regenera el contrato OpenAPI, que puede cambiar con la versión del
+framework. El CI falla si un lock no fija los mismos paquetes que se declaran.
+
+## Cobertura
+
+El CI exige una cobertura por ramas mínima, hoy del 60 %. Es un suelo para que no baje, no el objetivo: el Gate 2
+pide el 80 %. Al subir la cobertura real, se sube el suelo en `ci.yml` y `build.yml`.
+
 ## Dual review
 
 Toda PR requiere revisión humana más análisis asistido por IA.

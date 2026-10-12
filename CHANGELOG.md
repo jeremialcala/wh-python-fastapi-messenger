@@ -10,6 +10,27 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ### Añadido
 - ADR-0013, aceptado: OpenBao como gestor de secretos y controlador central de claves, desplegado en el servidor
   con el nombre de Andvari. La clave maestra de ADR-0010 vive en su motor Transit, derivada por cliente.
+- Workflow `Seguridad`, con tres gates que rompen el build: fuga de secretos (gitleaks sobre la historia
+  completa), dependencias vulnerables (`pip-audit` sobre el lock) y análisis estático (CodeQL).
+- `requirements.lock` y `requirements-dev.lock`: dependencias fijadas con hashes. La imagen y el CI instalan
+  desde ellos.
+- Suelo de cobertura por ramas en el CI: 60 %.
+
+### Cambiado
+- La imagen instala solo las dependencias de ejecución; las de pruebas pasan a `requirements-dev.txt`.
+- Se retiran once dependencias que el código no importaba: `fastapi-sessions`, `asgi-correlation-id`,
+  `python-multipart`, `pytz`, `pyjwt`, `pycryptodome`, `keyboard`, `segno`, `pillow`, `phonenumbers` y
+  `pydantic-extra-types`.
+
+### Corregido
+- Los valores por defecto de las entidades se calculaban una sola vez, al importar. Todos los documentos
+  guardaban como fecha de creación la hora de arranque del proceso, todos los mensajes de la cola compartían
+  `_uuid`, y todas las credenciales compartían la clave con la que se firma el token de verificación.
+- La marca de tiempo de las respuestas de la API era también la hora de arranque.
+
+### Seguridad
+- FastAPI pasa de 0.110.0 a 0.143.0 y Starlette de 0.36.3 a 1.7.0. La versión anterior de Starlette tenía 14
+  vulnerabilidades conocidas; con las dependencias nuevas, `pip-audit` no encuentra ninguna.
 
 ## [0.2.0] - 2026-10-12
 

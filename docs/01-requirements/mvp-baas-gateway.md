@@ -258,7 +258,7 @@ OWASP Top 10 en su edición 2025.
 | RS09 | En internet solo se publica `/chat/<uuid>`. La gestión y la documentación de la API se quedan en red privada hasta que existan el registro de clientes y la autenticación con JWE (RS01, RS02); a partir de entonces la gestión se publica | Pendiente: sin desplegar | V14.3 | A02 |
 | RS10 | El borde limita la tasa de peticiones por origen y por bot | Pendiente | V11.1 | A06 |
 | RS11 | Toda entrada se valida contra un esquema estricto y con límite de tamaño | Parcial: Pydantic valida, pero `FacebookRequest` acepta listas sin tipar y no hay límite de tamaño | V5.1, V13.2 | A05 |
-| RS12 | Imagen base por digest, dependencias fijadas y analizadas en cada build, y SBOM publicado | Parcial: imagen por digest; sin lockfile, SCA ni SBOM | V14.2 | A03 |
+| RS12 | Imagen base por digest, dependencias fijadas y analizadas en cada build, y SBOM publicado | Parcial: imagen por digest, dependencias fijadas con hashes y analizadas en cada build; falta el SBOM | V14.2 | A03 |
 | RS13 | Ningún secreto vive en el repo ni en la imagen, y el servicio no arranca sin su clave de gestión | Construido | V2.10, V14.1 | A02 |
 | RS14 | Queda registro de los eventos de seguridad (rechazos, altas, bajas y accesos de gestión), atribuibles a un cliente | Parcial: se registran los rechazos; no hay auditoría por cliente | V7.2 | A09 |
 | RS15 | Un error no revela detalles internos y falla cerrado | Parcial: dos funciones de `controller/chatbot.py` devuelven el texto de la excepción en la respuesta | V7.4 | A10 |
