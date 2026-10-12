@@ -67,5 +67,6 @@ queden en respaldos. Es lo que da cumplimiento práctico a la baja de un cliente
 
 ## Abierto
 
-- Dónde vive la clave maestra más allá del fichero de configuración del servidor, y cómo se rota.
+- Dónde vive la clave maestra y cómo se rota: resuelto en
+  [ADR-0013](0013-openbao-como-gestor-de-secretos.md), un OpenBao propio como controlador central de claves.
 - Si el identificador de Messenger del contacto (PSID) se cifra también. El requisito habla de números.
