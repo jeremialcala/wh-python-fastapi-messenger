@@ -4,6 +4,9 @@ config.env
 .env*
 certs/
 *.pem
+gateway-keys*.json
+keys/
+*-key.json
 
 # Not needed at runtime.
 .git/

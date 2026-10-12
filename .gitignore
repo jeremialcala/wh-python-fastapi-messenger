@@ -1,3 +1,8 @@
+# Private keys: the gateway's key file and the signing keys of a client or of the operator.
+gateway-keys*.json
+keys/
+*-key.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

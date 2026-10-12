@@ -4,9 +4,18 @@
     Environment variables win over config.env: the tests never see real credentials nor reach a real service.
 """
 import os
+import tempfile
+
+from auth import gateway_keys  # Needs neither settings nor database.
+
+# A key pair for the gateway, made for this run and thrown away with it.
+GATEWAY_KEYS_FILE = os.path.join(tempfile.mkdtemp(prefix="gateway-keys-"), "gateway-keys.json")
+gateway_keys.write_file(GATEWAY_KEYS_FILE, [gateway_keys.new_key()])
+GATEWAY_AUDIENCE = "https://gateway.test"
 
 os.environ.update({
-    "ADMIN_API_KEY": "test-admin-api-key-0123456789abcdef",
+    "GATEWAY_KEYS_FILE": GATEWAY_KEYS_FILE,
+    "GATEWAY_AUDIENCE": GATEWAY_AUDIENCE,
     "FACEBOOK_APP_SECRET": "test-app-secret",
 
     "CLIENT_ID": "test",
@@ -82,8 +91,58 @@ mongoengine.connect = _connect_in_memory
 
 @pytest.fixture(autouse=True)
 def empty_database():
-    """Each test starts with an empty database."""
+    """
+        Each test starts with an empty database. The documents are deleted, not the collections: dropping them
+        would take their unique indexes away, and mongoengine only creates those once per process.
+    """
     import classes  # noqa: F401  The entities register the connection.
 
-    mongoengine.get_connection().drop_database(os.environ["DB_NAME"])
+    database = mongoengine.get_db()
+    for name in database.list_collection_names():
+        database[name].delete_many({})
     yield
+
+
+class Caller:
+    """A registered client and its private key: everything needed to call the service as that client."""
+
+    def __init__(self, client, key: dict):
+        self.client_id = client.uuid
+        self.key = key
+        self.kid = client.signingKeys[0]["kid"]
+
+    def token(self, **changes) -> str:
+        from auth.client import build_token
+
+        gateway_key = gateway_keys.GatewayKeys.load(GATEWAY_KEYS_FILE).public_set()["keys"][0]
+        return build_token(self.key, self.client_id, GATEWAY_AUDIENCE, gateway_key, **changes)
+
+    @property
+    def auth(self) -> dict:
+        """A fresh token each time: one is valid for a single request."""
+        return {"Authorization": f"Bearer {self.token()}"}
+
+
+@pytest.fixture
+def register():
+    """Returns a function that registers a client with a new key pair and gives back its Caller."""
+    from auth.client import new_signing_key, public_part
+    from auth.client_keys import public_signing_key
+    from repository import register_client
+
+    def new_caller(name: str) -> Caller:
+        key = new_signing_key()
+        return Caller(register_client(name, public_signing_key(public_part(key))), key)
+
+    return new_caller
+
+
+@pytest.fixture
+def operator():
+    """The operator, with a signing key registered the way the server command does it."""
+    from auth.client import new_signing_key, public_part
+    from auth.client_keys import public_signing_key
+    from repository import add_signing_key, operator_client
+
+    key = new_signing_key()
+    return Caller(add_signing_key(operator_client().uuid, public_signing_key(public_part(key))), key)

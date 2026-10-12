@@ -8,38 +8,68 @@ from starlette.concurrency import iterate_in_threadpool
 from fastapi import FastAPI, Request, Response, Depends, HTTPException
 from fastapi import status
 from fastapi.responses import PlainTextResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from inspect import currentframe
 from uuid import uuid4
 from classes import (Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport,
-                     RulesRequest, BotResponse, IntentRequest, ChatBot)
+                     RulesRequest, BotResponse, IntentRequest, ChatBot, ClientRequest, SigningKeyRequest)
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
-                       CONTACT, API_KEY, HUB_SIGNATURE)
+                       CONTACT, HUB_SIGNATURE)
 
 from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_process_messages, ctr_add_phone_chatbot,
                         ctr_get_chatbot_phones, ctr_create_event, ctr_get_chatbot_rules_from_uuid,
                         ctr_create_chatbot_rules, ctr_create_intent, ctr_get_intents, ctr_get_intent,
-                        ctr_update_intent, ctr_delete_intent, ctr_get_bot_tools, BrokerUnavailable)
+                        ctr_update_intent, ctr_delete_intent, ctr_get_bot_tools, BrokerUnavailable,
+                        ctr_register_client, ctr_list_clients, ctr_get_client, ctr_add_signing_key,
+                        ctr_remove_signing_key, ctr_gateway_keys)
 
-from repository import TenantRepository, NotFound, find_webhook_bot, operator_client
+from auth.gateway_keys import GatewayKeys
+from auth.principal import Principal, authenticate
+from auth.tokens import InvalidToken
+from enums import Role
+from repository import TenantRepository, NotFound, find_webhook_bot
 from utils import configure_logging, is_valid_signature, secrets_match
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
 
 
-async def get_repository(request: Request) -> TenantRepository:
-    """
-        Every management endpoint depends on this: only the two Meta webhook routes are public. What it hands
-        over is the repository of the authenticated client, the only way those endpoints have to reach data.
+# Read once, at start: without the gateway's key pair no client could authenticate, so the app does not start.
+GATEWAY_KEYS = GatewayKeys.load(settings.gateway_keys_file)
 
-        Until clients authenticate with their own tokens the only caller is the operator, with the admin key,
-        and it works on its own client.
+bearer = HTTPBearer(auto_error=False, bearerFormat="JWE",
+                    description="A JWT signed by the client (ES256), inside a JWE encrypted to the gateway "
+                                "(RSA-OAEP-256, A256CBC-HS512). It lasts 60 seconds at most and is valid once.")
+
+
+async def get_principal(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> Principal:
     """
-    if not secrets_match(settings.admin_api_key, request.headers.get(API_KEY)):
-        log.warning(f"Rejected {request.method} {request.url.path}: missing or wrong admin credential")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="HTTP_401_UNAUTHORIZED")
-    return TenantRepository(operator_client().uuid)
+        Everything but the two Meta webhook routes and the health check depends on this. The answer to a token
+        that is not accepted is always the same 401: the reason only goes to the log.
+    """
+    try:
+        return authenticate(credentials.credentials if credentials else None, GATEWAY_KEYS, settings.gateway_audience)
+    except InvalidToken as e:
+        log.warning(f"Rejected a request: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="HTTP_401_UNAUTHORIZED",
+                            headers={"WWW-Authenticate": "Bearer"}) from None
+
+
+async def get_repository(principal: Principal = Depends(get_principal)) -> TenantRepository:
+    """
+        What the endpoints of a client get: the repository of whoever is authenticated, the only way they have
+        to reach data. The operator is a client too, and reaches its own.
+    """
+    return TenantRepository(principal.client_id)
+
+
+async def require_operator(principal: Principal = Depends(get_principal)) -> Principal:
+    """The registry of clients is the operator's. What a caller may do comes from its entry, not from the token."""
+    if principal.role is not Role.OPERATOR:
+        log.warning(f"Client {principal.client_id} was denied an operator endpoint")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
+    return principal
 
 
 async def get_webhook_bot(bot_id: str) -> ChatBot:
@@ -303,3 +333,53 @@ async def get_chatbot_tools(bot_id, req: Request, repo: TenantRepository = Depen
     except Exception as e:
         raise Exception(e.args)
 
+
+@app.get(path="/gateway/keys", tags=["Clients"], response_model=ResponseData)
+async def gateway_keys(_principal: Principal = Depends(get_principal)):
+    """
+        The audience and the public keys a client encrypts its tokens to. A client that is already in asks here
+        for the new key when the gateway rotates its own.
+    """
+    return await ctr_gateway_keys(GATEWAY_KEYS)
+
+
+@app.get(path="/keys", tags=["Clients"], response_model=ResponseData)
+async def list_my_keys(principal: Principal = Depends(get_principal)):
+    return await ctr_get_client(principal.client_id)
+
+
+@app.post(path="/keys", tags=["Clients"], response_model=ResponseData)
+async def add_my_key(key: SigningKeyRequest, principal: Principal = Depends(get_principal)):
+    """A client registers a second public key to rotate: both work until it removes the old one."""
+    return await ctr_add_signing_key(principal.client_id, key)
+
+
+@app.delete(path="/keys/{kid}", tags=["Clients"], response_model=ResponseData)
+async def remove_my_key(kid: str, principal: Principal = Depends(get_principal)):
+    """A client revokes one of its keys. It cannot remove the last one: only the operator can let it back in."""
+    return await ctr_remove_signing_key(principal.client_id, kid, keep_one=True)
+
+
+@app.post(path="/clients", tags=["Clients"], response_model=ResponseData)
+async def register_client(client: ClientRequest, _operator: Principal = Depends(require_operator)):
+    """
+        The operator registers a client with its first public key. The answer carries what the client needs to
+        call the service: its identifier, the audience and the gateway's public keys.
+    """
+    return await ctr_register_client(client, GATEWAY_KEYS)
+
+
+@app.get(path="/clients", tags=["Clients"], response_model=ResponseData)
+async def list_clients(_operator: Principal = Depends(require_operator)):
+    return await ctr_list_clients()
+
+
+@app.post(path="/clients/{client_id}/keys", tags=["Clients"], response_model=ResponseData)
+async def add_client_key(client_id: str, key: SigningKeyRequest, _operator: Principal = Depends(require_operator)):
+    return await ctr_add_signing_key(client_id, key)
+
+
+@app.delete(path="/clients/{client_id}/keys/{kid}", tags=["Clients"], response_model=ResponseData)
+async def remove_client_key(client_id: str, kid: str, _operator: Principal = Depends(require_operator)):
+    """Revoking a key is deleting it: the tokens signed with it stop being accepted at once."""
+    return await ctr_remove_signing_key(client_id, kid, keep_one=False)

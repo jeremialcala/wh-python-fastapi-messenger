@@ -10,9 +10,7 @@ from uuid import uuid4
 
 import pika
 import pytest
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
-from starlette.responses import Response
 
 import app as app_module
 import controller.amqp_broker as broker
@@ -21,7 +19,6 @@ from classes import FacebookRequest
 from controller import BrokerUnavailable
 from utils import is_valid_signature
 
-ADMIN_API_KEY = os.environ["ADMIN_API_KEY"]
 APP_SECRET = os.environ["FACEBOOK_APP_SECRET"]
 
 BOT_ID = str(uuid4())
@@ -100,8 +97,8 @@ def test_signed_notification_is_processed(client, bot, process):
     {},
     {"X-Hub-Signature-256": sign(BODY, secret="not-the-app-secret")},
     {"X-Hub-Signature-256": sign(b'{"object": "page", "entry": []}')},
-    {"X-API-Key": ADMIN_API_KEY},
-], ids=["unsigned", "wrong secret", "signature of another body", "api key is not a signature"])
+    {"Authorization": "Bearer a-token-is-not-a-signature"},
+], ids=["unsigned", "wrong secret", "signature of another body", "a token is not a signature"])
 def test_notification_without_a_valid_signature_is_rejected(client, bot, process, headers):
     response = client.post(WEBHOOK, content=BODY, headers={**JSON, **headers})
 
@@ -183,42 +180,13 @@ def test_verification_never_passes_for_a_bot_without_verify_token(client, bot, t
     assert response.status_code == 403
 
 
-# --- Management endpoints: X-API-Key ---------------------------------------------------------------------------------
+# --- The health check ------------------------------------------------------------------------------------------------
 
-PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/health")}
-ROUTES = {(method, route.path) for route in app_module.app.routes if isinstance(route, APIRoute)
-          for method in route.methods}
-MANAGEMENT = sorted(ROUTES - PUBLIC)
-
-
-def test_the_webhook_and_health_routes_are_the_only_public_ones():
-    assert PUBLIC <= ROUTES
-    assert len(MANAGEMENT) == len(ROUTES) - len(PUBLIC)
-
-
-def test_health_answers_without_key_nor_database(client):
+def test_health_answers_without_token_nor_database(client):
     response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
-
-
-@pytest.mark.parametrize("headers", [{}, {"X-API-Key": "wrong"}, {"X-API-Key": ADMIN_API_KEY[:-1]}],
-                         ids=["no key", "wrong key", "truncated key"])
-@pytest.mark.parametrize("method,path", MANAGEMENT)
-def test_management_endpoint_requires_the_api_key(client, method, path, headers):
-    url = path.format(bot_id=BOT_ID, intent_id=str(uuid4()))
-
-    assert client.request(method, url, headers=headers, json={}).status_code == 401
-
-
-def test_management_endpoint_opens_with_the_api_key(client, monkeypatch):
-    monkeypatch.setattr(app_module, "ctr_get_chatbot_from_uuid",
-                        AsyncMock(return_value=Response(content="{}", media_type="application/json")))
-
-    response = client.get(f"{WEBHOOK}/info", headers={"X-API-Key": ADMIN_API_KEY})
-
-    assert response.status_code == 200
 
 
 # --- No silent message loss ------------------------------------------------------------------------------------------

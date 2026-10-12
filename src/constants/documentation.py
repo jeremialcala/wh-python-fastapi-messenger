@@ -31,6 +31,10 @@ to respond to and from Facebook.
 
 TAGS_METADATA = [
     {
+        "name": "Clients",
+        "description": "The registry of clients and of the public keys they sign their tokens with."
+    },
+    {
         "name": "Bot",
         "description": "This entry will manage the chatbot lifecycle, ",
     },

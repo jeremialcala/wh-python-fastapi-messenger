@@ -27,8 +27,9 @@ class Client(Document):
     uuid = UUIDField(required=True, unique=True, default=uuid4)
     name = StringField(required=True, unique=True)
     role = StringField(required=True, default=Role.CLIENT.value, choices=[role.value for role in Role])
-    # Not used yet. The public key the client signs its tokens with, and its data key wrapped by the master key.
-    signingKey = DictField()
+    # The public keys the client signs its tokens with: one normally, two while it rotates. Never a private one.
+    signingKeys = ListField(DictField())
+    # Not used yet: the client's data key, wrapped by the master key.
     wrappedDataKey = StringField()
     createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)
