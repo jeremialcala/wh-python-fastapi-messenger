@@ -14,6 +14,9 @@ from enums import Status
 from repository import (Conflict, NotFound, add_signing_key, get_client, list_clients, register_client,
                         remove_signing_key)
 
+__all__ = ["ctr_register_client", "ctr_list_clients", "ctr_get_client", "ctr_add_signing_key",
+           "ctr_remove_signing_key", "ctr_gateway_keys"]
+
 settings = Settings()
 log = logging.getLogger(settings.environment)
 

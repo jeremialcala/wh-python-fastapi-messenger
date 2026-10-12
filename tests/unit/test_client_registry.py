@@ -272,7 +272,9 @@ def test_the_gateway_key_file_is_made_rotated_and_trimmed(tmp_path):
 
     assert [key["kid"] for key in ops_gateway_key.show(path)["keys"]] == [first["kid"], second["kid"]]
     assert "d" not in first and all("d" not in key for key in ops_gateway_key.show(path)["keys"])
-    assert [key["kid"] for key in ops_gateway_key.drop(path, first["kid"])["keys"]] == [second["kid"]]
+    left = ops_gateway_key.drop(path, first["kid"])
+
+    assert [key["kid"] for key in left["keys"]] == [second["kid"]]
     with pytest.raises(SystemExit):
         ops_gateway_key.drop(path, second["kid"])
     with pytest.raises(SystemExit):
