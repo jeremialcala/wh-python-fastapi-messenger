@@ -184,7 +184,7 @@ async def ctr_add_phone_chatbot(repo: TenantRepository, bot_uuid, req: ChatbotPh
 
 async def ctr_get_chatbot_phones(repo: TenantRepository, bot_uuid: str, environment: str | None, eventId: str = None):
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
+    log.info("Listing the phones of a chatbot")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 
     _action = uuid4()
