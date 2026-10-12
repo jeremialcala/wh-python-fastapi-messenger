@@ -11,6 +11,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - ADR-0013, aceptado: OpenBao como gestor de secretos y controlador central de claves, desplegado en el servidor
   con el nombre de Andvari. La clave maestra de ADR-0010 vive en su motor Transit, derivada por cliente.
 
+### Seguridad
+- Los valores de ejemplo de los modelos del webhook llevaban números de teléfono reales, uno de ellos también
+  codificado dentro de un identificador de mensaje de WhatsApp. Se sustituyen por números del rango reservado
+  para ficción. Siguen en la historia de git y en las imágenes ya publicadas.
+
 ## [0.2.0] - 2026-10-12
 
 Cierre del Gate 1 (diseño).
