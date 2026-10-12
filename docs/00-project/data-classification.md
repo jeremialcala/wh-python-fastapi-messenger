@@ -17,7 +17,7 @@ Niveles: Público < Interno < Confidencial < Restringido.
 | Responsable del tratamiento (art. 4.7) | Cada cliente, para los datos de los usuarios finales de sus bots | Decide finalidad y base jurídica; el gateway no las decide por él |
 | Encargado del tratamiento (art. 4.8) | El operador de la plataforma | Trata solo por instrucción del cliente y con las garantías del art. 28 |
 | Interesado | El usuario final que escribe a un bot | Titular de los derechos de los arts. 15 a 22 |
-| Subencargados | MongoDB Atlas (base de datos), Cloudflare (túnel y TLS) | Deben constar en el contrato de encargo con cada cliente |
+| Subencargados | MongoDB Atlas (base de datos), Cloudflare (túnel y TLS) y, si el motor de respuestas usa inferencia gestionada, el proveedor del LLM | Deben constar en el contrato de encargo con cada cliente |
 | Tercero necesario | Meta | Es el canal: recibe y entrega los mensajes bajo sus propios términos con el cliente |
 
 ## Inventario
@@ -29,7 +29,7 @@ Niveles: Público < Interno < Confidencial < Restringido.
 | Número de teléfono del contacto (`Contact.waId`) | **Restringido** (personal) | MongoDB; mensaje de la cola; logs por debajo de `production` | En claro | Cifrado con la clave del cliente; localizable sin guardarlo en claro (RS05) | `<TODO>` |
 | Nombre y foto de perfil del contacto (`firstName`, `lastName`, `profilePic`) | **Confidencial** (personal) | MongoDB; el nombre viaja también en el mensaje de la cola | En claro | Acceso solo del cliente dueño (RS01) | `<TODO>` |
 | Identificador de Messenger del contacto (`fbId`, PSID) | **Confidencial** (personal) | MongoDB; mensaje de la cola | En claro | Acceso solo del cliente dueño (RS01) | `<TODO>` |
-| Contenido de los mensajes | **Restringido** (personal; puede incluir categorías especiales del art. 9) | Cola `llm` hasta que se consume; logs por debajo de `production`. El gateway no lo guarda en MongoDB | En claro en la cola y en esos logs | Fuera de los logs (RS07); protegido en la cola (RS08) | Lo que tarde en consumirse; `<TODO: tope>` |
+| Contenido de los mensajes | **Restringido** (personal; puede incluir categorías especiales del art. 9) | Cola `llm` hasta que se consume; logs por debajo de `production`; después, el motor de respuestas y su LLM. El gateway no lo guarda en MongoDB | En claro en la cola y en esos logs | Fuera de los logs (RS07); protegido en la cola (RS08) | Lo que tarde en consumirse; `<TODO: tope>` |
 | Tokens de Meta del cliente (`facebookToken`, `whatsappToken`) y `appSecret` | **Restringido** (credencial) | MongoDB | En claro; `GET /chat/{bot_id}/info` devuelve los tokens | Cifrados en reposo y nunca devueltos por la API (RS06) | Hasta la baja del bot |
 | Token de verificación del bot (`verifyToken`) | **Confidencial** (credencial) | MongoDB | En claro; comparado en tiempo constante | Igual que los tokens (RS06) | Hasta la baja del bot |
 | Número del bot (`ChatbotPhone.phoneNumber`, `phoneId`) | **Confidencial** | MongoDB | En claro | `<TODO: confirmar si "los números" incluye los del bot>` | Hasta la baja del bot |
@@ -58,6 +58,9 @@ Niveles: Público < Interno < Confidencial < Restringido.
 - **Retención.** No hay ningún plazo definido: todas las celdas de retención de datos personales están abiertas.
 - **Región de la base.** No consta en qué región está el clúster de Atlas; determina si hay transferencia
   internacional (arts. 44 y siguientes).
+- **Dónde corre el LLM.** El motor de respuestas envía el texto de los mensajes a un LLM. Si es un servicio
+  gestionado fuera de la UE hay otra transferencia internacional. Se decide en el repositorio del motor, pero
+  afecta a lo que este servicio le promete al cliente.
 - **Alcance de "los números".** El requisito de cifrado cubre con seguridad el número del contacto. Falta confirmar
   si incluye también el número del bot.
 - **Contrato de encargo.** No existe un modelo de contrato del art. 28 con los clientes ni un registro de

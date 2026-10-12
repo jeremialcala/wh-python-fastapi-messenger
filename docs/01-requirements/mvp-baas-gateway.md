@@ -56,7 +56,7 @@ C4Context
     }
 
     System_Ext(meta, "Meta", "WhatsApp Business y Messenger: Graph API y webhooks")
-    System_Ext(motor, "Motor de respuestas", "Consume la cola y genera la respuesta. Sin definir")
+    System_Ext(motor, "ms-python-metamsghandler", "Motor de respuestas: consume la cola, aplica guardrails y clasifica la intencion")
     SystemDb_Ext(atlas, "MongoDB Atlas", "Bots, contactos, reglas e intents")
     System_Ext(cf, "Cloudflare", "Tunel y TLS del hostname publico")
     System_Ext(cd, "GitHub y receptor", "Build de la imagen y despliegue continuo")
@@ -70,7 +70,7 @@ C4Context
     Rel(gateway, atlas, "Lee y escribe", "TLS")
     Rel(gateway, meta, "Consulta perfiles y envia mensajes", "HTTPS, token del cliente")
     Rel(gateway, hermod, "Publica cada mensaje", "AMQP con confirmacion")
-    Rel(motor, hermod, "Consume", "AMQP")
+    Rel(motor, hermod, "Consume la cola llm y publica el resultado", "AMQP")
     Rel(motor, gateway, "Lee reglas y herramientas del bot", "API")
     Rel(cd, gateway, "Despliega", "Webhook firmado")
 
@@ -78,8 +78,9 @@ C4Context
     UpdateElementStyle(motor, $borderColor="#b30000", $fontColor="#b30000")
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-*Eje estructura · fase 01 · Gate 0. En rojo, lo que está sin definir. La relación del cliente con el gateway es el
-objetivo: hoy la gestión solo es alcanzable desde la red privada y con la clave única del operador.*
+*Eje estructura · fase 01 · Gate 0. El diagrama muestra el objetivo, y dos de sus relaciones no existen hoy: la
+gestión solo es alcanzable desde la red privada y con la clave única del operador, y el motor de respuestas (en
+rojo) no está desplegado, no lee las reglas ni las herramientas del bot y no devuelve ninguna respuesta.*
 
 ## Usuarios y escenarios
 
@@ -104,7 +105,7 @@ journey
       Pide borrar los datos de un contacto: 1: Cliente
 ```
 *Eje trazabilidad · fase 01 · Gate 0. Las puntuaciones bajas son los huecos de hoy: no hay credencial por cliente,
-los tokens se cargan a mano en la base, no hay motor que responda y no existe el borrado de un contacto.*
+los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie envía la respuesta, y no existe el borrado de un contacto.*
 
 ### Escenarios positivos
 
@@ -144,13 +145,14 @@ los tokens se cargan a mano en la base, no hay motor que responda y no existe el
 | RF02 | Un cliente crea y administra sus bots: persona, reglas, intents y números | Parcial: existe para bots sin dueño, con la clave única | Pruebas unitarias de autenticación |
 | RF03 | Meta verifica el webhook de cada bot con su token de verificación | Construido | `tests/unit/test_webhook_security.py` |
 | RF04 | El gateway recibe notificaciones de Messenger y de WhatsApp, identifica o crea el contacto y publica el mensaje en la cola `llm` | Construido | Pruebas unitarias del camino de WhatsApp; Messenger sin prueba; falta integración con MongoDB y RabbitMQ reales |
-| RF05 | El motor de respuestas obtiene de un bot su system prompt y sus herramientas | Construido | `tests/unit/test_intent_tool_schema.py` para las herramientas; el system prompt no tiene prueba |
+| RF05 | El motor de respuestas obtiene de un bot su system prompt y sus herramientas | Parcial: el gateway los expone, pero el motor no los consulta | `tests/unit/test_intent_tool_schema.py` para las herramientas; el system prompt no tiene prueba |
 | RF06 | El cliente carga y rota las credenciales de Meta de su bot (tokens y App Secret) por API | Pendiente: hoy se escriben a mano en la base | — |
-| RF07 | La respuesta generada llega al usuario final por el canal en el que escribió | Pendiente: `/answers` no existe y el envío por WhatsApp está sin conectar | — |
+| RF07 | La respuesta generada llega al usuario final por el canal en el que escribió | Pendiente: el motor clasifica el mensaje y publica el resultado en la cola `meta-classified`, pero nadie lo convierte en respuesta; en el gateway `/answers` no existe y el envío por WhatsApp está sin conectar | — |
 | RF08 | El cliente consulta los contactos de sus bots | Pendiente | — |
 | RF09 | El cliente exporta y borra los datos de un contacto (GDPR, arts. 15, 17 y 20) | Pendiente | — |
 | RF10 | La baja de un bot o de un cliente borra todos sus datos (GDPR, art. 28.3.g) | Pendiente | — |
 | RF11 | Fusionar a `main` construye la imagen y la despliega, con rollback si la sonda de vida falla | Parcial: construido, sin ejercitar en el servidor | Prueba de despliegue con la sonda rota a propósito |
+| RF12 | Todo mensaje publicado en la cola `llm`, de Messenger o de WhatsApp, lo procesa el motor de respuestas y conserva el bot al que iba dirigido | Parcial: el motor acepta los de WhatsApp, rechaza los de Messenger y descarta el bot | Comprobado el 2026-10-12 con el código de los dos repositorios; falta una prueba de contrato |
 
 ## Requisitos no funcionales
 
@@ -159,7 +161,7 @@ los tokens se cargan a mano en la base, no hay motor que responda y no existe el
 | RNF01 | El webhook responde a Meta dentro del plazo que evita reintentos: `<TODO: fijar SLO>` | Sin medir |
 | RNF02 | Una notificación recibe `200` solo cuando RabbitMQ ha confirmado el mensaje; si no, `503` | Construido |
 | RNF03 | El gateway no pasa de 512 MB de RAM ni de 1 CPU en el servidor | Construido (tope del compose) |
-| RNF04 | Un mensaje entregado dos veces por Meta, o reenviado por un tercero, no se procesa dos veces | Pendiente; depende del motor de respuestas |
+| RNF04 | Un mensaje entregado dos veces por Meta, o reenviado por un tercero, no se procesa dos veces | Pendiente: ni el gateway ni el motor deduplican |
 | RNF05 | Cada dato personal tiene un plazo de retención y se borra al vencer, también en cola, logs y respaldos | Pendiente; plazos sin definir |
 | RNF06 | El servicio arranca solo tras un apagón del servidor | Pendiente: no hay unidad de arranque para el gateway |
 | RNF07 | Disponibilidad mensual del webhook: `<TODO: fijar SLO>` | Sin medir |
@@ -256,7 +258,7 @@ OWASP Top 10 en su edición 2025.
 | RS13 | Ningún secreto vive en el repo ni en la imagen, y el servicio no arranca sin su clave de gestión | Construido | V2.10, V14.1 | A02 |
 | RS14 | Queda registro de los eventos de seguridad (rechazos, altas, bajas y accesos de gestión), atribuibles a un cliente | Parcial: se registran los rechazos; no hay auditoría por cliente | V7.2 | A09 |
 | RS15 | Un error no revela detalles internos y falla cerrado | Parcial: dos funciones de `controller/chatbot.py` devuelven el texto de la excepción en la respuesta | V7.4 | A10 |
-| RS16 | El texto del usuario final se trata como entrada no confiable para el LLM, y las llamadas a API de los intents solo pueden ir a destinos permitidos | Pendiente; lo ejecuta el motor de respuestas | V5.2, V12.6 | A05, A06 |
+| RS16 | El texto del usuario final se trata como entrada no confiable para el LLM, y las llamadas a API de los intents solo pueden ir a destinos permitidos | Parcial: según su documentación, el motor filtra la entrada con guardrails y trata la salida del LLM como no confiable; la ejecución de acciones no está construida, así que el control de destinos no existe | V5.2, V12.6 | A05, A06 |
 | RS17 | El contenedor corre sin privilegios y solo puede escribir donde necesita | Construido | V14.1 | A02 |
 
 ## Threat assessment inicial
@@ -275,12 +277,16 @@ flowchart LR
     end
     GW -->|"TLS: bots, contactos, tokens"| DB[(MongoDB Atlas)]
     GW -->|"HTTPS con el token del cliente"| META
-    Q -->|AMQP| MOTOR([Motor de respuestas: sin definir])
-    MOTOR -.->|"reglas y herramientas"| GW
+    Q -->|AMQP| MOTOR([ms-python-metamsghandler])
+    MOTOR -->|"texto del mensaje"| LLM([LLM: local o gestionado, sin decidir])
+    MOTOR -->|"resultado clasificado"| Q2[(cola meta-classified)]
+    MOTOR -.->|"reglas y herramientas: hoy no las pide"| GW
+    Q2 -.->|"respuesta al usuario: sin construir"| GW
 ```
-*Eje comportamiento · DFD inicial · Gate 0. Cuatro fronteras: internet ↔ Cloudflare, Cloudflare ↔ servidor (túnel
-saliente), servidor ↔ Atlas (los datos personales salen del servidor), y gateway ↔ motor de respuestas, cuya
-ubicación no se conoce.*
+*Eje comportamiento · DFD inicial · Gate 0. Cinco fronteras: internet ↔ Cloudflare, Cloudflare ↔ servidor (túnel
+saliente), servidor ↔ Atlas (los datos personales salen del servidor), gateway ↔ motor de respuestas, que todavía
+no está desplegado, y motor ↔ LLM, donde el contenido de los mensajes puede salir a un tercero. Las líneas
+discontinuas son flujos que el diseño necesita y que hoy no existen.*
 
 ```mermaid
 quadrantChart
@@ -314,7 +320,10 @@ control construido y una prueba que lo verifica.
 
 ## Dependencias y riesgos
 
-- **Motor de respuestas.** RF05, RF07, RNF04 y RS16 dependen de un sistema que no está definido.
+- **Motor de respuestas.** RF05, RF07, RF12, RNF04 y RS16 dependen de `ms-python-metamsghandler`, un repositorio
+  aparte. Tiene construidas la normalización, los guardrails y la clasificación de la intención; no tiene
+  construida la respuesta, no está desplegado, y dónde correrán él y su LLM está propuesto y sin aceptar en sus
+  ADR-0006 y ADR-0007. Si el LLM acaba en un servicio gestionado, el contenido de los mensajes sale a un tercero.
 - **Meta.** El protocolo del webhook y los términos de uso de WhatsApp Business los fija Meta.
 - **MongoDB Atlas.** Los datos personales viven fuera del servidor; su región y sus respaldos están sin confirmar.
 - **Servidor sin UPS.** Limita la disponibilidad que se puede prometer (RNF07).
@@ -323,17 +332,21 @@ control construido y una prueba que lo verifica.
 
 Requieren respuesta humana antes de aprobar el Gate 0. Ninguna está decidida en este documento.
 
-1. **Motor de respuestas.** Qué sistema consume la cola `llm`, dónde corre y quién envía la respuesta al usuario
-   final (el motor directamente o el gateway, RF07).
-2. **Acceso de los clientes a la gestión.** El objetivo "el cliente administra sus bots" exige que la API de
+1. **Entrega de la respuesta.** El motor es `ms-python-metamsghandler`: clasifica el mensaje y publica el
+   resultado, pero no responde. Falta decidir quién llama a la API de Meta para entregar la respuesta (RF07): el
+   motor, que necesitaría los tokens de cada cliente, o el gateway, que ya los guarda y cuya documentación prevé un
+   endpoint `/answers`.
+2. **Contrato de la cola.** El motor rechaza los mensajes de Messenger tal como el gateway los publica y descarta
+   el bot de destino (RF12). Hay que decidir qué lado se adapta y fijarlo en un contrato AsyncAPI común.
+3. **Acceso de los clientes a la gestión.** El objetivo "el cliente administra sus bots" exige que la API de
    gestión sea alcanzable por los clientes, y RS09 exige que no esté en internet. Hay que elegir: API pública con
    credencial por cliente, acceso por red privada, o que el operador administre en nombre del cliente.
-3. **Alcance de "los números".** Si el cifrado con la clave del cliente cubre solo el número del contacto o también
+4. **Alcance de "los números".** Si el cifrado con la clave del cliente cubre solo el número del contacto o también
    el número del bot.
-4. **Custodia de la clave del cliente.** Si la genera y guarda la plataforma, o la aporta el cliente. Es decisión
+5. **Custodia de la clave del cliente.** Si la genera y guarda la plataforma, o la aporta el cliente. Es decisión
    del Gate 1, pero cambia lo que se le promete al cliente.
-5. **Nivel ASVS.** Se propone L2 por tratar datos personales de terceros en un servicio multi-cliente.
-6. **Retención.** Plazo de cada dato personal (RNF05).
-7. **SLO.** Tiempo de respuesta y disponibilidad del webhook (RNF01, RNF07).
-8. **Protección de datos.** Delegado de protección de datos, región de Atlas, contrato de encargo y procedimiento
+6. **Nivel ASVS.** Se propone L2 por tratar datos personales de terceros en un servicio multi-cliente.
+7. **Retención.** Plazo de cada dato personal (RNF05).
+8. **SLO.** Tiempo de respuesta y disponibilidad del webhook (RNF01, RNF07).
+9. **Protección de datos.** Delegado de protección de datos, región de Atlas, contrato de encargo y procedimiento
    de aviso de brechas, detallados en la [clasificación de datos](../00-project/data-classification.md).
