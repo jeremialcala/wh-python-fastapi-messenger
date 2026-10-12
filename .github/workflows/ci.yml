@@ -24,10 +24,13 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: requirements-dev.lock
 
-      - run: pip install -r requirements.txt
+      # From the lock and with hashes: the tests run against exactly what was pinned.
+      - run: pip install --require-hashes -r requirements-dev.lock
 
-      - run: pytest
+      # The floor is the coverage measured when the gate was added; Gate 2 asks for 80.
+      - run: pytest --cov=src --cov-branch --cov-fail-under=60
 
   image:
     runs-on: ubuntu-latest

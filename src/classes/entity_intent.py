@@ -85,15 +85,15 @@ class Action(EmbeddedDocument):
 
 
 class Intent(Document):
-    uuid = UUIDField(required=True, unique=True, default=uuid4())
+    uuid = UUIDField(required=True, unique=True, default=uuid4)
     botId = UUIDField(required=True)
     name = StringField(required=True)
     description = StringField(required=True)
     samplePhrases = ListField(StringField())
     actions = ListField(EmbeddedDocumentField(Action))
-    createdAt = DateTimeField(required=True, default=datetime.now())
+    createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)
-    statusDate = DateTimeField(required=True, default=datetime.now())
+    statusDate = DateTimeField(required=True, default=datetime.now)
 
     def intent_info(self) -> dict:
         log.info(f"Executing: {currentframe().f_code.co_name}")

@@ -21,16 +21,16 @@ connect(
 
 
 class Jwk(Document):
-    kid = UUIDField(required=True, unique=True, default=uuid4())
+    kid = UUIDField(required=True, unique=True, default=uuid4)
     kty = StringField()
     n = StringField()
     e = StringField()
     use = StringField()
     x5t = StringField()
     x5c = StringField()
-    createdAt = DateTimeField(required=True, default=datetime.now())
+    createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)
-    statusDate = DateTimeField(required=True, default=datetime.now())
+    statusDate = DateTimeField(required=True, default=datetime.now)
 
     def get_jwk(self) -> jwk.JWK:
         _key = jwk.JWK.from_json(

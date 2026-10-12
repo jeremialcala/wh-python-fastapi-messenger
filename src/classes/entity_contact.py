@@ -20,7 +20,7 @@ connect(
 
 
 class Contact(Document):
-    _uuid = UUIDField(required=True, unique=True, default=uuid4())
+    _uuid = UUIDField(required=True, unique=True, default=uuid4)
     botId = UUIDField(required=True)
     firstName = StringField()
     lastName = StringField()
@@ -28,9 +28,9 @@ class Contact(Document):
     fbId = StringField()
     waId = StringField()
     isAdmin = BooleanField(default=False)
-    createdAt = DateTimeField(required=True, default=datetime.now())
+    createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)
-    statusDate = DateTimeField(required=True, default=datetime.now())
+    statusDate = DateTimeField(required=True, default=datetime.now)
 
     @staticmethod
     async def get_contact_by_wa_id(waId: str, botId: UUID):

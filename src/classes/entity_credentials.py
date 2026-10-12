@@ -26,10 +26,11 @@ connect(
 
 
 class Credentials(Document):
-    uuid = UUIDField(required=True, unique=True, default=uuid4())
-    _header = DictField(required=True, default={"alg": "HS256"})
+    uuid = UUIDField(required=True, unique=True, default=uuid4)
+    _header = DictField(required=True, default=lambda: {"alg": "HS256"})
     _claims = DictField()
-    _key = StringField(default=jwk.JWK(generate='oct', size=256).export_symmetric())
+    # A callable, so every credential gets its own key instead of the one generated when the module was imported.
+    _key = StringField(default=lambda: jwk.JWK(generate='oct', size=256).export_symmetric())
     jwt = StringField()
 
     @property

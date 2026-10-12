@@ -66,15 +66,15 @@ Gestiona el ciclo de vida completo de un chatbot (registro, verificación y conf
 | Framework web | [FastAPI](https://fastapi.tiangolo.com/) + Starlette |
 | Servidor ASGI | Uvicorn (workers según `WEB_CONCURRENCY`) |
 | Base de datos | MongoDB con el ODM [mongoengine](https://mongoengine.org/) (+ `pymongo`, `dnspython`) |
-| Validación y ajustes | Pydantic v2, `pydantic-settings`, `pydantic-extra-types`, `phonenumbers` |
+| Validación y ajustes | Pydantic v2, `pydantic-settings` |
 | Mensajería | RabbitMQ con [`pika`](https://pika.readthedocs.io/) |
-| Criptografía y tokens | `jwcrypto` (JWK/JWE/JWT), `pyjwt`, `pycryptodome`, `cryptography` |
+| Criptografía y tokens | `jwcrypto` (JWK/JWE/JWT) |
 | Cliente HTTP | `requests` |
-| Logging | `logging.config` configurado con `PyYAML` + `asgi-correlation-id` |
-| Otros | `segno` + `pillow` (QR), `faker` (datos de ejemplo), `pytz` |
-| Pruebas | `pytest` |
+| Logging | `logging.config` configurado con `PyYAML` |
+| Otros | `faker` (valores de ejemplo de los modelos de petición) |
+| Pruebas | `pytest`, `pytest-cov`, `jsonschema` |
 
-La lista completa está en [requirements.txt](requirements.txt).
+Las dependencias se declaran en [requirements.txt](requirements.txt) y se fijan con hashes en [requirements.lock](requirements.lock); las de pruebas, en `requirements-dev.txt` y su lock.
 
 ---
 
@@ -108,7 +108,8 @@ La lista completa está en [requirements.txt](requirements.txt).
 │
 ├── Dockerfile              # Imagen python:3.12-slim, usuario sin privilegios, uvicorn en :5002
 ├── .dockerignore           # Deja config.env, certs/ y los ficheros de desarrollo fuera del contexto de build
-├── requirements.txt        # Dependencias de Python
+├── requirements.txt        # Dependencias de ejecución, como rangos; requirements-dev.txt añade las de pruebas
+├── requirements.lock       # Las mismas, fijadas con hashes; requirements-dev.lock para las pruebas
 ├── pytest.ini              # Añade src/ al path: `pytest` se ejecuta desde la raíz
 ├── config.env.example      # Plantilla de config.env (ignorado por git, lo carga pydantic-settings)
 ├── CHANGELOG.md  SECURITY.md  CONTRIBUTING.md
@@ -254,8 +255,8 @@ Requisitos: Python 3.11 o superior (usa uniones `str | None` y sentencias `match
 python -m venv .venv
 source .venv/bin/activate           # Windows: .venv\Scripts\activate
 
-# 2. Instala las dependencias
-pip install -r requirements.txt
+# 2. Instala las dependencias, fijadas y con verificación de hashes
+pip install --require-hashes -r requirements-dev.lock
 
 # 3. Configura
 #    Copia config.env.example a config.env y rellena tus credenciales de

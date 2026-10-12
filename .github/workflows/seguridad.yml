@@ -1,0 +1,117 @@
+# Gates de seguridad del Gate 2: fuga de secretos, dependencias vulnerables (SCA) y análisis estático (SAST).
+#
+# Van como PASOS QUE ROMPEN EL BUILD, no como avisos. GitHub ofrece gratis en repos públicos secret scanning,
+# Dependabot y CodeQL, pero esos avisan sin detener nada, y un gate pide justo eso: algo que impida seguir.
+name: Seguridad
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  schedule:
+    # Una pasada semanal: una dependencia no cambia, pero lo que se SABE de ella sí. Un repo sin commits puede
+    # volverse vulnerable un martes cualquiera.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: seguridad-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secretos:
+    name: Fuga de secretos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Historia completa: un secreto borrado en el commit siguiente sigue estando en el repo, y este es un
+          # repositorio PÚBLICO.
+          fetch-depth: 0
+
+      - name: Instalar gitleaks
+        env:
+          VERSION: 8.28.0
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Escanear la historia completa
+        # `--redact` para que un hallazgo no se convierta en una segunda fuga: los logs de Actions son públicos en
+        # un repo público.
+        run: gitleaks detect --source . --redact --exit-code 1 --verbose
+
+  dependencias:
+    name: SCA · dependencias vulnerables
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # Se audita el LOCK, que es exactamente lo que instalan el CI y la imagen. El de desarrollo incluye al de
+      # runtime, así que una pasada cubre los dos. `--strict` exige que todo se haya podido auditar.
+      - name: Auditar el árbol fijado
+        run: |
+          pip install --quiet pip-audit
+          pip-audit --progress-spinner off --requirement requirements-dev.lock --no-deps --strict
+
+      # Si el lock no fija los mismos paquetes que se declaran, alguien añadió o quitó una dependencia sin
+      # regenerarlo: eso rompe el build. Que haya versiones más nuevas solo avisa, o cada publicación ajena lo
+      # rompería.
+      - name: Comprobar que los locks corresponden a lo declarado
+        run: |
+          pip install --quiet uv
+          fallo=0
+          for base in requirements requirements-dev; do
+            uv pip compile --universal --python-version 3.12 --generate-hashes --quiet "$base.txt" -o "/tmp/$base.lock"
+            fijados() { grep -E '^[A-Za-z0-9_.-]+==' "$1" | sort; }
+            if ! diff <(fijados "$base.lock" | cut -d= -f1) <(fijados "/tmp/$base.lock" | cut -d= -f1) > "/tmp/$base.nombres"; then
+              echo "::error::$base.lock no fija los mismos paquetes que declara $base.txt; regenerarlo según CONTRIBUTING.md"
+              cat "/tmp/$base.nombres"
+              fallo=1
+            elif ! diff <(fijados "$base.lock") <(fijados "/tmp/$base.lock") > "/tmp/$base.versiones"; then
+              echo "::warning::$base.lock tiene versiones más recientes disponibles"
+              cat "/tmp/$base.versiones"
+            fi
+          done
+          exit $fallo
+
+  sast:
+    name: SAST · CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      # En un pull request CodeQL solo informa de los hallazgos que caen en las líneas del diff. Para un gate eso
+      # no sirve: el PR pasa y la rama se rompe al fusionar, cuando el análisis ya es completo. Con esto el PR y
+      # el push miden lo mismo.
+      CODEQL_ACTION_DIFF_INFORMED_QUERIES: "false"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:python
+          # El SARIF también en disco, para poder decidir aquí. Sube igual a la pestaña Security, que es donde vive
+          # la historia del hallazgo.
+          output: sarif-python
+          upload: always
+
+      # CodeQL por sí solo NO rompe el build: deja una alerta y sigue. Este paso es el umbral: rompe con hallazgos
+      # de seguridad altos o críticos, que es lo que pide el Gate 2; el resto se queda en la pestaña Security.
+      # El script tiene sus pruebas en tests/unit/test_sast_threshold.py.
+      - name: Umbral de severidad sobre el SARIF
+        run: python3 .ai-dlc/scripts/sast_threshold.py sarif-python
