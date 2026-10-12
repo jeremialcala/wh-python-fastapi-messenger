@@ -10,7 +10,7 @@
 
 | Criterio | Estado | Evidencia |
 |---|---|---|
-| SAST sin hallazgos críticos o altos | Gate activo | Workflow `Seguridad`, trabajo `sast`: CodeQL, y el build se rompe con cualquier hallazgo de nivel `error` |
+| SAST sin hallazgos críticos o altos | Gate activo | Workflow `Seguridad`, trabajo `sast`: CodeQL sobre todo el código, también en los pull requests, y el build se rompe con cualquier hallazgo de seguridad alto o crítico (`security-severity` ≥ 7,0). Primer análisis completo: 92 resultados; uno alto, que era un falso positivo por el nombre de una constante y ya no aparece; 28 medios de `py/log-injection`, abiertos; y 63 de calidad |
 | Dependencias verificadas (SCA) | Gate activo | `requirements.lock` y `requirements-dev.lock` con hashes; trabajo `dependencias` con `pip-audit` sobre el lock. Al añadirlo: 14 vulnerabilidades conocidas con las dependencias anteriores, todas de Starlette 0.36.3, y ninguna con las nuevas |
 | Cobertura ≥ 80 % por ramas | **No cumple: 61 %** | El CI exige un suelo del 60 % para que no baje. `controller/chatbot.py`, `intents.py` y `facebook.py` están entre el 10 y el 14 % |
 | Dual review | Pendiente | — |
@@ -25,6 +25,12 @@ resto de criterios cumplidos.
   no importaba.
 - La imagen instala solo las dependencias de ejecución, desde el lock y verificando hashes.
 - Corregido el hallazgo H1: los valores por defecto de las entidades se calculan por objeto.
+
+### Pendiente que deja el primer análisis estático
+
+- 28 hallazgos medios de `py/log-injection` en `app.py` y los controladores: valores de la petición escritos en el
+  log tal cual. No rompen el build porque están por debajo del umbral, pero se cierran con el trabajo de logs sin
+  datos personales.
 
 ## Heredado del Gate 1
 

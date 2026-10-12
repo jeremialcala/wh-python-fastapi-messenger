@@ -32,7 +32,7 @@ async def require_api_key(request: Request):
         Every management endpoint depends on this: only the two Meta webhook routes are public.
     """
     if not secrets_match(settings.admin_api_key, request.headers.get(API_KEY)):
-        log.warning(f"Rejected {request.method} {request.url.path}: missing or wrong {API_KEY}")
+        log.warning(f"Rejected {request.method} {request.url.path}: missing or wrong admin credential")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="HTTP_401_UNAUTHORIZED")
 
 

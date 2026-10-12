@@ -110,35 +110,8 @@ jobs:
           output: sarif-python
           upload: always
 
-      # CodeQL por sí solo NO rompe el build: deja una alerta y sigue. Este paso es el umbral de severidad: `error`
-      # en SARIF son los hallazgos de seguridad graves; `warning` y `note` se quedan en la pestaña Security.
+      # CodeQL por sí solo NO rompe el build: deja una alerta y sigue. Este paso es el umbral: rompe con hallazgos
+      # de seguridad altos o críticos, que es lo que pide el Gate 2; el resto se queda en la pestaña Security.
+      # El script tiene sus pruebas en tests/unit/test_sast_threshold.py.
       - name: Umbral de severidad sobre el SARIF
-        run: |
-          python3 - sarif-python <<'PY'
-          import json, pathlib, sys
-
-          graves = []
-          for archivo in pathlib.Path(sys.argv[1]).glob("*.sarif"):
-              sarif = json.loads(archivo.read_text(encoding="utf-8"))
-              for corrida in sarif.get("runs", []):
-                  # El nivel efectivo puede venir en el resultado o heredarse de la configuración de la regla.
-                  reglas = {
-                      r.get("id"): r.get("defaultConfiguration", {}).get("level")
-                      for r in corrida.get("tool", {}).get("driver", {}).get("rules", [])
-                  }
-                  for hallazgo in corrida.get("results", []):
-                      nivel = hallazgo.get("level") or reglas.get(hallazgo.get("ruleId"))
-                      if nivel == "error":
-                          sitio = hallazgo["locations"][0]["physicalLocation"]
-                          graves.append(
-                              f'{sitio["artifactLocation"]["uri"]}'
-                              f':{sitio.get("region", {}).get("startLine", "?")}'
-                              f' [{hallazgo.get("ruleId")}] '
-                              f'{hallazgo.get("message", {}).get("text", "")}'
-                          )
-
-          for linea in graves:
-              print(linea)
-          print(f"{len(graves)} hallazgos de severidad error")
-          sys.exit(1 if graves else 0)
-          PY
+        run: python3 .ai-dlc/scripts/sast_threshold.py sarif-python

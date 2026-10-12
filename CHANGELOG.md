@@ -11,7 +11,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - ADR-0013, aceptado: OpenBao como gestor de secretos y controlador central de claves, desplegado en el servidor
   con el nombre de Andvari. La clave maestra de ADR-0010 vive en su motor Transit, derivada por cliente.
 - Workflow `Seguridad`, con tres gates que rompen el build: fuga de secretos (gitleaks sobre la historia
-  completa), dependencias vulnerables (`pip-audit` sobre el lock) y análisis estático (CodeQL).
+  completa), dependencias vulnerables (`pip-audit` sobre el lock) y análisis estático (CodeQL sobre todo el código,
+  con umbral en los hallazgos de seguridad altos y críticos).
 - `requirements.lock` y `requirements-dev.lock`: dependencias fijadas con hashes. La imagen y el CI instalan
   desde ellos.
 - Suelo de cobertura por ramas en el CI: 60 %.
