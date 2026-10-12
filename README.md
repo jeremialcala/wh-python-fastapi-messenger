@@ -18,6 +18,7 @@ It manages the full chatbot lifecycle (registration, verification, configuration
 - [Configuration](#configuration)
 - [Running locally](#running-locally)
 - [Running with Docker](#running-with-docker)
+- [Deployment](#deployment)
 - [Logging](#logging)
 - [Security](#security)
 - [License](#license)
@@ -63,7 +64,7 @@ It manages the full chatbot lifecycle (registration, verification, configuration
 | Concern | Technology |
 |---|---|
 | Web framework | [FastAPI](https://fastapi.tiangolo.com/) + Starlette |
-| ASGI server | Uvicorn (4 workers) |
+| ASGI server | Uvicorn (workers from `WEB_CONCURRENCY`) |
 | Database | MongoDB via [mongoengine](https://mongoengine.org/) ODM (+ `pymongo`, `dnspython`) |
 | Validation / settings | Pydantic v2, `pydantic-settings`, `pydantic-extra-types`, `phonenumbers` |
 | Messaging | RabbitMQ via [`pika`](https://pika.readthedocs.io/) |
@@ -82,8 +83,11 @@ Full pinned list lives in [requirements.txt](requirements.txt).
 ```
 .
 ├── app.py                  # FastAPI app: middleware + all route definitions
-├── Dockerfile              # Ubuntu-based image, runs uvicorn on :5002
-├── bootstrap.sh            # Clone + rebuild + run the container (develop branch)
+├── Dockerfile              # python:3.12-slim image, unprivileged user, uvicorn on :5002
+├── .dockerignore           # Keeps config.env, certs/ and dev files out of the image
+├── deploy/                 # docker-compose.yml for the server (see Deployment)
+├── .github/workflows/      # ci (pull requests) and build (image to GHCR on main)
+├── bootstrap.sh            # Legacy: clone + rebuild + run. It prunes ALL unused Docker data on the host
 ├── compose-dev.yaml        # Docker "dev environment" helper (not the app runtime)
 ├── requirements.txt        # Python dependencies
 ├── config.env.example      # Template for config.env (git-ignored, loaded by pydantic-settings)
@@ -140,7 +144,7 @@ Defined in [app.py](app.py):
 Base URL (local Docker): `http://localhost:5002`
 Interactive docs: `http://localhost:5002/docs` (Swagger) · `http://localhost:5002/redoc`
 
-Only the two webhook routes (`GET` and `POST /chat/{bot_id}`) are public. Every other endpoint requires the `X-API-Key` header and answers `401` without it.
+Only the two webhook routes (`GET` and `POST /chat/{bot_id}`) and `GET /health` are public. Every other endpoint requires the `X-API-Key` header and answers `401` without it.
 
 ### Bot management — tag `Bot`
 
@@ -249,13 +253,47 @@ Open `http://localhost:5002/docs` for the Swagger UI.
 # Build the image
 docker build -t wh-python-fastapi-messenger:latest .
 
-# Run it (exposes port 5002, 4 uvicorn workers)
-docker run -it -p 5002:5002 --name wh-python-fastapi-messenger -d wh-python-fastapi-messenger:latest
+# Run it. Settings are not baked into the image: pass them at run time
+docker run -d -p 127.0.0.1:5002:5002 --env-file config.env --name wh-python-fastapi-messenger wh-python-fastapi-messenger:latest
 ```
 
-Or use the convenience script [bootstrap.sh](bootstrap.sh), which clones the repo (`develop` branch), prunes old images/containers, rebuilds, and runs the container.
+The image runs as an unprivileged user, ships neither `config.env` nor `certs/` (see [.dockerignore](.dockerignore)), and starts one worker unless `WEB_CONCURRENCY` says otherwise. `GET /health` is its liveness probe.
 
-> Note: [compose-dev.yaml](compose-dev.yaml) is a Docker *Dev Environments* helper (it just runs `sleep infinity`), **not** a production compose file for this service.
+> [bootstrap.sh](bootstrap.sh) predates this image and runs `docker system prune -a -f`: do not use it on a host that runs anything else.
+>
+> [compose-dev.yaml](compose-dev.yaml) is a Docker *Dev Environments* helper (it just runs `sleep infinity`), **not** a compose file for this service.
+
+---
+
+## Deployment
+
+Merging to `main` builds and deploys:
+
+1. The [build](.github/workflows/build.yml) workflow runs the tests and, if they pass, pushes `ghcr.io/jeremialcala/wh-python-fastapi-messenger:sha-<7>` to GHCR.
+2. GitHub sends `workflow_run` to the server's webhook receiver ([despliegue-continuo](https://github.com/higerotech/despliegue-continuo)), which pulls that tag, brings the compose project up, checks `/health` and rolls back to the previous tag if it fails.
+
+One-time setup on the server:
+
+- `/srv/apps/bots-gateway/docker-compose.yml`, copied from [deploy/docker-compose.yml](deploy/docker-compose.yml), and next to it a `.env` with the keys of [config.env.example](config.env.example).
+- The external Docker network `hermod` and a RabbitMQ user for the gateway (`QMS_SERVER=hermod`).
+- The GHCR package set to **Public**, because the receiver pulls anonymously.
+- An entry in the receiver's `apps.yml`, and the `workflow_run` webhook on this repository:
+
+  ```yaml
+  - name: bots-gateway
+    repo: jeremialcala/wh-python-fastapi-messenger
+    branch: main
+    event: workflow_run
+    workflow: build
+    project_dir: /srv/apps/bots-gateway
+    image: ghcr.io/jeremialcala/wh-python-fastapi-messenger
+    health_url: http://127.0.0.1:5002/health
+    health_timeout: 120
+    health_interval: 3
+    rollback: true
+  ```
+
+The container listens on loopback only. The tunnel in front of it must publish `/chat/<uuid>` and nothing else.
 
 ---
 
@@ -267,7 +305,7 @@ Configured via [logging_config.yaml](logging_config.yaml), applied on startup by
 |---|---|---|
 | `development` | DEBUG | console |
 | `staging` | INFO | console + `application.log` |
-| `production` | WARNING | `application.log` |
+| `production` | WARNING | console (kept and rotated by Docker) |
 
 ---
 

@@ -111,6 +111,15 @@ async def interceptor(request: Request, call_next):
     return response
 
 
+@app.get(path="/health", tags=["Health"])
+async def health():
+    """
+        Liveness only: it answers without touching MongoDB or RabbitMQ, so a slow dependency does not get a
+        healthy container restarted or rolled back.
+    """
+    return {"status": "ok"}
+
+
 @app.post(path="/bot", tags=["Bot"], response_model=BotResponse, dependencies=ADMIN)
 async def create_chatbot(chatbot: ChatbotRequest, request: Request):
     log.info(f"Starting: {currentframe().f_code.co_name}")
