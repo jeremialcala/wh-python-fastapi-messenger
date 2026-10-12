@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Añadido
+- ADR-0013, propuesto: OpenBao como gestor de secretos y controlador central de claves. La clave maestra de
+  ADR-0010 vive en su motor Transit, derivada por cliente; configuración comprobada en una prueba de concepto.
+
 ## [0.2.0] - 2026-10-12
 
 Cierre del Gate 1 (diseño).
