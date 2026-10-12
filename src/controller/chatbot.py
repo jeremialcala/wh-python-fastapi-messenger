@@ -69,7 +69,7 @@ async def ctr_create_chatbot(request: ChatbotRequest, eventId: str = None) -> Re
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
@@ -120,7 +120,7 @@ async def ctr_get_chatbot_from_uuid(_uuid: str, eventId: str = None) -> Response
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
@@ -171,7 +171,7 @@ async def ctr_add_phone_chatbot(bot_uuid, req: ChatbotPhoneRequest, eventId: str
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
         log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
@@ -226,7 +226,7 @@ async def ctr_get_chatbot_phones(bot_uuid: str, environment: str | None, eventId
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
@@ -289,7 +289,7 @@ async def ctr_get_chatbot_rules_from_uuid(_uuid: str, eventId: str = None) -> Re
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body) + rules_size)
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
@@ -344,7 +344,7 @@ async def ctr_create_chatbot_rules(request: RulesRequest, bot_id: str, eventId: 
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 

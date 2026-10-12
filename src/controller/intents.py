@@ -101,7 +101,7 @@ async def ctr_create_intent(request: IntentRequest, bot_id: str, eventId: str = 
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
@@ -149,7 +149,7 @@ async def ctr_get_intents(bot_id: str, eventId: str = None) -> Response:
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
@@ -202,7 +202,7 @@ async def ctr_get_intent(bot_id: str, intent_id: str, eventId: str = None) -> Re
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
@@ -262,7 +262,7 @@ async def ctr_update_intent(request: IntentRequest, bot_id: str, intent_id: str,
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
@@ -317,7 +317,7 @@ async def ctr_delete_intent(bot_id: str, intent_id: str, eventId: str = None) ->
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
@@ -371,7 +371,7 @@ async def ctr_get_bot_tools(bot_id: str, eventId: str = None) -> Response:
             ))
 
         response.status_code = body.code
-        response.body = body.json(exclude_none=True)
+        response.body = body.json(exclude_none=True).encode()
         response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
