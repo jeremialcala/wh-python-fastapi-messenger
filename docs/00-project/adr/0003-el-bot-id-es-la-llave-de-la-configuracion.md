@@ -55,6 +55,6 @@ gateway.
 
 ## Abierto
 
-- Con qué credencial se autentica el motor ante el gateway y con qué alcance. Hoy solo existe la clave única.
-- Si la firma del webhook debe viajar con el mensaje para que el motor pueda comprobarla. Hoy no viaja, y para
-  comprobarla el motor necesitaría además el cuerpo crudo y el App Secret.
+Resuelto en [ADR-0004](0004-firma-en-el-webhook-jwe-en-el-resto.md): el motor se autentica ante el gateway con
+JWE, como cualquier otro cliente registrado, y la firma del webhook no viaja con el mensaje. Queda por diseñar el
+formato del token y el alcance de solo lectura del motor.

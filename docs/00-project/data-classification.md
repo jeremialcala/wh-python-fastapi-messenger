@@ -35,8 +35,8 @@ Niveles: Público < Interno < Confidencial < Restringido.
 | Número del bot (`ChatbotPhone.phoneNumber`, `phoneId`) | **Confidencial** | MongoDB | En claro | `<TODO: confirmar si "los números" incluye los del bot>` | Hasta la baja del bot |
 | Persona, reglas e intents del bot | **Confidencial** (del cliente) | MongoDB; el motor de respuestas los pide por `bot_id` | En claro | Acceso solo del cliente dueño y del motor (RS01, RS06) | Hasta la baja del bot |
 | Identificador del bot (`bot_id`) | **Interno** | URL del webhook, configuración de Meta del cliente, mensajes de la cola y logs | No es un secreto | No debe bastar para acceder a nada (RS18) | Hasta la baja del bot |
-| Clave del cliente | **Restringido** | No existe todavía | — | Custodia por definir en el Gate 1 | Mientras existan datos cifrados con ella |
-| Clave de gestión (`ADMIN_API_KEY`) | **Restringido** | `config.env` o `.env` del servidor | Fuera del repo y de la imagen; mínimo 32 caracteres | Sustituida por credenciales por cliente (RS02) | Hasta rotación |
+| Clave del cliente (material de clave de su registro) | **Restringido** | No existe todavía | — | Sirve para autenticar al cliente con JWE y para cifrar sus datos; custodia por definir en el Gate 1 | Mientras existan datos cifrados con ella |
+| Clave de gestión (`ADMIN_API_KEY`) | **Restringido** | `config.env` o `.env` del servidor | Fuera del repo y de la imagen; mínimo 32 caracteres | Sustituida por la autenticación con JWE por cliente (RS02) | Hasta rotación |
 | Credenciales de MongoDB y RabbitMQ | **Restringido** | `config.env` o `.env` del servidor | Fuera del repo y de la imagen | Igual | Hasta rotación |
 | Claves privadas por evento (`certs/*.pem`) | **Restringido** | Disco del contenedor | Ignoradas por git y fuera de la imagen. Función desactivada | Decidir en el Gate 1 si se mantienen | `<TODO>` |
 | Registro de eventos (`Event`, `EventAction`) con IP de origen | **Interno** (la IP es dato personal) | MongoDB. Función desactivada | — | Definir antes de reactivarlo | `<TODO>` |

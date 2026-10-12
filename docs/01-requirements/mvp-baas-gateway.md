@@ -65,14 +65,14 @@ C4Context
     Rel(meta, cf, "Entrega notificaciones firmadas", "HTTPS")
     Rel(atacante, cf, "Ataca el webhook", "HTTPS")
     Rel(cf, gateway, "Entrega solo /chat/uuid", "Tunel saliente")
-    Rel(cliente, gateway, "Administra sus bots", "API con credencial propia")
+    Rel(cliente, gateway, "Administra sus bots", "API autenticada con JWE")
     Rel(operador, gateway, "Opera y despliega", "Red privada")
     Rel(gateway, atlas, "Lee y escribe", "TLS")
     Rel(gateway, meta, "Consulta perfiles de contacto", "HTTPS, token del cliente")
     Rel(motor, meta, "Envia las respuestas", "HTTPS, token del cliente")
     Rel(gateway, hermod, "Publica cada mensaje", "AMQP con confirmacion")
     Rel(motor, hermod, "Consume la cola llm y publica el resultado", "AMQP")
-    Rel(motor, gateway, "Pide la configuracion del bot por bot_id", "API con credencial de servicio")
+    Rel(motor, gateway, "Pide la configuracion del bot por bot_id", "API autenticada con JWE")
     Rel(cd, gateway, "Despliega", "Webhook firmado")
 
     UpdateElementStyle(gateway, $bgColor="#1168bd", $fontColor="#ffffff")
@@ -128,7 +128,7 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | AB02 | El cliente A lee o modifica los bots, contactos o tokens del cliente B usando un UUID que conoce o adivina | RS01 | Pendiente |
 | AB03 | Una copia de la base (volcado, respaldo, acceso indebido a Atlas) expone números de teléfono y tokens de Meta | RS05, RS06 | Pendiente |
 | AB04 | Un tercero recorre el hostname público y encuentra `/docs`, `/openapi.json` o los endpoints de gestión | RS09 | Pendiente |
-| AB05 | Un bot en internet prueba claves de gestión o tokens de verificación | RS02, RS04, RS10 | Parcial |
+| AB05 | Un bot en internet prueba credenciales de gestión o tokens de verificación | RS02, RS04, RS10 | Parcial |
 | AB06 | Alguien reenvía una notificación legítima capturada: la firma de Meta no caduca | RNF04 | Pendiente |
 | AB07 | Una ráfaga de notificaciones agota el worker o llena la cola | RS10, RNF03 | Pendiente |
 | AB08 | Un usuario final escribe instrucciones para que el LLM invoque herramientas del cliente en su contra (prompt injection) | RS16 | Pendiente |
@@ -139,12 +139,13 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | AB13 | Una dependencia vulnerable o una imagen manipulada llegan a producción | RS12 | Parcial |
 | AB14 | Un interesado pide la supresión y sus datos siguen en la cola, los logs o los respaldos | RF09, RNF05 | Pendiente |
 | AB15 | El motor de respuestas, o quien robe su credencial, obtiene los tokens de Meta de todos los clientes | RS06 | Pendiente |
+| AB16 | Alguien captura un JWE de autenticación válido y lo reenvía, o fabrica uno con la clave pública del gateway | RS02 | Pendiente |
 
 ## Requisitos funcionales
 
 | ID | Requisito | Estado | Verificación |
 |---|---|---|---|
-| RF01 | El operador da de alta a un cliente y le entrega una credencial propia | Pendiente | — |
+| RF01 | El operador registra a un cliente, y el registro le da material de clave propio con el que se autentica y con el que se controlan sus bots y sus datos por separado ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)) | Pendiente: no existe la entidad cliente | — |
 | RF02 | Un cliente crea y administra sus bots: persona, reglas, intents y números | Parcial: existe para bots sin dueño, con la clave única | Pruebas unitarias de autenticación |
 | RF03 | Meta verifica el webhook de cada bot con su token de verificación | Construido | `tests/unit/test_webhook_security.py` |
 | RF04 | El gateway recibe notificaciones de Messenger y de WhatsApp, identifica o crea el contacto y publica el mensaje en la cola `llm` | Construido | Pruebas unitarias del camino de WhatsApp; Messenger sin prueba; falta integración con MongoDB y RabbitMQ reales |
@@ -246,8 +247,8 @@ OWASP Top 10 en su edición 2025.
 
 | ID | Requisito | Estado | ASVS | OWASP Top 10 |
 |---|---|---|---|---|
-| RS01 | Un cliente solo accede a sus propios bots, contactos y credenciales; todo lo demás se deniega por defecto | Pendiente | V4.1, V4.2 | A01 |
-| RS02 | La gestión se autentica con una credencial por cliente, de alta entropía, rotable y comparada en tiempo constante | Parcial: una única clave de operador, de 32 caracteres o más y comparada en tiempo constante | V2.10 | A07 |
+| RS01 | Un cliente solo accede a los elementos de su propio registro: sus claves, sus bots, sus contactos y sus credenciales; todo lo demás se deniega por defecto | Pendiente | V4.1, V4.2 | A01 |
+| RS02 | Todo endpoint que no sea el webhook se autentica con JWE ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)): el token demuestra la posesión de la clave del cliente registrado, caduca y no se puede reutilizar | Pendiente: hoy lo sustituye una única clave de operador, `X-API-Key`, de 32 caracteres o más y comparada en tiempo constante. Las piezas de JWE existen en el código, por evento y desactivadas | V2.10, V3.5 | A07 |
 | RS03 | Solo se procesan notificaciones con `X-Hub-Signature-256` válida sobre el cuerpo crudo | Construido | V2.10, V9.2 | A08 |
 | RS04 | El token de verificación se compara en tiempo constante, y un bot sin token no se puede verificar | Construido | V2.10 | A07 |
 | RS05 | El número de teléfono de un contacto se guarda cifrado con una clave propia del cliente dueño del bot, y el contacto se puede localizar sin guardar el número en claro | Pendiente | V6.2, V8.3 | A04 |
@@ -263,7 +264,7 @@ OWASP Top 10 en su edición 2025.
 | RS15 | Un error no revela detalles internos y falla cerrado | Parcial: dos funciones de `controller/chatbot.py` devuelven el texto de la excepción en la respuesta | V7.4 | A10 |
 | RS16 | El texto del usuario final se trata como entrada no confiable para el LLM, y las llamadas a API de los intents solo pueden ir a destinos permitidos | Parcial: según su documentación, el motor filtra la entrada con guardrails y trata la salida del LLM como no confiable; la ejecución de acciones no está construida, así que el control de destinos no existe | V5.2, V12.6 | A05, A06 |
 | RS17 | El contenedor corre sin privilegios y solo puede escribir donde necesita | Construido | V14.1 | A02 |
-| RS18 | El `bot_id` identifica pero no autoriza: ninguna configuración de un bot se entrega solo por conocerlo | Construido: toda la configuración exige la clave de gestión; las únicas rutas que funcionan solo con el `bot_id` son las del webhook, protegidas por la firma y por el token de verificación | V4.2 | A01 |
+| RS18 | El `bot_id` identifica pero no autoriza: ninguna configuración de un bot se entrega solo por conocerlo | Construido: toda la configuración exige la clave de gestión; las únicas rutas que funcionan solo con el `bot_id` son las del webhook, que son también las únicas autenticadas solo con la firma y el token de verificación ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)) | V4.2 | A01 |
 
 ## Threat assessment inicial
 
@@ -320,7 +321,7 @@ construidos. El análisis completo, con STRIDE, es entregable del Gate 1.*
 
 ## Métricas de éxito
 
-Las del [charter](../00-project/charter.md). Para este MVP, además: los quince escenarios de abuso tienen un
+Las del [charter](../00-project/charter.md). Para este MVP, además: los dieciséis escenarios de abuso tienen un
 control construido y una prueba que lo verifica.
 
 ## Dependencias y riesgos
@@ -338,19 +339,19 @@ control construido y una prueba que lo verifica.
 
 Requieren respuesta humana antes de aprobar el Gate 0. Ninguna está decidida en este documento.
 
-1. **Credencial del motor ante el gateway.** Está decidido que el motor pide la configuración del bot al gateway
-   con el `bot_id` del mensaje ([ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md)). Falta decidir con qué credencial se autentica y con qué alcance:
-   hoy solo existe la clave única del operador, que abre toda la gestión.
-2. **Contrato de la cola.** Por la misma decisión, el sobre del gateway, que es el único que lleva el `bot_id`, es
-   el contrato para los dos canales: el motor debe aceptarlo también para Messenger y conservar el `bot_id`
-   (RF12). Falta fijarlo en un AsyncAPI común y decidir si la firma del webhook viaja con el mensaje; hoy no viaja.
-3. **Acceso de los clientes a la gestión.** El objetivo "el cliente administra sus bots" exige que la API de
-   gestión sea alcanzable por los clientes, y RS09 exige que no esté en internet. Hay que elegir: API pública con
-   credencial por cliente, acceso por red privada, o que el operador administre en nombre del cliente.
+1. **Formato del JWE de autenticación.** Está decidido que todo lo que no es el webhook se autentica con JWE y
+   que el motor es un cliente de servicio más ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)). Falta el diseño: cómo demuestra el token quién lo
+   envía, porque el cifrado asimétrico que usa hoy el código no lo demuestra por sí solo, y cómo caduca.
+2. **Contrato de la cola.** El sobre del gateway, el único que lleva el `bot_id`, es el contrato para los dos
+   canales ([ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md)), y la firma del webhook no viaja con el mensaje ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)). Falta fijarlo en un
+   AsyncAPI común con el motor (RF12).
+3. **Exposición de la gestión.** Con JWE por cliente, la API de gestión podría publicarse en internet; RS09 dice
+   hoy que no se publica. Hay que elegir: API pública autenticada con JWE, o acceso solo por red privada.
 4. **Alcance de "los números".** Si el cifrado con la clave del cliente cubre solo el número del contacto o también
    el número del bot.
-5. **Custodia de la clave del cliente.** Si la genera y guarda la plataforma, o la aporta el cliente. Es decisión
-   del Gate 1, pero cambia lo que se le promete al cliente.
+5. **Custodia de la clave del cliente.** El registro da a cada cliente material de clave propio ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)).
+   Falta decidir quién lo genera, dónde vive la parte secreta y cómo se rota. Es decisión del Gate 1, pero cambia
+   lo que se le promete al cliente.
 6. **Nivel ASVS.** Se propone L2 por tratar datos personales de terceros en un servicio multi-cliente.
 7. **Retención.** Plazo de cada dato personal (RNF05).
 8. **SLO.** Tiempo de respuesta y disponibilidad del webhook (RNF01, RNF07).

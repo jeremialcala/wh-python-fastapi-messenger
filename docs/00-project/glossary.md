@@ -14,8 +14,10 @@ del modelo BaaS que todavía no tienen representación en el código.
 |---|---|---|
 | **Cliente** | Empresa que contrata el servicio. Dueña de sus bots y responsable del tratamiento de los datos de sus usuarios finales. Sin construir: hoy los bots no tienen dueño. | Clientes y acceso |
 | **Operador** | Quien opera la plataforma. Encargado del tratamiento frente a los clientes. Hoy es el único con credencial de gestión. | Clientes y acceso |
-| **Clave del cliente** | Clave criptográfica propia de un cliente con la que se cifran sus datos sensibles, empezando por los números de teléfono. Sin construir. | Clientes y acceso |
-| **Clave de gestión** (`ADMIN_API_KEY`) | Credencial única que hoy abre todos los endpoints de gestión, en la cabecera `X-API-Key`. | Clientes y acceso |
+| **Registro del cliente** | El alta de un cliente en la plataforma y lo que cuelga de ella: su material de clave, sus bots y los datos de sus bots. Es lo que permite controlar los elementos de cada cliente por separado (ADR-0004). Sin construir. | Clientes y acceso |
+| **Clave del cliente** | Material de clave propio de un cliente, creado en su registro. Con él se autentica ante la API y se cifran sus datos sensibles, empezando por los números de teléfono. Sin construir. | Clientes y acceso |
+| **Clave de gestión** (`ADMIN_API_KEY`) | Credencial única que hoy abre todos los endpoints de gestión, en la cabecera `X-API-Key`. Mecanismo provisional hasta que exista la autenticación con JWE. | Clientes y acceso |
+| **JWE** | JSON Web Encryption: un token cifrado. Es el mecanismo de autenticación de todos los endpoints que no son el webhook (ADR-0004), y el formato previsto para cifrar el mensaje de la cola. | Clientes y acceso |
 | **Bot** (`ChatBot`) | Un chatbot de un cliente. Tiene una persona (nombre, rol, descripción y tono), sus credenciales de Meta y su configuración. | Gestión de bots |
 | **`bot_id`** (`uuid`) | El UUID de un bot. Forma parte de la URL de su webhook, viaja en cada mensaje de la cola y es la llave con la que el motor de respuestas pide la configuración del bot (ADR-0003). Identifica, pero no autoriza: no es un secreto. | Gestión de bots |
 | **Persona** | Nombre, rol, descripción y tono con los que el bot se presenta. Encabeza su system prompt. | Gestión de bots |
