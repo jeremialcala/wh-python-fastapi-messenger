@@ -127,8 +127,10 @@ El repositorio sigue la estructura AI-DLC para un único servicio ([ADR-0001](do
   - **Entidades** (`entity_*.py`): subclases de `mongoengine.Document`. Cada módulo abre su propia conexión a MongoDB al importarse, con los valores de `Settings`.
   - **DTO** (`dto_*.py`): modelos de Pydantic para los cuerpos de petición, las respuestas y el payload anidado del webhook de Facebook/WhatsApp (`dto_facebook_*.py`).
 - **`controller/`** — funciones asíncronas con prefijo `ctr_*`, reexportadas desde `controller/__init__.py`. Construyen un `ResponseData`, persisten datos, emiten acciones de evento y devuelven un `starlette.Response`.
+- **`repository/`** — la única vía a los datos de un cliente. `TenantRepository` se construye con el cliente y lo añade a cada consulta: lo ajeno responde igual que lo inexistente ([ADR-0012](docs/00-project/adr/0012-aislamiento-por-cliente-en-la-capa-de-datos.md)). Los controladores no consultan la base.
+- **`migrations/`** — pasos de datos que se ejecutan a mano. `assign_operator_client` asigna al cliente del operador los documentos anteriores a la existencia de clientes: `python -m migrations.assign_operator_client` informa y `--apply` escribe.
 - **`constants/`** — `documentation.py` alimenta los metadatos de OpenAPI; `facebook.py` contiene las claves de verificación `hub.*`; `headers.py` y `formats.py`, los nombres de cabecera y los tipos de contenido.
-- **`enums/`** — `Status` (REG/ACT/LOK/DIS/OVR/ERR/COM), `Environment` (development/staging/production) y `KeyTypes`.
+- **`enums/`** — `Status` (REG/ACT/LOK/DIS/OVR/ERR/COM), `Environment` (development/staging/production), `KeyTypes` y `Role` (cliente, operador, servicio).
 - **`utils/`** — `configure_logging()` (se ejecuta al arrancar), `generate_code()`, la verificación de firmas y las ayudas de JWK/PEM (`get_private_key`, `get_public_key`).
 
 ---

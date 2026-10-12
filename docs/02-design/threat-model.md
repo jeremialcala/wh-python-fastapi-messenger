@@ -49,7 +49,7 @@ líneas discontinuas son flujos del diseño que hoy no existen.*
 | ID | Elemento | STRIDE | Amenaza | Control | Estado | Traza |
 |---|---|---|---|---|---|---|
 | T1 | Flujo 2/3 | S | Un tercero envía una notificación falsa para inyectar mensajes en la cola | Firma `X-Hub-Signature-256` sobre el cuerpo crudo, con el App Secret del bot; sin secreto se rechaza | Construido | RS03, ADR-0004, ADR-0007 |
-| T2 | Gateway, flujo 9 | E, I | Un cliente lee o modifica bots, contactos o credenciales de otro usando su UUID | `clientId` en cada documento y capa de repositorio que lo exige; lo ajeno responde `404` | Pendiente | RS01, ADR-0012 |
+| T2 | Gateway, flujo 9 | E, I | Un cliente lee o modifica bots, contactos o credenciales de otro usando su UUID | `clientId` en cada documento y capa de repositorio que lo exige; lo ajeno responde `404` | Parcial: el control está construido y probado; hasta que cada cliente se autentique con su token (RS02) solo entra el operador | RS01, ADR-0012 |
 | T3 | Base, flujo 5 | I | Una copia de la base expone números, tokens de Meta y App Secret | Cifrado de esos campos con la clave de datos del cliente e índice ciego para buscar por número | Pendiente | RS05, RS06, ADR-0010 |
 | T4 | Flujo 3 | I, E | La gestión o la documentación de la API quedan alcanzables desde internet | El túnel publica solo `/chat/<uuid>`; el contenedor escucha en loopback | Pendiente: sin desplegar | RS09, ADR-0008 |
 | T5 | Flujo 2/3, 9 | S | Fuerza bruta contra el token de verificación o las credenciales de gestión | Comparación en tiempo constante; clave de 32 caracteres o más; límite de tasa en el borde | Parcial: falta el límite de tasa | RS02, RS04, RS10 |
@@ -161,7 +161,7 @@ Orden de construcción que se desprende de la prioridad:
 | Amenaza | Prueba |
 |---|---|
 | T1, T16 | Ya cubiertas por `tests/unit/test_webhook_security.py` |
-| T2 | `tests/security`: recorrer todas las rutas con el token de otro cliente y exigir `404` |
+| T2 | Ya cubierta por `tests/unit/test_client_isolation.py` (todas las rutas con otro cliente: `404`), `test_tenant_repository.py` y `test_data_access_boundary.py` (nada consulta la base fuera del repositorio). Falta repetirla con tokens reales cuando exista RS02 |
 | T3 | Volcar la base de pruebas y comprobar que ningún número ni token aparece en claro |
 | T4 | Desde fuera de la red, cualquier ruta que no sea `/chat/<uuid>` no responde |
 | T7 | Publicar dos veces el mismo mensaje y comprobar que el motor lo procesa una |

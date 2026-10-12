@@ -15,15 +15,30 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   con umbral en los hallazgos de seguridad altos y críticos).
 - `requirements.lock` y `requirements-dev.lock`: dependencias fijadas con hashes. La imagen y el CI instalan
   desde ellos.
-- Suelo de cobertura por ramas en el CI: 60 %.
+- Suelo de cobertura por ramas en el CI: 80 %, lo que pide el Gate 2.
+- Aislamiento entre clientes en la capa de datos (ADR-0012): entidad cliente, `clientId` obligatorio en
+  chatbots, números, reglas, intents y contactos, y capa de repositorio por la que pasa todo acceso a esos
+  datos. Lo ajeno responde `404`, igual que lo inexistente.
+- `python -m migrations.assign_operator_client`: asigna al cliente del operador los documentos anteriores a la
+  existencia de clientes. Sin `--apply` solo informa.
 
 ### Cambiado
+- Los chatbots guardados antes de este cambio responden `404`, también en el webhook, hasta que se ejecute la
+  migración que les asigna cliente.
+- La clave de administración actúa como el cliente del operador: solo alcanza sus chatbots.
+- `GET` y `POST /chat/{bot_id}/phones` responden `404` para un chatbot que no existe. Antes respondían `200`
+  con el texto `HTTP_404_NOT_FOUND` en el cuerpo.
 - La imagen instala solo las dependencias de ejecución; las de pruebas pasan a `requirements-dev.txt`.
 - Se retiran once dependencias que el código no importaba: `fastapi-sessions`, `asgi-correlation-id`,
   `python-multipart`, `pytz`, `pyjwt`, `pycryptodome`, `keyboard`, `segno`, `pillow`, `phonenumbers` y
   `pydantic-extra-types`.
 
+### Eliminado
+- El envío de mensajes por WhatsApp desde el gateway, que no se usaba: responder es cosa del motor (ADR-0002).
+
 ### Corregido
+- Un intent se podía leer, cambiar o desactivar a través de cualquier chatbot: la ruta no comprobaba que fuera
+  suyo. Y se podían añadir reglas a un chatbot que no existe.
 - Los valores por defecto de las entidades se calculaban una sola vez, al importar. Todos los documentos
   guardaban como fecha de creación la hora de arranque del proceso, todos los mensajes de la cola compartían
   `_uuid`, y todas las credenciales compartían la clave con la que se firma el token de verificación.
