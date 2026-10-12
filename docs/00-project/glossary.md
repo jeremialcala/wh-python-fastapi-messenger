@@ -16,7 +16,8 @@ del modelo BaaS que todavía no tienen representación en el código.
 | **Operador** | Quien opera la plataforma. Encargado del tratamiento frente a los clientes. Hoy es el único con credencial de gestión. | Clientes y acceso |
 | **Clave del cliente** | Clave criptográfica propia de un cliente con la que se cifran sus datos sensibles, empezando por los números de teléfono. Sin construir. | Clientes y acceso |
 | **Clave de gestión** (`ADMIN_API_KEY`) | Credencial única que hoy abre todos los endpoints de gestión, en la cabecera `X-API-Key`. | Clientes y acceso |
-| **Bot** (`ChatBot`) | Un chatbot de un cliente, identificado por un UUID. Tiene una persona (nombre, rol, descripción y tono), sus credenciales de Meta y su configuración. | Gestión de bots |
+| **Bot** (`ChatBot`) | Un chatbot de un cliente. Tiene una persona (nombre, rol, descripción y tono), sus credenciales de Meta y su configuración. | Gestión de bots |
+| **`bot_id`** (`uuid`) | El UUID de un bot. Forma parte de la URL de su webhook, viaja en cada mensaje de la cola y es la llave con la que el motor de respuestas pide la configuración del bot (ADR-0003). Identifica, pero no autoriza: no es un secreto. | Gestión de bots |
 | **Persona** | Nombre, rol, descripción y tono con los que el bot se presenta. Encabeza su system prompt. | Gestión de bots |
 | **Regla** (`Rule`) | Instrucción en lenguaje natural que se añade al system prompt de un bot. | Gestión de bots |
 | **Número del bot** (`ChatbotPhone`) | Número de WhatsApp Business de un cliente asociado a un bot y a un entorno. Lleva el número (`phoneNumber`) y su identificador en Meta (`phoneId`). | Gestión de bots |
@@ -30,7 +31,8 @@ del modelo BaaS que todavía no tienen representación en el código.
 | **Mensaje** (`MessageBody`) | El contenido normalizado que sale del gateway: bot, canal, contacto y mensaje original. | Mensajería entrante |
 | **Cola `llm`** | Cola durable de RabbitMQ donde el gateway publica cada mensaje. Es la frontera con el motor de respuestas. | Mensajería entrante |
 | **Hermod** | La instancia de RabbitMQ de la plataforma en `midgard`. | Mensajería entrante |
-| **Motor de respuestas** | Sistema que consume la cola `llm`, genera la respuesta y decide qué herramientas invocar. Externo al gateway y todavía sin definir. | Mensajería entrante |
+| **Motor de respuestas** (`ms-python-metamsghandler`) | Servicio aparte, con su propio repositorio, que consume la cola `llm`: normaliza el mensaje, lo filtra con guardrails y clasifica la intención del usuario. Es también quien genera la respuesta o ejecuta la acción que el usuario pide, y quien envía la respuesta al destinatario (ADR-0002); esa parte está en implementación. | Mensajería entrante |
+| **Resultado clasificado** | Lo que el motor de respuestas publica en la cola `meta-classified` por cada mensaje: si se permite, su intención y el tipo de respuesta que requiere (texto, acción o adjunto). | Mensajería entrante |
 | **Usuario final** | Persona que escribe a un bot. Es el interesado en términos del GDPR. | Contactos |
 | **Contacto** (`Contact`) | El registro de un usuario final para un bot: nombre, foto de perfil e identificador en el canal. | Contactos |
 | **Número del contacto** (`waId`) | El número de teléfono de WhatsApp de un usuario final. Dato personal que debe guardarse cifrado con la clave del cliente. | Contactos |
