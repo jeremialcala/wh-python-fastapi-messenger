@@ -102,7 +102,7 @@ La lista completa está en [requirements.txt](requirements.txt).
 │
 ├── tests/                  # Pirámide de pruebas: unit/ integration/ contract/ e2e/ security/ (ver tests/README.md)
 ├── docs/                   # Documentación AI-DLC, una carpeta por fase (00-project ... 06-monitoring)
-├── .ai-dlc/                # Checklists de los gates, plantillas y mapeo OWASP
+├── .ai-dlc/                # Checklists de los gates, plantillas, mapeo OWASP y scripts (contrato OpenAPI)
 ├── deploy/                 # docker-compose.yml del servidor (ver Despliegue)
 ├── .github/                # Workflows (ci, build, guardia GitFlow) y CODEOWNERS
 │
