@@ -1,0 +1,196 @@
+# Contrato AsyncAPI del gateway (fase 02-design, Gate 1).
+# Estado: approved (Gate 1, 2026-10-12). Versión: 0.1.0.
+#
+# Describe el mensaje que el gateway publica HOY en la cola `llm`, con sus defectos conocidos incluidos.
+# tests/contract/test_queue_contract.py genera ese mensaje con el código real y lo valida contra el esquema
+# SobreMensaje: si el código cambia el mensaje, la prueba falla y hay que actualizar este fichero.
+#
+# El contrato objetivo, con los cambios que cada lado debe hacer, está decidido en ADR-0011.
+asyncapi: 3.0.0
+info:
+  title: Gateway BaaS de mensajería
+  version: 0.1.0
+  description: >-
+    Mensajes que el gateway publica para el motor de respuestas (ms-python-metamsghandler). Un mensaje por
+    notificación de Meta aceptada: firma verificada, contacto identificado y bot de destino conocido.
+defaultContentType: application/json
+servers:
+  hermod:
+    host: 'hermod:5672'
+    protocol: amqp
+    protocolVersion: 0.9.1
+    description: >-
+      RabbitMQ de la plataforma, alcanzable solo desde la red Docker `hermod`. Sin TLS dentro de esa red.
+    security:
+      - $ref: '#/components/securitySchemes/usuarioBroker'
+channels:
+  llm:
+    address: llm
+    description: >-
+      Cola durable. El gateway publica en el exchange por defecto con la clave de enrutado `llm`, con mensajes
+      persistentes y confirmación del broker. El contenido viaja sin cifrar.
+    messages:
+      sobreMensaje:
+        $ref: '#/components/messages/SobreMensaje'
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: llm
+          durable: true
+          exclusive: false
+          autoDelete: false
+        bindingVersion: 0.3.0
+operations:
+  publicarMensaje:
+    action: send
+    channel:
+      $ref: '#/channels/llm'
+    summary: Publica un mensaje entrante ya verificado.
+    description: >-
+      El gateway responde 200 a Meta solo cuando el broker confirma el mensaje, y 503 si no puede publicarlo.
+      Meta reintenta ante un 503, así que el consumidor puede recibir el mismo mensaje más de una vez; hoy
+      ningún lado deduplica.
+    messages:
+      - $ref: '#/channels/llm/messages/sobreMensaje'
+    bindings:
+      amqp:
+        deliveryMode: 2
+        mandatory: true
+        bindingVersion: 0.3.0
+components:
+  securitySchemes:
+    usuarioBroker:
+      type: userPassword
+      description: Usuario y contraseña del broker (QMS_USER, QMS_PASSWORD), propios del gateway.
+  messages:
+    SobreMensaje:
+      name: SobreMensaje
+      title: Mensaje entrante de WhatsApp o de Messenger
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SobreMensaje'
+  schemas:
+    SobreMensaje:
+      type: object
+      description: >-
+        Sobre del gateway. Es el único formato que lleva el bot de destino, porque el webhook de Meta no lo
+        incluye: el `bot_id` solo existe en la URL del webhook.
+      required: [_uuid, jwe_body, createdAt, status, statusDate]
+      additionalProperties: false
+      properties:
+        _uuid:
+          $ref: '#/components/schemas/UuidExtendido'
+          description: >-
+            DEFECTO CONOCIDO: no identifica el mensaje. El valor se calcula una vez al arrancar el proceso y
+            se repite en todos los mensajes de ese proceso. No usar para deduplicar.
+        createdAt:
+          $ref: '#/components/schemas/FechaExtendida'
+          description: >-
+            DEFECTO CONOCIDO: es la hora de arranque del proceso, no la del mensaje.
+        statusDate:
+          $ref: '#/components/schemas/FechaExtendida'
+          description: DEFECTO CONOCIDO, igual que createdAt.
+        status:
+          type: integer
+          description: Siempre 0 (registrado). No aporta información.
+        jwe_body:
+          $ref: '#/components/schemas/Cuerpo'
+    Cuerpo:
+      type: object
+      description: >-
+        Pese a su nombre, hoy viaja como objeto JSON sin cifrar: el cifrado JWE existe en el código y está
+        desactivado.
+      required: [botId, type, contact, message]
+      additionalProperties: false
+      properties:
+        botId:
+          type: string
+          format: uuid
+          description: Bot al que iba dirigido el mensaje. Es la llave con la que el motor pide la configuración (ADR-0003).
+        type:
+          type: string
+          enum: [whatsapp_business_account, page]
+          description: Canal, con el valor del campo `object` del webhook de Meta.
+        contact:
+          $ref: '#/components/schemas/Contacto'
+        message:
+          description: Contenido del canal. Su forma depende de `type`.
+          oneOf:
+            - $ref: '#/components/schemas/MensajeWhatsApp'
+            - $ref: '#/components/schemas/EventoMessenger'
+    Contacto:
+      type: object
+      description: Quién escribe. Lleva `waId` en WhatsApp y `fbId` en Messenger. Dato personal, en claro.
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: [string, 'null']
+          description: Nombre del contacto.
+        waId:
+          type: string
+          description: Número de teléfono de WhatsApp del contacto.
+        fbId:
+          type: string
+          description: Identificador del contacto en Messenger (PSID).
+    MensajeWhatsApp:
+      type: object
+      description: El objeto `value` del cambio de WhatsApp Cloud API.
+      required: [messaging_product, metadata, contacts, messages]
+      properties:
+        messaging_product:
+          type: string
+        metadata:
+          type: array
+          description: >-
+            DEFECTO CONOCIDO: llega como lista de pares [clave, valor] y no como objeto. Contiene
+            display_phone_number y phone_number_id, que el motor necesita para responder.
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+        contacts:
+          type: array
+          items:
+            type: object
+        messages:
+          type: array
+          description: Mensajes tal como los envía Meta. El identificador de cada uno es `id` (wamid).
+          minItems: 1
+          items:
+            type: object
+            required: [id, from, type]
+    EventoMessenger:
+      type: object
+      description: Un elemento de `entry[].messaging[]` de la Messenger Platform.
+      required: [sender, message]
+      properties:
+        sender:
+          type: object
+          required: [id]
+        recipient:
+          type: object
+        timestamp:
+          type: integer
+        message:
+          type: object
+          description: El identificador del mensaje es `mid`.
+          required: [mid]
+    UuidExtendido:
+      type: object
+      description: UUID en el JSON extendido de MongoDB.
+      required: [$uuid]
+      additionalProperties: false
+      properties:
+        $uuid:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+    FechaExtendida:
+      type: object
+      description: Fecha en el JSON extendido de MongoDB, en milisegundos desde 1970.
+      required: [$date]
+      additionalProperties: false
+      properties:
+        $date:
+          type: integer

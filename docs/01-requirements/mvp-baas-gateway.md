@@ -4,7 +4,7 @@
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 01-requirements
-* **Versión:** 0.1.0
+* **Versión:** 0.2.0
 * **Gate:** 0
 * **Feature ID:** BAAS-001
 * **Nivel ASVS objetivo:** L2
@@ -350,16 +350,14 @@ control construido y una prueba que lo verifica.
 | Retención | Máximos de plataforma que el cliente puede acortar: 24 horas en la cola y 12 meses sin actividad para un contacto | RNF05 |
 | SLO del webhook | Sin cifra comprometida; se mide desde el primer despliegue | RNF01, RNF07 |
 
-### Pasan al Gate 1
+### Resueltas en el Gate 1 (2026-10-12, Jeremi Alcala)
 
-El requisito está fijado; falta el diseño.
-
-1. **Parámetros del token de autenticación** (RS02): algoritmos permitidos, contenido obligatorio del JWT,
-   duración, y registro y rotación de las claves públicas.
-2. **Contrato de la cola** (RF12): un AsyncAPI común con el motor de respuestas, con el sobre del gateway como
-   formato para los dos canales.
-3. **Custodia de la clave de cifrado de datos** (RS05, RS06): qué clave cifra los datos de cada cliente, quién la
-   genera y dónde vive.
+| Decisión | Resultado | Dónde queda |
+|---|---|---|
+| Parámetros del token de autenticación | Firma `ES256`, 60 segundos de vida y un solo uso por token | [ADR-0009](../00-project/adr/0009-parametros-del-token-de-autenticacion.md), RS02 |
+| Custodia de la clave de cifrado de datos | Una clave por cliente, generada y custodiada por la plataforma, con índice ciego para buscar por número | [ADR-0010](../00-project/adr/0010-clave-de-cifrado-de-datos-por-cliente.md), RS05, RS06 |
+| Contrato de la cola | El sobre del gateway, versión 1, para los dos canales; deduplicación en el motor | [ADR-0011](../00-project/adr/0011-contrato-de-la-cola.md), RF12, RNF04 |
+| Aislamiento entre clientes | `clientId` en cada documento y capa de repositorio obligatoria | [ADR-0012](../00-project/adr/0012-aislamiento-por-cliente-en-la-capa-de-datos.md), RS01 |
 
 ### Datos por aportar
 
