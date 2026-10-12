@@ -1,6 +1,6 @@
 # ADR-0012: El aislamiento entre clientes se impone en la capa de datos
 
-* **Estado:** proposed
+* **Estado:** accepted
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -9,7 +9,7 @@
 * **Supersede:** —
 * **Controles OWASP afectados:** A01 (control de acceso), A06 (diseño inseguro)
 
-Propuesta pendiente de aprobación.
+Aceptada el 2026-10-12.
 
 ## Contexto
 

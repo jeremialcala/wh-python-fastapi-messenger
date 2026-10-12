@@ -1,6 +1,6 @@
 # ADR-0009: Parámetros del token de autenticación
 
-* **Estado:** proposed
+* **Estado:** accepted
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -9,7 +9,7 @@
 * **Supersede:** —
 * **Controles OWASP afectados:** A07 (autenticación), A04 (algoritmos y claves), A01 (de quién es cada petición)
 
-Propuesta pendiente de aprobación. Concreta lo que [ADR-0005](0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)
+Aceptada el 2026-10-12. Concreta lo que [ADR-0005](0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)
 dejó abierto.
 
 ## Contexto

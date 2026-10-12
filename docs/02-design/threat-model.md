@@ -1,10 +1,10 @@
 # Threat model — Gateway BaaS de mensajería
 
-* **Estado:** review
+* **Estado:** approved (Gate 1, 2026-10-12)
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
-* **Versión:** 0.1.0
+* **Versión:** 0.2.0
 * **Gate:** 1
 * **Alcance:** el gateway, su cola en Hermod, su base en MongoDB Atlas, el túnel y el despliegue; el motor de respuestas solo en su frontera con el gateway
 * **Metodología:** STRIDE por elemento del DFD + DREAD para priorizar
