@@ -19,13 +19,23 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - Aislamiento entre clientes en la capa de datos (ADR-0012): entidad cliente, `clientId` obligatorio en
   chatbots, números, reglas, intents y contactos, y capa de repositorio por la que pasa todo acceso a esos
   datos. Lo ajeno responde `404`, igual que lo inexistente.
+- Autenticación por cliente (ADR-0005, ADR-0009): un JWT firmado por el cliente (`ES256`) dentro de un JWE cifrado
+  para el gateway (`RSA-OAEP-256`, `A256CBC-HS512`), de 60 segundos como máximo y un solo uso.
+- Registro de clientes: `POST` y `GET /clients` para el operador, con las claves de un cliente en
+  `/clients/{client_id}/keys`; y `/keys` para que cada cliente rote la suya. `GET /gateway/keys` devuelve la
+  audiencia y las claves públicas del gateway.
+- Comandos `python -m ops.gateway_key`, `ops.operator_key` y `ops.client`, y la guía
+  `docs/03-implementation/autenticacion.md`.
 - `python -m migrations.assign_operator_client`: asigna al cliente del operador los documentos anteriores a la
   existencia de clientes. Sin `--apply` solo informa.
 
 ### Cambiado
 - Los chatbots guardados antes de este cambio responden `404`, también en el webhook, hasta que se ejecute la
   migración que les asigna cliente.
-- La clave de administración actúa como el cliente del operador: solo alcanza sus chatbots.
+- **Incompatible:** la cabecera `X-API-Key` y el ajuste `ADMIN_API_KEY` desaparecen. Todo lo que no es el webhook
+  ni `/health` pide el token nuevo, y el servicio no arranca sin `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE`.
+- El operador es un cliente más en las rutas de los chatbots: solo alcanza los suyos.
+- Una clave de `config.env` que ya no corresponde a ningún ajuste se ignora, en vez de impedir el arranque.
 - `GET` y `POST /chat/{bot_id}/phones` responden `404` para un chatbot que no existe. Antes respondían `200`
   con el texto `HTTP_404_NOT_FOUND` en el cuerpo.
 - La imagen instala solo las dependencias de ejecución; las de pruebas pasan a `requirements-dev.txt`.

@@ -35,9 +35,19 @@ resto de criterios cumplidos.
 - Una prueba lee el código y falla si algo consulta la base fuera del repositorio.
 - De paso se cierran dos accesos cruzados que ya existían entre chatbots: un intent se podía leer, cambiar o
   desactivar a través de cualquier chatbot, y se podían añadir reglas a un chatbot inexistente.
-- Mientras no exista la autenticación por cliente (trabajo 2), la clave de administración actúa como el
-  cliente del operador. Los datos anteriores hay que asignárselos con
+- Los datos anteriores a la existencia de clientes hay que asignárselos al del operador con
   `python -m migrations.assign_operator_client --apply`; hasta entonces esos chatbots responden `404`.
+
+### Hecho: autenticación por cliente (ADR-0005, ADR-0009)
+
+- Todo lo que no es el webhook ni `/health` pide un JWT firmado por el cliente dentro de un JWE cifrado para el
+  gateway: un algoritmo por capa, 60 segundos como máximo y un solo uso. La clave de administración ya no
+  existe.
+- Registro de clientes: el operador los da de alta con su clave pública, y cada cliente rota la suya sin corte.
+- El gateway no guarda secretos de los clientes, y no arranca sin su propio par de claves.
+- Las pruebas usan tokens reales: cada forma de falsificar, alterar o reenviar uno acaba en el mismo `401`, y
+  otra prueba comprueba qué verificación lo rechaza. Desactivando cada verificación por separado, fallan.
+- Cómo se usa y cómo se opera: [`autenticacion.md`](../../docs/03-implementation/autenticacion.md).
 
 ### Pendiente que deja el primer análisis estático
 

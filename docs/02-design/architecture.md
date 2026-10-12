@@ -17,7 +17,7 @@ marca qué existe y qué falta. La lista completa de diferencias está en
 
 | Contexto | Responsabilidad | Entidades núcleo | Estado |
 |---|---|---|---|
-| Clientes y acceso | Registrar clientes, autenticar cada petición y decidir qué puede ver cada uno | Cliente, clave pública de firma, clave de datos | Sin construir: hoy una única clave de gestión |
+| Clientes y acceso | Registrar clientes, autenticar cada petición y decidir qué puede ver cada uno | Cliente, clave pública de firma, clave de datos | Construido: registro de clientes, token firmado y cifrado, y aislamiento por cliente. Falta la clave de datos |
 | Gestión de bots | Alta y configuración de un bot: persona, reglas, números y credenciales de Meta | `ChatBot`, `ChatbotPhone`, `Rule` | Construido, sin dueño por bot |
 | Mensajería entrante | Verificar a Meta, normalizar la notificación y publicarla con confirmación | `FacebookRequest`, `MessageBody`, `QueueMessage` | Construido |
 | Contactos | Identificar o crear a quien escribe; exportar y borrar sus datos | `Contact` | Construido sin cifrado, sin exportar ni borrar |
@@ -62,8 +62,8 @@ C4Container
     UpdateElementStyle(gateway, $bgColor="#1168bd", $fontColor="#ffffff")
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-*Eje estructura · fase 02 · Gate 1. Es el objetivo. Hoy no existen: el acceso de los clientes (la gestión solo se
-alcanza en red privada y con una clave única), las dos relaciones del motor con el gateway y con Meta, y el propio
+*Eje estructura · fase 02 · Gate 1. Es el objetivo. El acceso de los clientes ya existe, con su token. No existen
+todavía: las dos relaciones del motor con el gateway y con Meta, la publicación de la gestión, y el propio
 despliegue del gateway en el servidor.*
 
 ## Vista C4 — Component (gateway)
@@ -81,13 +81,13 @@ C4Component
     Container_Boundary(gw, "Gateway") {
         Component(interceptor, "Interceptor", "Middleware HTTP", "Tiempos y respuesta 500 por defecto")
         Component(firma, "Verificacion del webhook", "Dependencia FastAPI", "Token de verificacion y X-Hub-Signature-256")
-        Component(auth, "Autenticacion de gestion", "Dependencia FastAPI", "Hoy X-API-Key. Objetivo: JWT firmado en JWE")
+        Component(auth, "Autenticacion", "Dependencia FastAPI", "JWT firmado por el cliente dentro de un JWE")
         Component(rutas, "Rutas", "FastAPI", "Webhook, bots, reglas, intents, salud")
         Component(mensajes, "Mensajeria entrante", "controller.messages", "Normaliza la notificacion y arma el sobre")
         Component(contactos, "Contactos", "controller.facebook", "Identifica o crea al contacto")
         Component(bots, "Bots e intents", "controller.chatbot, intents", "Configuracion de cada bot")
         Component(publicador, "Publicador", "controller.amqp_broker, pika", "Publica con confirmacion del broker")
-        Component(registro, "Registro de clientes", "Por construir", "Clientes, claves publicas y claves de datos")
+        Component(registro, "Registro de clientes", "Repositorio", "Clientes y sus claves publicas de firma")
         Component(repos, "Repositorios por cliente", "Por construir", "Unico acceso a datos, siempre con clientId")
         Component(cifrado, "Cifrado de campos", "Por construir", "Clave de datos del cliente e indice ciego")
         Component(entidades, "Entidades", "mongoengine", "Documentos de MongoDB")
@@ -111,12 +111,11 @@ C4Component
     Rel(entidades, atlas, "Lee y escribe", "TLS")
     Rel(publicador, hermod, "Publica", "AMQP")
 
-    UpdateElementStyle(registro, $borderColor="#b30000", $fontColor="#b30000")
     UpdateElementStyle(cifrado, $borderColor="#b30000", $fontColor="#b30000")
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-*Eje estructura · fase 02 · Gate 1. En rojo, los dos componentes que el diseño añade y que todavía no existen.
-La capa de repositorio ya existe: los controladores no consultan la base, se lo piden a ella.*
+*Eje estructura · fase 02 · Gate 1. En rojo, el componente que el diseño añade y que todavía no existe: el
+cifrado de campos. La autenticación, el registro de clientes y la capa de repositorio ya están construidos.*
 
 ## Flujos críticos (comportamiento)
 
@@ -342,7 +341,7 @@ Autenticación por superficie:
 |---|---|---|
 | `GET` y `POST /chat/{bot_id}` | Token de verificación y firma de Meta | Igual (ADR-0004) |
 | `GET /health` | Sin autenticación; solo en loopback | Igual |
-| Resto de endpoints | Cabecera `X-API-Key`, una clave para todo | JWT firmado por el cliente dentro de un JWE (ADR-0005, ADR-0009) |
+| Resto de endpoints | JWT firmado por el cliente dentro de un JWE: construido | JWT firmado por el cliente dentro de un JWE (ADR-0005, ADR-0009) |
 
 ## Patrones de seguridad seleccionados (por amenaza DREAD priorizada)
 
@@ -365,8 +364,8 @@ Lo que hay que construir para que el código cumpla este diseño, en el orden qu
 
 | Orden | Trabajo | Cubre | ADR |
 |---|---|---|---|
-| 1 | Entidad cliente, `clientId` en cada documento y capa de repositorio. **Hecho**, salvo el alta de clientes, que llega con su clave en el trabajo 2 | RF01, RS01 | ADR-0012 |
-| 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key` | RS02 | ADR-0005, ADR-0009 |
+| 1 | Entidad cliente, `clientId` en cada documento y capa de repositorio. **Hecho** | RF01, RS01 | ADR-0012 |
+| 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key`. **Hecho**, con el alta de clientes; falta el cliente de servicio del motor | RS02 | ADR-0005, ADR-0009 |
 | 3 | Clave de datos por cliente, cifrado de campos e índice ciego; migrar lo que está en claro | RS05, RS06 | ADR-0010 |
 | 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad | RF12, RNF04, RNF05 | ADR-0011 |
 | 5 | Endpoints para cargar credenciales de Meta, y para exportar y borrar contactos y bots | RF06, RF08, RF09, RF10 | — |

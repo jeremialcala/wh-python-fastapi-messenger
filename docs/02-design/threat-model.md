@@ -49,20 +49,20 @@ líneas discontinuas son flujos del diseño que hoy no existen.*
 | ID | Elemento | STRIDE | Amenaza | Control | Estado | Traza |
 |---|---|---|---|---|---|---|
 | T1 | Flujo 2/3 | S | Un tercero envía una notificación falsa para inyectar mensajes en la cola | Firma `X-Hub-Signature-256` sobre el cuerpo crudo, con el App Secret del bot; sin secreto se rechaza | Construido | RS03, ADR-0004, ADR-0007 |
-| T2 | Gateway, flujo 9 | E, I | Un cliente lee o modifica bots, contactos o credenciales de otro usando su UUID | `clientId` en cada documento y capa de repositorio que lo exige; lo ajeno responde `404` | Parcial: el control está construido y probado; hasta que cada cliente se autentique con su token (RS02) solo entra el operador | RS01, ADR-0012 |
+| T2 | Gateway, flujo 9 | E, I | Un cliente lee o modifica bots, contactos o credenciales de otro usando su UUID | `clientId` en cada documento y capa de repositorio que lo exige; lo ajeno responde `404` | Construido | RS01, ADR-0012 |
 | T3 | Base, flujo 5 | I | Una copia de la base expone números, tokens de Meta y App Secret | Cifrado de esos campos con la clave de datos del cliente e índice ciego para buscar por número | Pendiente | RS05, RS06, ADR-0010 |
 | T4 | Flujo 3 | I, E | La gestión o la documentación de la API quedan alcanzables desde internet | El túnel publica solo `/chat/<uuid>`; el contenedor escucha en loopback | Pendiente: sin desplegar | RS09, ADR-0008 |
-| T5 | Flujo 2/3, 9 | S | Fuerza bruta contra el token de verificación o las credenciales de gestión | Comparación en tiempo constante; clave de 32 caracteres o más; límite de tasa en el borde | Parcial: falta el límite de tasa | RS02, RS04, RS10 |
+| T5 | Flujo 2/3, 9 | S | Fuerza bruta contra el token de verificación o las credenciales de gestión | Comparación en tiempo constante del token de verificación; para la gestión no hay secreto que adivinar, sino una firma `ES256`; límite de tasa en el borde | Parcial: falta el límite de tasa | RS02, RS04, RS10 |
 | T6 | Gateway | I | Los logs contienen números, nombres y contenido de mensajes | Sin datos personales en ningún nivel de log | Parcial: el interceptor ya no registra query strings ni cabeceras; `messages.py` y `facebook.py` sí registran datos por debajo de `production` | RS07 |
 | T7 | Flujo 2/3, 6 | T | Una notificación legítima se entrega o se reenvía dos veces y se procesa dos veces | Identificador de Meta en el sobre y deduplicación en el motor durante 24 horas | Pendiente | RNF04, ADR-0011 |
-| T8 | Flujo 9 | S | Alguien fabrica un token de gestión, o captura uno válido y lo reenvía | JWT firmado por el cliente dentro de un JWE; caducidad de 60 segundos y un solo uso | Pendiente | RS02, ADR-0005, ADR-0009 |
+| T8 | Flujo 9 | S | Alguien fabrica un token de gestión, o captura uno válido y lo reenvía | JWT firmado por el cliente dentro de un JWE; caducidad de 60 segundos y un solo uso | Construido | RS02, ADR-0005, ADR-0009 |
 | T9 | Flujo 2/3 | D | Una ráfaga de notificaciones agota el worker o llena la cola | Límite de tasa en el borde; tope de memoria y CPU del contenedor; caducidad de los mensajes | Parcial: solo el tope del contenedor | RS10, RNF03, RNF05 |
 | T10 | Flujo 14 | E, T | Un usuario final escribe instrucciones para que el LLM invoque herramientas del cliente | Guardrails de entrada y salida del LLM tratada como no confiable, en el motor | Parcial: según la documentación del motor; no verificado aquí | RS16 |
 | T11 | Gateway, motor | E, I | Un cliente define un intent cuya llamada a API apunta a la red interna | Validar el destino de `ApiCall` al guardarlo y al ejecutarlo: solo HTTPS y sin direcciones internas | Pendiente | RS16 |
 | T12 | Flujo 9 | I, E | El motor, o quien robe su credencial, obtiene los tokens de Meta de todos los clientes | Cliente de servicio con alcance de solo lectura, cada acceso registrado, credencial rotable | Pendiente | RS06, ADR-0003, ADR-0009 |
 | T13 | Cola, flujo 6/8 | I, T | Quien entre en la red del broker lee o altera los mensajes | Red Docker privada y un usuario del broker por servicio; cifrado del cuerpo en una segunda fase | Parcial: la red y el broker existen; el usuario del gateway y el cifrado, no | RS08, ADR-0011 |
 | T14 | Flujo 11 | T | Una dependencia vulnerable o una imagen manipulada llegan a producción | Imagen base por digest; dependencias fijadas con hashes; análisis de dependencias, de secretos y estático en el pipeline; SBOM | Parcial: falta el SBOM | RS12 |
-| T15 | Secretos | I | Se filtran el `.env` del servidor, la clave privada del gateway o la clave maestra | Fuera del repo y de la imagen, permisos restringidos, y nunca impresos al diagnosticar | Parcial: las dos claves aún no existen | RS13, ADR-0008, ADR-0010 |
+| T15 | Secretos | I | Se filtran el `.env` del servidor, la clave privada del gateway o la clave maestra | Fuera del repo y de la imagen, permisos restringidos, y nunca impresos al diagnosticar | Parcial: la clave privada del gateway es un fichero del servidor, fuera del repo y de la imagen; la clave maestra vive en Andvari y el gateway aún no la usa | RS13, ADR-0008, ADR-0010 |
 | T16 | Flujo 6 | D | El broker no está disponible y el mensaje se pierde con un `200` a Meta | Publicación confirmada; `503` si falla | Construido | RNF02, ADR-0006 |
 | T17 | Base, cola, logs | I | Un interesado pide la supresión y sus datos siguen en la cola, los logs o los respaldos | Borrado por contacto, caducidad en la cola, logs sin datos personales y destrucción de la clave de datos | Pendiente | RF09, RF10, RNF05, ADR-0010 |
 | T18 | Gateway | I | Un error devuelve detalles internos en la respuesta | Respuesta de error genérica y fallo cerrado | Parcial: dos funciones devuelven el texto de la excepción | RS15 |
@@ -137,7 +137,7 @@ Defectos que salieron al contrastar el código con el diseño. Los cuatro primer
 | H1 | **Los valores por defecto se calculan una vez, al importar.** Los campos de las entidades usan `default=uuid4()` y `default=datetime.now()`, con paréntesis: el valor queda fijado al arrancar. Hay 28 campos así | `createdAt` y `statusDate` de todos los documentos guardan la hora de arranque del proceso, no la de creación. El `_uuid` de los mensajes de la cola es el mismo en todos. Los demás identificadores se salvan porque el código los asigna de forma explícita | **Corregido** en la base del Gate 2: los valores por defecto se calculan por objeto, con pruebas que lo exigen |
 | H2 | **`metadata` de WhatsApp sale mal serializado** hacia la cola: una lista de pares en vez de un objeto | El motor no puede leer `phone_number_id`, que necesita para responder | Abierto; ADR-0011 |
 | H3 | **El motor rechaza los mensajes de Messenger** que publica el gateway y **descarta el `botId`** | Messenger no funciona de extremo a extremo; el motor no puede pedir la configuración del bot | Abierto; ADR-0011, en el repositorio del motor |
-| H4 | **`GET /chat/{bot_id}/info` devuelve los tokens de Meta** | Quien tenga la clave de gestión los lee; con varios clientes, T2 los expondría entre clientes | Abierto; RS06 |
+| H4 | **`GET /chat/{bot_id}/info` devuelve los tokens de Meta** | Quien se autentique como dueño del bot los lee; el aislamiento impide que los lea otro cliente | Abierto; RS06 |
 | H5 | **El contrato OpenAPI no declara ningún esquema de seguridad**: la autenticación se hace en dependencias que OpenAPI no ve | Quien lea el contrato no sabe que hace falta credencial; las herramientas de análisis tampoco | Abierto |
 | H6 | **Los valores por defecto y los ejemplos de los DTO son aleatorios**, generados con Faker al importar | La documentación de la API cambia en cada arranque. El contrato versionado los omite por eso | Abierto |
 
@@ -161,10 +161,10 @@ Orden de construcción que se desprende de la prioridad:
 | Amenaza | Prueba |
 |---|---|
 | T1, T16 | Ya cubiertas por `tests/unit/test_webhook_security.py` |
-| T2 | Ya cubierta por `tests/unit/test_client_isolation.py` (todas las rutas con otro cliente: `404`), `test_tenant_repository.py` y `test_data_access_boundary.py` (nada consulta la base fuera del repositorio). Falta repetirla con tokens reales cuando exista RS02 |
+| T2 | Ya cubierta por `tests/unit/test_client_isolation.py` (todas las rutas con otro cliente: `404`), `test_tenant_repository.py` y `test_data_access_boundary.py` (nada consulta la base fuera del repositorio). Las rutas se recorren con tokens reales de dos clientes |
 | T3 | Volcar la base de pruebas y comprobar que ningún número ni token aparece en claro |
 | T4 | Desde fuera de la red, cualquier ruta que no sea `/chat/<uuid>` no responde |
 | T7 | Publicar dos veces el mismo mensaje y comprobar que el motor lo procesa una |
-| T8 | Token caducado, con `aud` ajeno, con `jti` repetido, con algoritmo no permitido y firmado con otra clave: todos rechazados |
+| T8 | Ya cubierta por `tests/unit/test_authentication.py`: caducado, con `aud` ajeno, con `jti` repetido, con algoritmo no permitido, firmado con otra clave o en nombre de otro cliente; todos rechazados, y cada uno por la comprobación que le toca |
 | T6 | Procesar un mensaje en nivel `DEBUG` y comprobar que el log no contiene el número ni el texto |
 | Contratos | `tests/contract`: el OpenAPI versionado coincide con la aplicación, y el mensaje real de la cola cumple el AsyncAPI |

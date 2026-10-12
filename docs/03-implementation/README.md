@@ -9,4 +9,4 @@ El código vive en `src/`, no aquí. Esta carpeta documenta lo transversal de la
 Cierra con `.ai-dlc/gates/gate-2-implementation.md`: SAST limpio, dependencias verificadas, cobertura por ramas
 de al menos el 80 %, dual review y ningún secreto en el código.
 
-Todavía vacía.
+- [autenticacion.md](autenticacion.md): cómo llama un cliente al servicio y cómo lo opera el operador.

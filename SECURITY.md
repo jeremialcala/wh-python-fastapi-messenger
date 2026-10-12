@@ -12,6 +12,10 @@ restringidos junto al compose en el servidor; ninguno de los dos se versiona ni 
 (`.gitignore`, `.dockerignore`). Los tokens de Meta y el `appSecret` de cada chatbot están en su documento de
 MongoDB.
 
+La clave privada con la que el gateway abre los tokens de autenticación vive en un fichero del servidor, legible
+solo por la cuenta del contenedor y montado en solo lectura. De los clientes no se guarda ningún secreto: solo
+la clave pública con la que firman.
+
 Está prohibido commitear secretos. El pipeline lo comprueba: el workflow `Seguridad` escanea la historia
 completa con gitleaks y rompe el build ante cualquier hallazgo.
 
