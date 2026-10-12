@@ -19,7 +19,7 @@ It manages the full chatbot lifecycle (registration, verification, configuration
 - [Running locally](#running-locally)
 - [Running with Docker](#running-with-docker)
 - [Logging](#logging)
-- [⚠️ Security notice](#️-security-notice)
+- [Security](#security)
 - [License](#license)
 
 ---
@@ -86,7 +86,7 @@ Full pinned list lives in [requirements.txt](requirements.txt).
 ├── bootstrap.sh            # Clone + rebuild + run the container (develop branch)
 ├── compose-dev.yaml        # Docker "dev environment" helper (not the app runtime)
 ├── requirements.txt        # Python dependencies
-├── config.env              # Environment variables (loaded by pydantic-settings)
+├── config.env.example      # Template for config.env (git-ignored, loaded by pydantic-settings)
 ├── logging_config.yaml     # Per-environment logging configuration
 │
 ├── classes/                # Pydantic DTOs + mongoengine entities
@@ -104,9 +104,9 @@ Full pinned list lives in [requirements.txt](requirements.txt).
 ├── constants/              # Static strings: docs metadata, headers, FB keys, formats
 ├── enums/                  # Status, Environment, KeyTypes enums
 ├── utils/                  # logging config, code generators, JWK/PEM key helpers
-├── certs/                  # Per-event RSA private keys (*.pem)  ⚠️ see Security notice
+├── certs/                  # Per-event RSA private keys (*.pem), git-ignored
 ├── prototypes/             # Throwaway experiments (ignored in .gitignore)
-└── test/                   # Test package (currently empty scaffold)
+└── test/                   # pytest suite (runs without MongoDB, RabbitMQ or config.env)
 ```
 
 ### Package responsibilities
@@ -129,8 +129,9 @@ Defined in [app.py](app.py):
    - Records start time and sets `X-Processing-Time` on the response.
    - Builds an `EventTransport` DTO (uuid, resource, method, client origin) — event creation is currently scaffolded (`ctr_create_event` call is commented out) and `request.state.event_id` is set to `None`.
    - Wraps `call_next` in try/except/finally so a baseline `500` `ResponseData` is always returned on failure.
-2. **Route handlers** call the matching `ctr_*` controller and return its `Response`.
-3. **Controllers** optionally emit `EventAction` records (only when an `eventId` is present), persist via mongoengine, and—for inbound messages—publish a JWE to RabbitMQ via `asyncio.ensure_future`.
+2. **Dependencies** authenticate the request before any handler runs: `X-API-Key` on the management endpoints, `X-Hub-Signature-256` on inbound notifications (see [Security](#security)).
+3. **Route handlers** call the matching `ctr_*` controller and return its `Response`.
+4. **Controllers** optionally emit `EventAction` records (only when an `eventId` is present), persist via mongoengine, and—for inbound messages—publish to RabbitMQ. The publish is awaited and confirmed by the broker before Meta gets its `200`.
 
 ---
 
@@ -138,6 +139,8 @@ Defined in [app.py](app.py):
 
 Base URL (local Docker): `http://localhost:5002`
 Interactive docs: `http://localhost:5002/docs` (Swagger) · `http://localhost:5002/redoc`
+
+Only the two webhook routes (`GET` and `POST /chat/{bot_id}`) are public. Every other endpoint requires the `X-API-Key` header and answers `401` without it.
 
 ### Bot management — tag `Bot`
 
@@ -151,8 +154,8 @@ Interactive docs: `http://localhost:5002/docs` (Swagger) · `http://localhost:50
 
 | Method | Path | Description |
 |---|---|---|
-| `GET`  | `/chat/{bot_id}` | **Meta webhook verification.** Validates `hub.mode=subscribe` and `hub.verify_token` against the bot's `verifyToken`, then echoes `hub.challenge`. |
-| `POST` | `/chat/{bot_id}` | **Inbound message handler.** Accepts a `FacebookRequest`; dispatches Messenger (`object=page`) or WhatsApp (`object=whatsapp_business_account`) payloads. Processing runs in the background. |
+| `GET`  | `/chat/{bot_id}` | **Meta webhook verification.** Validates `hub.mode=subscribe` and `hub.verify_token` against the bot's `verifyToken`, then echoes `hub.challenge` as plain text. Anything else is a `403`. |
+| `POST` | `/chat/{bot_id}` | **Inbound message handler.** Requires a valid `X-Hub-Signature-256` (`403` otherwise). Accepts a `FacebookRequest`; dispatches Messenger (`object=page`) or WhatsApp (`object=whatsapp_business_account`) payloads. Answers `200` once RabbitMQ has confirmed the message, `503` if the broker is unavailable so that Meta retries. |
 | `POST` | `/chat/{bot_id}/phones` | Register a WhatsApp phone number (`ChatbotPhoneRequest`: `environment`, `phoneNumber`, `phoneId`). |
 | `GET`  | `/chat/{bot_id}/phones?environment=` | List the bot's phone numbers; with `environment` returns the latest match for that environment. |
 | `GET`  | `/chat/{bot_id}/info` | Return the bot's stored info (`chatbot_info()`). |
@@ -169,7 +172,7 @@ All entities are mongoengine `Document`s and connect to the database configured 
 
 | Entity | File | Key fields | Purpose |
 |---|---|---|---|
-| `ChatBot` | `entity_chatbot.py` | `uuid`, `name`, `role`, `description`, `tone`, `verifyToken`, `facebookToken`, `whatsappToken`, `status` | A chatbot tenant. `generate_verification_token()` mints a signed JWT used for Meta webhook verification. |
+| `ChatBot` | `entity_chatbot.py` | `uuid`, `name`, `role`, `description`, `tone`, `verifyToken`, `facebookToken`, `whatsappToken`, `appSecret`, `status` | A chatbot tenant. `generate_verification_token()` mints a signed JWT used for Meta webhook verification. |
 | `ChatbotPhone` | `entity_chatbot_phones.py` | `uuid`, `bot_id`, `environment`, `phoneNumber`, `phoneId` | WhatsApp numbers bound to a bot, segmented by environment. |
 | `Contact` | `entity_contact.py` | `_uuid`, `botId`, `firstName`, `lastName`, `profilePic`, `fbId`, `waId` | A person messaging a bot. Lookups by `fbId` or `waId`; Messenger contacts are enriched from the Graph API. |
 | `Rule` | `entity_chatbot_rules.py` | `uuid`, `botId`, `rule` | A single system-prompt rule for a bot. |
@@ -192,10 +195,12 @@ All entities are mongoengine `Document`s and connect to the database configured 
 
 ## Configuration
 
-Settings are loaded by `classes/tool_settings.py` (`pydantic-settings`) from **`config.env`**. Required variables:
+Settings are loaded by `classes/tool_settings.py` (`pydantic-settings`) from **`config.env`**; start from [config.env.example](config.env.example). Environment variables override the file. Required variables:
 
 | Variable | Description |
 |---|---|
+| `ADMIN_API_KEY` | Key for the management endpoints (`X-API-Key` header). At least 32 characters; the app does not start without it. |
+| `FACEBOOK_APP_SECRET` | Meta App Secret that verifies webhook signatures. Optional only if every chatbot carries its own `appSecret`. |
 | `CLIENT_ID`, `NATIONAL_ID_URL` | Misc client identifiers. |
 | `DB_NAME`, `DB_HOST`, `DB_USERNAME`, `DB_PASSWORD` | MongoDB connection (Atlas SRV host supported). |
 | `SENDER_EMAIL`, `SENDER_PASSWORD`, `GMAIL_SERVER_URL`, `GMAIL_SERVER_PORT` | Email/SMTP settings. |
@@ -207,7 +212,7 @@ Settings are loaded by `classes/tool_settings.py` (`pydantic-settings`) from **`
 | `VERIFY_TOKEN` | Default verification token. |
 | `FACEBOOK_GRAPH_URL`, `FACEBOOK_WHATSAPP_MESSAGE`, `FACEBOOK_GRAPH_VERSION` | Meta Graph API endpoint templates and version (e.g. `v19.0`). |
 
-> `config.env` is listed in `.gitignore` but a copy is **currently committed** — see the Security notice below. Treat the checked-in values as compromised.
+> `config.env` and `certs/` are git-ignored and have never been committed. Keep it that way: the repository is public.
 
 ---
 
@@ -224,10 +229,14 @@ source .venv/bin/activate           # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # 3. Provide configuration
-#    Edit config.env with your own MongoDB / RabbitMQ / Meta credentials
+#    Copy config.env.example to config.env and fill in your own
+#    MongoDB / RabbitMQ / Meta credentials and the ADMIN_API_KEY
 
 # 4. Run the API
 uvicorn app:app --host 0.0.0.0 --port 5002 --reload
+
+# 5. Run the tests (no services nor config.env needed)
+pytest test
 ```
 
 Open `http://localhost:5002/docs` for the Swagger UI.
@@ -259,6 +268,29 @@ Configured via [logging_config.yaml](logging_config.yaml), applied on startup by
 | `development` | DEBUG | console |
 | `staging` | INFO | console + `application.log` |
 | `production` | WARNING | `application.log` |
+
+---
+
+## Security
+
+| Surface | Control |
+|---|---|
+| Management endpoints (`/bot`, `/chat/{bot_id}/phones`, `/info`, `/rules`, `/intents`, `/tools`) | `X-API-Key` header compared in constant time against `ADMIN_API_KEY`. `401` otherwise. |
+| `GET /chat/{bot_id}` (verification) | `hub.verify_token` compared in constant time against the bot's `verifyToken`. `403` otherwise. |
+| `POST /chat/{bot_id}` (notifications) | `X-Hub-Signature-256`: HMAC-SHA256 of the raw body keyed with the Meta App Secret. `403` otherwise. |
+
+- **App Secret lookup** — the chatbot's own `appSecret` if the document has one, else `FACEBOOK_APP_SECRET`. With neither, every notification is rejected. Like the page and WhatsApp tokens, `appSecret` is written straight into the chatbot document; no endpoint returns it.
+- **Delivery** — a notification gets its `200` only after RabbitMQ confirms the publish. Meta redelivers on `503`, so the consumer of the `llm` queue must tolerate duplicates (deduplicate on the message id).
+- **Logs** — the request interceptor logs neither query strings nor headers, and the key that signs a bot's `verifyToken` is no longer written to the log.
+- **Still open** — `/docs`, `/redoc` and `/openapi.json` are served without a key, and there is no rate limiting: publish only `/chat/{bot_id}` at the edge and keep everything else on the private network. `controller/messages.py` still logs the content of inbound messages at `INFO`.
+
+To sign a test notification by hand:
+
+```bash
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$FACEBOOK_APP_SECRET" | sed 's/^.* //')
+curl -X POST "http://localhost:5002/chat/$BOT_ID" -H 'Content-Type: application/json' \
+     -H "X-Hub-Signature-256: sha256=$SIG" -d "$BODY"
+```
 
 ---
 

@@ -11,7 +11,7 @@ from classes import ChatBot, ChatbotPhone
 from classes import Settings, FacebookRequest, Entry, Value, Messaging, MessageBody, QueueMessage
 from enums import Status
 from .events import ctr_notify_action
-from .amqp_broker import send_message_to_queue
+from .amqp_broker import send_message_to_queue, BrokerUnavailable
 from .facebook import ctr_identify_fb_contact, ctr_identify_contact_by_wa_id
 
 settings = Settings()
@@ -97,7 +97,8 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
                 jwe_body=body.__dict__
             )
             # q_message.set_jwe_body(body)
-            ensure_future(send_message_to_queue(queue="llm", message=q_message))
+            # Awaited on purpose: Meta must not get a 200 for a message the broker never took.
+            await send_message_to_queue(queue="llm", message=q_message)
 
         if eventId is not None:
             ensure_future(ctr_notify_action(
@@ -110,6 +111,8 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
             ))
 
         log.info(f"Ending: {currentframe().f_code.co_name}")
+    except BrokerUnavailable:
+        raise
     except Exception as e:
         log.error(e.__str__())
 
