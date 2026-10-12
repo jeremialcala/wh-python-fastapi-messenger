@@ -7,14 +7,18 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-12
+
+Cierre del Gate 1 (diseño).
+
 ### Añadido
-- Documentos del Gate 1, en revisión: arquitectura (C4, flujos, ciclo de vida del mensaje, modelo de datos) y
+- Documentos del Gate 1, aprobados: arquitectura (C4, flujos, ciclo de vida del mensaje, modelo de datos) y
   threat model (21 amenazas con STRIDE y DREAD, y seis hallazgos del diseño).
 - Contratos: OpenAPI generado de la aplicación y AsyncAPI de la cola `llm`, con pruebas de contrato que los
   verifican contra el código (`tests/contract`).
 - ADR-0006 a ADR-0008, que registran decisiones ya construidas o tomadas: publicación confirmada, App Secret por
   bot y despliegue en el servidor propio.
-- ADR-0009 a ADR-0012, propuestos: parámetros del token, clave de cifrado de datos por cliente, contrato de la
+- ADR-0009 a ADR-0012, aceptados: parámetros del token, clave de cifrado de datos por cliente, contrato de la
   cola y aislamiento por cliente en la capa de datos.
 
 ## [0.1.0] - 2026-10-12
@@ -67,6 +71,7 @@ Cierre del Gate 0 (requisitos). Primera versión con la estructura AI-DLC.
 Primera versión etiquetada. Los cambios entre esta versión y la adopción de este changelog (2026-10-12) no se
 registraron aquí; están en el historial de git.
 
-[Unreleased]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/jeremialcala/wh-python-fastapi-messenger/releases/tag/v0.0.1

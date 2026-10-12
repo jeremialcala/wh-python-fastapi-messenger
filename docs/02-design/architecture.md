@@ -1,10 +1,10 @@
 # Diseño del sistema — Gateway BaaS de mensajería
 
-* **Estado:** review
+* **Estado:** approved (Gate 1, 2026-10-12)
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
-* **Versión:** 0.1.0
+* **Versión:** 0.2.0
 * **Gate:** 1
 * **Estilo arquitectónico:** monolito modular en capas (rutas → controladores → entidades), con puertos y adaptadores como objetivo para las piezas nuevas
 * **ADRs relacionadas:** ADR-0002 a ADR-0012, en [`docs/00-project/adr/`](../00-project/adr/)

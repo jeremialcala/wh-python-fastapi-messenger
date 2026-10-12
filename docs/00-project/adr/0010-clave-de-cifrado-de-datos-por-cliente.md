@@ -1,6 +1,6 @@
 # ADR-0010: Cada cliente tiene una clave de cifrado de datos, custodiada por la plataforma
 
-* **Estado:** proposed
+* **Estado:** accepted
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -9,7 +9,7 @@
 * **Supersede:** —
 * **Controles OWASP afectados:** A04 (cifrado en reposo y custodia de claves), A01 (separación entre clientes)
 
-Propuesta pendiente de aprobación.
+Aceptada el 2026-10-12.
 
 ## Contexto
 

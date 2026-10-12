@@ -1,11 +1,11 @@
 # Contrato AsyncAPI del gateway (fase 02-design, Gate 1).
-# Estado: review. Fecha: 2026-10-12. Versión: 0.1.0.
+# Estado: approved (Gate 1, 2026-10-12). Versión: 0.1.0.
 #
 # Describe el mensaje que el gateway publica HOY en la cola `llm`, con sus defectos conocidos incluidos.
 # tests/contract/test_queue_contract.py genera ese mensaje con el código real y lo valida contra el esquema
 # SobreMensaje: si el código cambia el mensaje, la prueba falla y hay que actualizar este fichero.
 #
-# El contrato objetivo, con los cambios que cada lado debe hacer, está propuesto en ADR-0011.
+# El contrato objetivo, con los cambios que cada lado debe hacer, está decidido en ADR-0011.
 asyncapi: 3.0.0
 info:
   title: Gateway BaaS de mensajería

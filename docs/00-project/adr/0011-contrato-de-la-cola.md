@@ -1,6 +1,6 @@
 # ADR-0011: Contrato de la cola `llm` entre el gateway y el motor de respuestas
 
-* **Estado:** proposed
+* **Estado:** accepted
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -9,7 +9,7 @@
 * **Supersede:** —
 * **Controles OWASP afectados:** A08 (integridad entre servicios), A04 (datos personales en tránsito y en la cola), A10 (duplicados y mensajes inválidos)
 
-Propuesta pendiente de aprobación. Afecta a dos repositorios: este y `ms-python-metamsghandler`.
+Aceptada el 2026-10-12. Afecta a dos repositorios: este y `ms-python-metamsghandler`.
 
 ## Contexto
 
