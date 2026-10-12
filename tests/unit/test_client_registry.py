@@ -201,7 +201,9 @@ def test_a_client_cannot_remove_its_last_key(http, register):
 def test_removing_a_key_that_is_not_there_is_not_found(http, register):
     caller = register("acme")
 
-    assert http.delete("/keys/unknown", headers=caller.auth).status_code == 404
+    response = http.delete("/keys/unknown", headers=caller.auth)
+
+    assert response.status_code == 404
 
 
 def test_a_client_only_touches_its_own_keys(http, register):
