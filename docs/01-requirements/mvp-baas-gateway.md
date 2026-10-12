@@ -248,7 +248,7 @@ OWASP Top 10 en su edición 2025.
 | ID | Requisito | Estado | ASVS | OWASP Top 10 |
 |---|---|---|---|---|
 | RS01 | Un cliente solo accede a los elementos de su propio registro: sus claves, sus bots, sus contactos y sus credenciales; todo lo demás se deniega por defecto | Pendiente | V4.1, V4.2 | A01 |
-| RS02 | Todo endpoint que no sea el webhook se autentica con JWE ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)): el token demuestra la posesión de la clave del cliente registrado, caduca y no se puede reutilizar | Pendiente: hoy lo sustituye una única clave de operador, `X-API-Key`, de 32 caracteres o más y comparada en tiempo constante. Las piezas de JWE existen en el código, por evento y desactivadas | V2.10, V3.5 | A07 |
+| RS02 | Todo endpoint que no sea el webhook se autentica con un JWT firmado por el cliente y metido dentro de un JWE ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md), [ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)): el gateway verifica la firma con la clave pública registrada del cliente, y el token caduca y no se puede reutilizar | Pendiente: hoy lo sustituye una única clave de operador, `X-API-Key`, de 32 caracteres o más y comparada en tiempo constante. Las piezas de JWE existen en el código, por evento y desactivadas | V2.10, V3.5, V6.2 | A07 |
 | RS03 | Solo se procesan notificaciones con `X-Hub-Signature-256` válida sobre el cuerpo crudo | Construido | V2.10, V9.2 | A08 |
 | RS04 | El token de verificación se compara en tiempo constante, y un bot sin token no se puede verificar | Construido | V2.10 | A07 |
 | RS05 | El número de teléfono de un contacto se guarda cifrado con una clave propia del cliente dueño del bot, y el contacto se puede localizar sin guardar el número en claro | Pendiente | V6.2, V8.3 | A04 |
@@ -339,9 +339,9 @@ control construido y una prueba que lo verifica.
 
 Requieren respuesta humana antes de aprobar el Gate 0. Ninguna está decidida en este documento.
 
-1. **Formato del JWE de autenticación.** Está decidido que todo lo que no es el webhook se autentica con JWE y
-   que el motor es un cliente de servicio más ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)). Falta el diseño: cómo demuestra el token quién lo
-   envía, porque el cifrado asimétrico que usa hoy el código no lo demuestra por sí solo, y cómo caduca.
+1. **Parámetros del token de autenticación.** Está decidido que es un JWT firmado por el cliente dentro de un JWE
+   ([ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)). Falta fijar los algoritmos permitidos, el contenido obligatorio del JWT, su duración y cómo
+   registra y rota cada parte su clave pública.
 2. **Contrato de la cola.** El sobre del gateway, el único que lleva el `bot_id`, es el contrato para los dos
    canales ([ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md)), y la firma del webhook no viaja con el mensaje ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)). Falta fijarlo en un
    AsyncAPI común con el motor (RF12).
@@ -349,9 +349,10 @@ Requieren respuesta humana antes de aprobar el Gate 0. Ninguna está decidida en
    hoy que no se publica. Hay que elegir: API pública autenticada con JWE, o acceso solo por red privada.
 4. **Alcance de "los números".** Si el cifrado con la clave del cliente cubre solo el número del contacto o también
    el número del bot.
-5. **Custodia de la clave del cliente.** El registro da a cada cliente material de clave propio ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)).
-   Falta decidir quién lo genera, dónde vive la parte secreta y cómo se rota. Es decisión del Gate 1, pero cambia
-   lo que se le promete al cliente.
+5. **Custodia de la clave de cifrado de datos.** La clave con la que el cliente firma la guarda el propio cliente
+   y el gateway solo registra su parte pública ([ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)). Esa clave no sirve para cifrar los números: el
+   gateway y el motor necesitan leerlos para localizar al contacto y responderle. Falta decidir qué clave cifra
+   los datos de cada cliente, quién la genera y dónde vive.
 6. **Nivel ASVS.** Se propone L2 por tratar datos personales de terceros en un servicio multi-cliente.
 7. **Retención.** Plazo de cada dato personal (RNF05).
 8. **SLO.** Tiempo de respuesta y disponibilidad del webhook (RNF01, RNF07).

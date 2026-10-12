@@ -54,7 +54,9 @@ La clave única `ADMIN_API_KEY` queda como mecanismo provisional hasta que exist
 
 Decisiones de diseño del Gate 1:
 
-- **Cómo demuestra el JWE quién lo envía.** JWE cifra; por sí solo no siempre autentica. Con el algoritmo que usa
+- **Cómo demuestra el JWE quién lo envía.** Resuelto en
+  [ADR-0005](0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md): lleva dentro un JWT firmado por el cliente. El
+  problema de partida: JWE cifra; por sí solo no siempre autentica. Con el algoritmo que usa
   hoy el código (`RSA-OAEP-256`), cualquiera que tenga la clave pública del destinatario puede fabricar un JWE
   válido. Para que autentique hace falta que el token demuestre la posesión de un secreto del cliente: una clave
   simétrica por cliente, o un JWT firmado por el cliente dentro del JWE.
