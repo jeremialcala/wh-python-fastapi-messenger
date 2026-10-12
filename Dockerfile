@@ -11,8 +11,9 @@ WORKDIR /usr/src/app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# What gets copied is decided by .dockerignore: config.env and certs/ never enter the image.
-COPY . ./
+# Only the application code. config.env and certs/ live outside src/, and .dockerignore keeps them out of the
+# build context as a second barrier.
+COPY src/ ./
 
 # The app runs unprivileged and can only write the per-event keys under certs/.
 RUN useradd --system --uid 10001 --no-create-home app \
