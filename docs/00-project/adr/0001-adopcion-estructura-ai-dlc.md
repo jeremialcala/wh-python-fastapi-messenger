@@ -51,8 +51,9 @@ hueco se deja visible en su checklist en vez de darlo por cumplido.
 
 Confirmadas por Jeremi Alcala el 2026-10-12:
 
-- **Idioma.** La documentación se escribe en español, incluido el README. Los mensajes de commit pueden ir en
-  inglés en este repositorio.
+- **Idioma.** La documentación se escribe en español, incluido el README. El código se mantiene en inglés
+  (identificadores, comentarios y mensajes de log), y los mensajes de commit pueden ir en inglés en este
+  repositorio.
 - **Ubicación del repositorio.** Se mantiene en la cuenta personal `jeremialcala`; no pasa a la organización.
 - **Versionado.** El que refleja el `CHANGELOG.md`: Keep a Changelog y SemVer, partiendo del tag `v0.0.1`. Los
-  cambios se acumulan en `[Unreleased]` y se cortan a una versión al publicar.
+  cambios se acumulan en `[Unreleased]`. La próxima versión es la `0.1.0` y se corta al cerrar el Gate 0.

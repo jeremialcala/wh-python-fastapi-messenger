@@ -28,8 +28,9 @@ Cada fase cierra su gate (`.ai-dlc/gates/`) antes de avanzar. Un criterio sin ev
 
 - Commits: `tipo(scope): mensaje` (`feat`, `fix`, `docs`, `test`, `chore`, `refactor`, `sec`).
 - Todo cambio notable añade su entrada en la sección `[Unreleased]` de [CHANGELOG.md](CHANGELOG.md).
+- Las versiones siguen SemVer a partir de `v0.0.1`. La próxima es la `0.1.0` y se corta al cerrar el Gate 0.
 
 ## Idioma
 
 La documentación se escribe en español: `docs/`, `.ai-dlc/`, el changelog y el README. Los mensajes de commit
-pueden ir en inglés. El código existente, con sus identificadores y comentarios, está en inglés y no se traduce.
+pueden ir en inglés. El código se escribe en inglés: identificadores, comentarios y mensajes de log.
