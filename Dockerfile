@@ -1,20 +1,28 @@
-FROM ubuntu:latest
+# Pinned by digest: python:3.12-slim is a moving tag, and the same line builds a different image on a different day.
+# To refresh it:  docker buildx imagetools inspect python:3.12-slim --format '{{.Manifest.Digest}}'
+FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 LABEL authors="Jeremi"
-RUN mkdir /usr/src/app
-RUN mkdir /usr/src/app/certs
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /usr/src/app
 
-
-RUN apt-get update
-RUN apt-get install -y build-essential curl gcc libssl-dev libffi-dev
-RUN apt-get install -y python3-dev python3-pip
-RUN apt-get update
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt --break-system-packages
+RUN pip install --no-cache-dir -r requirements.txt
+
+# What gets copied is decided by .dockerignore: config.env and certs/ never enter the image.
 COPY . ./
 
-CMD ["uvicorn", "app:app","--host", "0.0.0.0", "--port", "5002", "--workers", "4"]
+# The app runs unprivileged and can only write the per-event keys under certs/.
+RUN useradd --system --uid 10001 --no-create-home app \
+ && mkdir certs \
+ && chown app certs
+USER app
+
 EXPOSE 5002
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5002/health', timeout=3)"]
+
+# The number of workers comes from WEB_CONCURRENCY (one by default).
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5002"]

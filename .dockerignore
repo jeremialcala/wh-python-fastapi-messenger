@@ -1,0 +1,23 @@
+# Secrets and keys: these must never end up in an image layer.
+config.env
+*.env
+.env*
+certs/
+*.pem
+
+# Not needed at runtime.
+.git/
+.github/
+.idea/
+.claude/
+__pycache__/
+*.py[cod]
+*.log
+test/
+prototypes/
+deploy/
+bootstrap.sh
+compose-dev.yaml
+Dockerfile
+.dockerignore
+README.md

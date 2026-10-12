@@ -1,0 +1,33 @@
+# The gateway as it runs on the server, deployed by the webhook receiver
+# (github.com/higerotech/despliegue-continuo). Copy to /srv/apps/bots-gateway/.
+#
+#   * the image tag is never `latest`: the receiver injects IMAGE_TAG with the commit sha,
+#     so a rollback is just bringing the previous tag back up
+#   * settings come from .env next to this file (same keys as config.env.example)
+#   * loopback only: whoever publishes it is a tunnel, and it must publish /chat/<uuid> and nothing else
+#   * RabbitMQ is not here: it is reached over the external `hermod` network, as host `hermod`
+
+name: bots-gateway
+
+services:
+  gateway:
+    image: ghcr.io/jeremialcala/wh-python-fastapi-messenger:${IMAGE_TAG:?IMAGE_TAG is required}
+    container_name: bots-gateway
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Two cores on the host, and they also route the network.
+      WEB_CONCURRENCY: 2
+    ports:
+      - "127.0.0.1:5002:5002"
+    networks: [hermod]
+    mem_limit: 512m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+networks:
+  hermod:
+    external: true

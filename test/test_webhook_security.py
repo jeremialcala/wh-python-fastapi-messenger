@@ -187,15 +187,22 @@ def test_verification_never_passes_for_a_bot_without_verify_token(client, bot, t
 
 # --- Management endpoints: X-API-Key ---------------------------------------------------------------------------------
 
-PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}")}
+PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/health")}
 ROUTES = {(method, route.path) for route in app_module.app.routes if isinstance(route, APIRoute)
           for method in route.methods}
 MANAGEMENT = sorted(ROUTES - PUBLIC)
 
 
-def test_the_webhook_routes_are_the_only_public_ones():
+def test_the_webhook_and_health_routes_are_the_only_public_ones():
     assert PUBLIC <= ROUTES
-    assert len(MANAGEMENT) == len(ROUTES) - 2
+    assert len(MANAGEMENT) == len(ROUTES) - len(PUBLIC)
+
+
+def test_health_answers_without_key_nor_database(client):
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
 
 @pytest.mark.parametrize("headers", [{}, {"X-API-Key": "wrong"}, {"X-API-Key": ADMIN_API_KEY[:-1]}],
