@@ -1,0 +1,379 @@
+# -*- coding: utf8 -*-
+import logging
+from uuid import uuid4, UUID
+from asyncio import ensure_future
+from inspect import currentframe
+
+from fastapi import Response, status
+from mongoengine.errors import OperationError
+
+from classes import Settings, ResponseData
+from classes import Intent, Action, ApiCall, ActionParameter, IntentRequest
+from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
+from enums import Status
+from .events import ctr_notify_action
+
+settings = Settings()
+log = logging.getLogger(settings.environment)
+
+
+def _build_actions(request: IntentRequest) -> list:
+    """Map the request DTO actions onto embedded mongoengine documents."""
+    actions = []
+    for action in request.actions:
+        api_call = ApiCall(
+            method=action.apiCall.method,
+            url=action.apiCall.url,
+            headers=action.apiCall.headers,
+            query=action.apiCall.query,
+            body=action.apiCall.body,
+            authType=action.apiCall.authType,
+            authRef=action.apiCall.authRef,
+            timeout=action.apiCall.timeout
+        ) if action.apiCall is not None else None
+
+        actions.append(Action(
+            name=action.name,
+            description=action.description,
+            type=action.type,
+            parameters=[ActionParameter(
+                name=p.name,
+                type=p.type,
+                description=p.description,
+                required=p.required,
+                enum=p.enum
+            ) for p in action.parameters],
+            apiCall=api_call
+        ))
+    return actions
+
+
+async def ctr_create_intent(request: IntentRequest, bot_id: str, eventId: str = None) -> Response:
+    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
+    body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+    _action = uuid4()
+
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
+
+    response = Response(
+        content=body.json(),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={CONTENT_TYPE: APPLICATION_JSON}
+    )
+
+    try:
+        _intent = Intent(
+            uuid=uuid4(),
+            botId=UUID(bot_id),
+            name=request.name,
+            description=request.description,
+            samplePhrases=request.samplePhrases,
+            actions=_build_actions(request)
+        )
+        _intent.save()
+        body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=_intent.intent_info())
+
+    except OperationError as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_400_BAD_REQUEST,
+                            message=f"This intent already exists {request.name}", data=None)
+
+    except Exception as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
+                            data=None)
+
+    finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
+        response.status_code = body.code
+        response.body = body.json(exclude_none=True)
+        response.headers[CONTENT_LENGTH] = str(len(response.body))
+        response.headers[CONTENT_TYPE] = APPLICATION_JSON
+
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
+        return response
+
+
+async def ctr_get_intents(bot_id: str, eventId: str = None) -> Response:
+    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
+    body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+    _action = uuid4()
+
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
+
+    response = Response(
+        content=body.json(),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={CONTENT_TYPE: APPLICATION_JSON}
+    )
+
+    try:
+        _intents = [intent.intent_info() for intent in await Intent.get_intents_by_bot(bot_id)]
+        body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=_intents)
+
+    except Exception as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
+                            data=None)
+
+    finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
+        response.status_code = body.code
+        response.body = body.json(exclude_none=True)
+        response.headers[CONTENT_LENGTH] = str(len(response.body))
+        response.headers[CONTENT_TYPE] = APPLICATION_JSON
+
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
+        return response
+
+
+async def ctr_get_intent(bot_id: str, intent_id: str, eventId: str = None) -> Response:
+    log.info(f"Starting: {currentframe().f_code.co_name} for this intent {intent_id}")
+    body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+    _action = uuid4()
+
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
+
+    response = Response(
+        content=body.json(),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={CONTENT_TYPE: APPLICATION_JSON}
+    )
+
+    try:
+        _intent = await Intent.get_intent_by_uuid(intent_id)
+        body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=_intent.intent_info())
+
+    except (ValueError, IndexError) as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND,
+                            message=f"This intent {intent_id} was not found", data=None)
+
+    except Exception as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
+                            data=None)
+
+    finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
+        response.status_code = body.code
+        response.body = body.json(exclude_none=True)
+        response.headers[CONTENT_LENGTH] = str(len(response.body))
+        response.headers[CONTENT_TYPE] = APPLICATION_JSON
+
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
+        return response
+
+
+async def ctr_update_intent(request: IntentRequest, bot_id: str, intent_id: str,
+                            eventId: str = None) -> Response:
+    log.info(f"Starting: {currentframe().f_code.co_name} for this intent {intent_id}")
+    body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+    _action = uuid4()
+
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
+
+    response = Response(
+        content=body.json(),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={CONTENT_TYPE: APPLICATION_JSON}
+    )
+
+    try:
+        _intent = await Intent.get_intent_by_uuid(intent_id)
+        _intent.name = request.name
+        _intent.description = request.description
+        _intent.samplePhrases = request.samplePhrases
+        _intent.actions = _build_actions(request)
+        _intent.statusDate = _intent.statusDate
+        _intent.save()
+        body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=_intent.intent_info())
+
+    except (ValueError, IndexError) as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND,
+                            message=f"This intent {intent_id} was not found", data=None)
+
+    except Exception as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
+                            data=None)
+
+    finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
+        response.status_code = body.code
+        response.body = body.json(exclude_none=True)
+        response.headers[CONTENT_LENGTH] = str(len(response.body))
+        response.headers[CONTENT_TYPE] = APPLICATION_JSON
+
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
+        return response
+
+
+async def ctr_delete_intent(bot_id: str, intent_id: str, eventId: str = None) -> Response:
+    log.info(f"Starting: {currentframe().f_code.co_name} for this intent {intent_id}")
+    body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+    _action = uuid4()
+
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
+
+    response = Response(
+        content=body.json(),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={CONTENT_TYPE: APPLICATION_JSON}
+    )
+
+    try:
+        _intent = await Intent.get_intent_by_uuid(intent_id)
+        _intent.status = Status.DIS.value
+        _intent.save()
+        body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=None)
+
+    except (ValueError, IndexError) as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_404_NOT_FOUND,
+                            message=f"This intent {intent_id} was not found", data=None)
+
+    except Exception as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
+                            data=None)
+
+    finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
+        response.status_code = body.code
+        response.body = body.json(exclude_none=True)
+        response.headers[CONTENT_LENGTH] = str(len(response.body))
+        response.headers[CONTENT_TYPE] = APPLICATION_JSON
+
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
+        return response
+
+
+async def ctr_get_bot_tools(bot_id: str, eventId: str = None) -> Response:
+    """
+    Aggregate every active action of every active intent of the bot into a flat
+    list of LLM tool definitions. This is the bridge consumed by the worker.
+    """
+    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
+    body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
+    _action = uuid4()
+
+    if eventId is not None:
+        ensure_future(ctr_notify_action(
+            _uuid=_action,
+            event_id=UUID(eventId),
+            operation="",
+            method=currentframe().f_code.co_name
+        ))
+
+    response = Response(
+        content=body.json(),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={CONTENT_TYPE: APPLICATION_JSON}
+    )
+
+    try:
+        _tools = []
+        for intent in await Intent.get_intents_by_bot(bot_id):
+            _tools.extend(intent.tool_definitions())
+        body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
+                            data=_tools)
+
+    except Exception as e:
+        log.error(e.__str__())
+        body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
+                            data=None)
+
+    finally:
+
+        if eventId is not None:
+            ensure_future(ctr_notify_action(
+                _uuid=_action,
+                event_id=UUID(eventId),
+                description=body.json(),
+                status=Status.COM.value
+            ))
+
+        response.status_code = body.code
+        response.body = body.json(exclude_none=True)
+        response.headers[CONTENT_LENGTH] = str(len(response.body))
+        response.headers[CONTENT_TYPE] = APPLICATION_JSON
+
+        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")
+        return response

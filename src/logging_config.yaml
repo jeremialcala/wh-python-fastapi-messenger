@@ -1,0 +1,44 @@
+version: 1
+disable_existing_loggers: False
+
+formatters:
+    simple:
+        format: '[%(asctime)s.%(msecs)03d] %(levelname)-7s [%(name)-7s] %(funcName)-30s %(message)s'
+        datefmt: '%Y-%m-%d %H:%M:%S'
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: INFO
+        formatter: simple
+        stream: ext://sys.stdout
+
+    file:
+        class: logging.FileHandler
+        level: INFO
+        formatter: simple
+        filename: application.log
+        mode: a
+        # Opened on first use, so an environment that never logs to the file does not need a writable directory.
+        delay: true
+
+loggers:
+    development:
+        level: INFO
+        handlers: [console]
+        propagate: no
+
+    staging:
+        level: INFO
+        handlers: [console, file]
+        propagate: no
+
+    # Production runs in a container: stdout is what `docker logs` keeps and rotates.
+    production:
+        level: WARNING
+        handlers: [console]
+        propagate: no
+
+root:
+    level: DEBUG
+    handlers: [console]

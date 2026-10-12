@@ -1,0 +1,36 @@
+# Guardia de GitFlow: los PR hacia main solo pueden venir de develop, release/* o hotfix/*.
+# El nombre del job es el status check requerido por el ruleset que protege main.
+name: GitFlow guard
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  origen-permitido:
+    name: "GitFlow: origen permitido hacia main"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar rama de origen
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          echo "PR hacia main desde ${HEAD_REPO}:${HEAD_REF}"
+          if [ "${HEAD_REPO}" != "${BASE_REPO}" ]; then
+            echo "::error::Los PR hacia main deben venir de una rama de este repositorio, no de un fork."
+            exit 1
+          fi
+          case "${HEAD_REF}" in
+            develop|release/*|hotfix/*)
+              echo "Origen permitido por GitFlow." ;;
+            *)
+              echo "::error::Solo develop, release/* y hotfix/* pueden abrir PR hacia main. Abre el PR hacia develop."
+              exit 1 ;;
+          esac
