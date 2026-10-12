@@ -72,7 +72,7 @@ C4Context
     Rel(motor, meta, "Envia las respuestas", "HTTPS, token del cliente")
     Rel(gateway, hermod, "Publica cada mensaje", "AMQP con confirmacion")
     Rel(motor, hermod, "Consume la cola llm y publica el resultado", "AMQP")
-    Rel(motor, gateway, "Lee reglas y herramientas del bot", "API")
+    Rel(motor, gateway, "Pide la configuracion del bot por bot_id", "API con credencial de servicio")
     Rel(cd, gateway, "Despliega", "Webhook firmado")
 
     UpdateElementStyle(gateway, $bgColor="#1168bd", $fontColor="#ffffff")
@@ -148,7 +148,7 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | RF02 | Un cliente crea y administra sus bots: persona, reglas, intents y números | Parcial: existe para bots sin dueño, con la clave única | Pruebas unitarias de autenticación |
 | RF03 | Meta verifica el webhook de cada bot con su token de verificación | Construido | `tests/unit/test_webhook_security.py` |
 | RF04 | El gateway recibe notificaciones de Messenger y de WhatsApp, identifica o crea el contacto y publica el mensaje en la cola `llm` | Construido | Pruebas unitarias del camino de WhatsApp; Messenger sin prueba; falta integración con MongoDB y RabbitMQ reales |
-| RF05 | El motor de respuestas obtiene de un bot su system prompt y sus herramientas | Parcial: el gateway los expone, pero el motor no los consulta | `tests/unit/test_intent_tool_schema.py` para las herramientas; el system prompt no tiene prueba |
+| RF05 | Con el `bot_id` del mensaje, el motor de respuestas obtiene del gateway la configuración del bot: system prompt, herramientas y token de Meta ([ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md)) | Parcial: el gateway la expone en `/rules`, `/tools` e `/info`, pero bajo la clave única del operador; el motor no la consulta y descarta el `bot_id` | `tests/unit/test_intent_tool_schema.py` para las herramientas; el system prompt no tiene prueba |
 | RF06 | El cliente carga y rota las credenciales de Meta de su bot (tokens y App Secret) por API | Pendiente: hoy se escriben a mano en la base | — |
 | RF07 | El motor de respuestas dispone de lo que necesita para responder al usuario final por su canal: el bot de destino, el destinatario y el token de Meta de ese bot | Parcial: el mensaje lleva el bot y el destinatario; el token solo se obtiene de `/info`, con la clave única del operador. El envío en sí es del motor ([ADR-0002](../00-project/adr/0002-el-motor-entrega-las-respuestas.md)) y está en implementación | — |
 | RF08 | El cliente consulta los contactos de sus bots | Pendiente | — |
@@ -251,7 +251,7 @@ OWASP Top 10 en su edición 2025.
 | RS03 | Solo se procesan notificaciones con `X-Hub-Signature-256` válida sobre el cuerpo crudo | Construido | V2.10, V9.2 | A08 |
 | RS04 | El token de verificación se compara en tiempo constante, y un bot sin token no se puede verificar | Construido | V2.10 | A07 |
 | RS05 | El número de teléfono de un contacto se guarda cifrado con una clave propia del cliente dueño del bot, y el contacto se puede localizar sin guardar el número en claro | Pendiente | V6.2, V8.3 | A04 |
-| RS06 | Los tokens de Meta y el App Secret de un bot se guardan cifrados; la API de gestión no los devuelve, y solo el motor de respuestas obtiene los tokens, con una credencial de servicio propia y dejando registro | Pendiente: en claro, y `/info` devuelve los tokens a quien tenga la clave única | V6.4, V8.3 | A04 |
+| RS06 | Los tokens de Meta y el App Secret de un bot se guardan cifrados; la API de gestión no los devuelve a los clientes, y solo el motor de respuestas obtiene los tokens, pidiéndolos al gateway por `bot_id` con una credencial de servicio propia y dejando registro | Pendiente: en claro, y `/info` devuelve los tokens a quien tenga la clave única | V6.4, V8.3 | A04 |
 | RS07 | Ningún log contiene números, nombres, contenido de mensajes ni credenciales, en ningún nivel | Parcial: el interceptor no registra query strings ni cabeceras; `messages.py` y `facebook.py` sí registran contenido y números por debajo de `production` | V7.1 | A09 |
 | RS08 | El mensaje viaja y reposa protegido entre el gateway y el motor: broker en red privada, con usuario propio, y contenido cifrado | Parcial: red privada y usuario propio previstos con Hermod; el cifrado JWE existe y está desactivado | V6.2, V9.2 | A04 |
 | RS09 | En internet solo se publica `/chat/<uuid>`; la gestión y la documentación de la API no | Pendiente: sin desplegar | V14.3 | A02 |
@@ -263,6 +263,7 @@ OWASP Top 10 en su edición 2025.
 | RS15 | Un error no revela detalles internos y falla cerrado | Parcial: dos funciones de `controller/chatbot.py` devuelven el texto de la excepción en la respuesta | V7.4 | A10 |
 | RS16 | El texto del usuario final se trata como entrada no confiable para el LLM, y las llamadas a API de los intents solo pueden ir a destinos permitidos | Parcial: según su documentación, el motor filtra la entrada con guardrails y trata la salida del LLM como no confiable; la ejecución de acciones no está construida, así que el control de destinos no existe | V5.2, V12.6 | A05, A06 |
 | RS17 | El contenedor corre sin privilegios y solo puede escribir donde necesita | Construido | V14.1 | A02 |
+| RS18 | El `bot_id` identifica pero no autoriza: ninguna configuración de un bot se entrega solo por conocerlo | Construido: toda la configuración exige la clave de gestión; las únicas rutas que funcionan solo con el `bot_id` son las del webhook, protegidas por la firma y por el token de verificación | V4.2 | A01 |
 
 ## Threat assessment inicial
 
@@ -283,7 +284,7 @@ flowchart LR
     Q -->|AMQP| MOTOR([ms-python-metamsghandler])
     MOTOR -->|"texto del mensaje"| LLM([LLM: local o gestionado, sin decidir])
     MOTOR -->|"resultado clasificado"| Q2[(cola meta-classified)]
-    MOTOR -.->|"reglas, herramientas y token del bot: hoy no los pide"| GW
+    MOTOR -.->|"configuracion del bot por bot_id: hoy no la pide"| GW
     MOTOR -.->|"respuesta al usuario: en implementacion"| META
 ```
 *Eje comportamiento · DFD inicial · Gate 0. Cinco fronteras: internet ↔ Cloudflare, Cloudflare ↔ servidor (túnel
@@ -337,11 +338,12 @@ control construido y una prueba que lo verifica.
 
 Requieren respuesta humana antes de aprobar el Gate 0. Ninguna está decidida en este documento.
 
-1. **Credenciales de Meta para el motor.** Está decidido que el motor envía las respuestas ([ADR-0002](../00-project/adr/0002-el-motor-entrega-las-respuestas.md)).
-   Falta decidir cómo obtiene el token de cada bot: un endpoint del gateway con credencial de servicio, acceso
-   directo a la base, o un almacén de secretos común. Es decisión del Gate 1, y de ella depende RS06.
-2. **Contrato de la cola.** El motor rechaza los mensajes de Messenger tal como el gateway los publica y descarta
-   el bot de destino (RF12). Hay que decidir qué lado se adapta y fijarlo en un contrato AsyncAPI común.
+1. **Credencial del motor ante el gateway.** Está decidido que el motor pide la configuración del bot al gateway
+   con el `bot_id` del mensaje ([ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md)). Falta decidir con qué credencial se autentica y con qué alcance:
+   hoy solo existe la clave única del operador, que abre toda la gestión.
+2. **Contrato de la cola.** Por la misma decisión, el sobre del gateway, que es el único que lleva el `bot_id`, es
+   el contrato para los dos canales: el motor debe aceptarlo también para Messenger y conservar el `bot_id`
+   (RF12). Falta fijarlo en un AsyncAPI común y decidir si la firma del webhook viaja con el mensaje; hoy no viaja.
 3. **Acceso de los clientes a la gestión.** El objetivo "el cliente administra sus bots" exige que la API de
    gestión sea alcanzable por los clientes, y RS09 exige que no esté en internet. Hay que elegir: API pública con
    credencial por cliente, acceso por red privada, o que el operador administre en nombre del cliente.

@@ -15,6 +15,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   servicios: el motor rechaza los mensajes de Messenger que publica el gateway, descarta el bot de destino y
   nadie entrega todavía la respuesta al usuario (RF07, RF12).
 - ADR-0002: el motor de respuestas, y no el gateway, envía la respuesta al usuario final.
+- ADR-0003: el `bot_id` identifica cada mensaje y es la llave con la que el motor pide al gateway la configuración
+  del bot; el identificador no autoriza por sí solo (RS18).
 - Estructura AI-DLC: `.ai-dlc/` con los checklists de los gates 0–5, las plantillas y el mapeo OWASP; `docs/` por
   fase; `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS` y este changelog (ADR-0001).
 - Guardia de GitFlow: los pull requests hacia `main` solo pueden venir de `develop`, `release/*` o `hotfix/*`.

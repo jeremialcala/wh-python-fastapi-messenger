@@ -33,7 +33,8 @@ Niveles: Público < Interno < Confidencial < Restringido.
 | Tokens de Meta del cliente (`facebookToken`, `whatsappToken`) y `appSecret` | **Restringido** (credencial) | MongoDB; el motor de respuestas necesita los tokens para enviar | En claro; `GET /chat/{bot_id}/info` devuelve los tokens | Cifrados en reposo, fuera de la API de gestión y accesibles solo para el motor con credencial de servicio (RS06) | Hasta la baja del bot |
 | Token de verificación del bot (`verifyToken`) | **Confidencial** (credencial) | MongoDB | En claro; comparado en tiempo constante | Igual que los tokens (RS06) | Hasta la baja del bot |
 | Número del bot (`ChatbotPhone.phoneNumber`, `phoneId`) | **Confidencial** | MongoDB | En claro | `<TODO: confirmar si "los números" incluye los del bot>` | Hasta la baja del bot |
-| Persona, reglas e intents del bot | **Confidencial** (del cliente) | MongoDB | En claro | Acceso solo del cliente dueño (RS01) | Hasta la baja del bot |
+| Persona, reglas e intents del bot | **Confidencial** (del cliente) | MongoDB; el motor de respuestas los pide por `bot_id` | En claro | Acceso solo del cliente dueño y del motor (RS01, RS06) | Hasta la baja del bot |
+| Identificador del bot (`bot_id`) | **Interno** | URL del webhook, configuración de Meta del cliente, mensajes de la cola y logs | No es un secreto | No debe bastar para acceder a nada (RS18) | Hasta la baja del bot |
 | Clave del cliente | **Restringido** | No existe todavía | — | Custodia por definir en el Gate 1 | Mientras existan datos cifrados con ella |
 | Clave de gestión (`ADMIN_API_KEY`) | **Restringido** | `config.env` o `.env` del servidor | Fuera del repo y de la imagen; mínimo 32 caracteres | Sustituida por credenciales por cliente (RS02) | Hasta rotación |
 | Credenciales de MongoDB y RabbitMQ | **Restringido** | `config.env` o `.env` del servidor | Fuera del repo y de la imagen | Igual | Hasta rotación |

@@ -16,7 +16,8 @@ del modelo BaaS que todavía no tienen representación en el código.
 | **Operador** | Quien opera la plataforma. Encargado del tratamiento frente a los clientes. Hoy es el único con credencial de gestión. | Clientes y acceso |
 | **Clave del cliente** | Clave criptográfica propia de un cliente con la que se cifran sus datos sensibles, empezando por los números de teléfono. Sin construir. | Clientes y acceso |
 | **Clave de gestión** (`ADMIN_API_KEY`) | Credencial única que hoy abre todos los endpoints de gestión, en la cabecera `X-API-Key`. | Clientes y acceso |
-| **Bot** (`ChatBot`) | Un chatbot de un cliente, identificado por un UUID. Tiene una persona (nombre, rol, descripción y tono), sus credenciales de Meta y su configuración. | Gestión de bots |
+| **Bot** (`ChatBot`) | Un chatbot de un cliente. Tiene una persona (nombre, rol, descripción y tono), sus credenciales de Meta y su configuración. | Gestión de bots |
+| **`bot_id`** (`uuid`) | El UUID de un bot. Forma parte de la URL de su webhook, viaja en cada mensaje de la cola y es la llave con la que el motor de respuestas pide la configuración del bot (ADR-0003). Identifica, pero no autoriza: no es un secreto. | Gestión de bots |
 | **Persona** | Nombre, rol, descripción y tono con los que el bot se presenta. Encabeza su system prompt. | Gestión de bots |
 | **Regla** (`Rule`) | Instrucción en lenguaje natural que se añade al system prompt de un bot. | Gestión de bots |
 | **Número del bot** (`ChatbotPhone`) | Número de WhatsApp Business de un cliente asociado a un bot y a un entorno. Lleva el número (`phoneNumber`) y su identificador en Meta (`phoneId`). | Gestión de bots |

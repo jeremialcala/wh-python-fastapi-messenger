@@ -17,7 +17,7 @@ los apruebe.
 | Criterio | Evidencia | Qué falta |
 |---|---|---|
 | Requisitos funcionales | [PRD BAAS-001](../../docs/01-requirements/mvp-baas-gateway.md): RF01–RF12 y RNF01–RNF07, cada uno con su estado | Aprobación |
-| Seguridad mapeada a ASVS | PRD: RS01–RS17 con sección de ASVS 4.0.3 y OWASP Top 10:2025; `requirementDiagram` | Confirmar el nivel ASVS (se propone L2) |
+| Seguridad mapeada a ASVS | PRD: RS01–RS18 con sección de ASVS 4.0.3 y OWASP Top 10:2025; `requirementDiagram` | Confirmar el nivel ASVS (se propone L2) |
 | Escenarios de abuso | PRD: AB01–AB15; `journey` | Aprobación |
 | Threat assessment inicial | PRD: DFD con cinco fronteras y `quadrantChart` DREAD | El motor de respuestas no está desplegado y su LLM no tiene ubicación decidida |
 | Datos clasificados | [Clasificación de datos](../../docs/00-project/data-classification.md) | Retención, región de la base y alcance de "los números" |

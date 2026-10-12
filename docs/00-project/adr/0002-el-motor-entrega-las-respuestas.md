@@ -48,5 +48,5 @@ gateway se queda en la entrada: verifica a Meta, identifica al contacto y encola
 
 ## Abierto
 
-Cómo obtiene el motor las credenciales de cada bot: un endpoint del gateway con credencial de servicio, acceso
-directo a la base, o un almacén de secretos común. Es decisión de diseño del Gate 1.
+Resuelto en [ADR-0003](0003-el-bot-id-es-la-llave-de-la-configuracion.md): el motor pide la configuración al
+gateway con el `bot_id` del mensaje. Queda por definir la credencial con la que se autentica.
