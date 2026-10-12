@@ -21,6 +21,9 @@ deploy/
 bootstrap.sh
 compose-dev.yaml
 pytest.ini
+requirements.txt
+requirements-dev.txt
+requirements-dev.lock
 Dockerfile
 .dockerignore
 *.md

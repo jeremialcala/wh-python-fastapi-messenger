@@ -8,8 +8,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /usr/src/app
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Runtime dependencies only, from the lock and with hash verification: nothing is re-resolved at build time.
+COPY requirements.lock ./
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 
 # Only the application code. config.env and certs/ live outside src/, and .dockerignore keeps them out of the
 # build context as a second barrier.

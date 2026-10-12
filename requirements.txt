@@ -1,58 +1,31 @@
-# framework: FastAPI
-fastapi>=0.110.0
-fastapi-sessions>= 0.3.2
-asgi-correlation-id>=4.3.1
-starlette~=0.36.3
+# Runtime dependencies, as ranges. What gets installed is pinned with hashes in requirements.lock:
+#   uv pip compile --universal --python-version 3.12 --generate-hashes requirements.txt -o requirements.lock
+# Only what src/ imports is listed here; test tooling lives in requirements-dev.txt.
 
-# MongoDB handlers
-pymongo >= 4.6.2
+# framework: FastAPI
+fastapi>=0.115
+uvicorn>=0.30
+
+# MongoDB handlers (dnspython resolves the mongodb+srv:// hosts)
+pymongo>=4.6.2
 dnspython>=2.6.1
 mongoengine>=0.28.2
 
-# Rest Clients and others
-requests >= 2.31.0
-python-multipart>=0.0.9
-
-# Timezone handlers
-pytz==2024.1
-
-# ASGI web server for FastAPI
-uvicorn>=0.29.0
+# Rest clients
+requests>=2.32
 
 # PyDantic data validators
-pydantic[email]>=2.6.4
-pydantic-extra-types >= 2.6.0
-pydantic-settings >= 2.2.1
-pydantic_core>=2.16.3
-phonenumbers >= 8.13.32
+pydantic>=2.6.4
+pydantic-settings>=2.2.1
 
 # Keys and Cryptography
-pyjwt>=2.8.0
-pycryptodome==3.20.0
-cryptography>=42.0.5
-jwcrypto >= 1.5.6
+jwcrypto>=1.5.6
 
-# Data for testing
+# Sample values for the request models
 faker>=24.3.0
-
-# Keyborads
-keyboard>=0.13.5
 
 # Handling YAML like a BOSS... or for this logs!
 PyYAML>=6.0.1
-
-# UnitTesting
-pytest>=8.1.1
-# TestClient of the pinned starlette breaks with httpx 0.28
-httpx>=0.27,<0.28
-# Validates the queue message against the AsyncAPI contract (tests/contract)
-jsonschema>=4.21
-
-# QR Tools
-segno>=1.6.1
-
-# Pillow for image rendering
-pillow>=10.3.0
 
 # AMQP for RABBITMQ
 pika>=1.3.2
