@@ -21,7 +21,7 @@ connect(
 
 
 class ChatBot(Document):
-    uuid = UUIDField(required=True, unique=True, default=uuid4())
+    uuid = UUIDField(required=True, unique=True, default=uuid4)
     name = StringField(required=True)
     role = StringField(required=True)
     description = StringField(required=True)
@@ -30,9 +30,9 @@ class ChatBot(Document):
     facebookToken = StringField()
     whatsappToken = StringField()
     appSecret = StringField()
-    createdAt = DateTimeField(required=True, default=datetime.now())
+    createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)
-    statusDate = DateTimeField(required=True, default=datetime.now())
+    statusDate = DateTimeField(required=True, default=datetime.now)
 
     def chatbot_info(self) -> dict:
         log.info(f"Executing: {currentframe().f_code.co_name}")

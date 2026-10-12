@@ -1,7 +1,7 @@
 # Contrato AsyncAPI del gateway (fase 02-design, Gate 1).
 # Estado: approved (Gate 1, 2026-10-12). Versión: 0.1.0.
 #
-# Describe el mensaje que el gateway publica HOY en la cola `llm`, con sus defectos conocidos incluidos.
+# Describe el mensaje que el gateway publica HOY en la cola `llm`, con su defecto conocido incluido (metadata).
 # tests/contract/test_queue_contract.py genera ese mensaje con el código real y lo valida contra el esquema
 # SobreMensaje: si el código cambia el mensaje, la prueba falla y hay que actualizar este fichero.
 #
@@ -82,15 +82,14 @@ components:
         _uuid:
           $ref: '#/components/schemas/UuidExtendido'
           description: >-
-            DEFECTO CONOCIDO: no identifica el mensaje. El valor se calcula una vez al arrancar el proceso y
-            se repite en todos los mensajes de ese proceso. No usar para deduplicar.
+            Identificador del sobre, distinto en cada mensaje. No sirve para deduplicar una reentrega de Meta:
+            para eso está el identificador del mensaje de Meta (`id` en WhatsApp, `mid` en Messenger).
         createdAt:
           $ref: '#/components/schemas/FechaExtendida'
-          description: >-
-            DEFECTO CONOCIDO: es la hora de arranque del proceso, no la del mensaje.
+          description: Momento en que el gateway creó el sobre.
         statusDate:
           $ref: '#/components/schemas/FechaExtendida'
-          description: DEFECTO CONOCIDO, igual que createdAt.
+          description: Igual que createdAt.
         status:
           type: integer
           description: Siempre 0 (registrado). No aporta información.

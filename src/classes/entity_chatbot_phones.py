@@ -18,14 +18,14 @@ connect(
 
 
 class ChatbotPhone(Document):
-    uuid = UUIDField(required=True, unique=True, default=uuid4())
+    uuid = UUIDField(required=True, unique=True, default=uuid4)
     bot_id = UUIDField(required=True)
     environment = StringField(required=True, default="development")
     phoneNumber = StringField()
     phoneId = StringField()
-    createdAt = DateTimeField(required=True, default=datetime.now())
+    createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)
-    statusDate = DateTimeField(required=True, default=datetime.now())
+    statusDate = DateTimeField(required=True, default=datetime.now)
 
     def get_phones_info(self):
         return {

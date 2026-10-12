@@ -28,14 +28,14 @@ connect(
 
 
 class QueueMessage(Document):
-    _uuid = UUIDField(required=True, unique=True, default=uuid4())
+    _uuid = UUIDField(required=True, unique=True, default=uuid4)
     eventId = UUIDField(required=True)
     endpoint = StringField()
     operation = StringField()
     jwe_body = StringField()
-    createdAt = DateTimeField(required=True, default=datetime.now())
+    createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)
-    statusDate = DateTimeField(required=True, default=datetime.now())
+    statusDate = DateTimeField(required=True, default=datetime.now)
 
     def set_jwe_body(self, body: MessageBody):
         log.info(f"Starting: {currentframe().f_code.co_name}")
