@@ -36,8 +36,8 @@ Decisiones del 2026-10-12:
 
 ## Queda abierto sin bloquear el gate
 
-- **Clave maestra** (ADR-0010): dónde vive y cómo se rota. Propuesto después del cierre en
-  [ADR-0013](../../docs/00-project/adr/0013-openbao-como-gestor-de-secretos.md): un OpenBao propio.
+- **Clave maestra** (ADR-0010): dónde vive y cómo se rota. Resuelto después del cierre en
+  [ADR-0013](../../docs/00-project/adr/0013-openbao-como-gestor-de-secretos.md): un OpenBao propio, Andvari.
 - **PSID de Messenger** (ADR-0010): si se cifra también. El requisito habla de números.
 - **Amenaza T10**: lo que el threat model dice de los guardrails del motor sale de su documentación; no se ha
   verificado desde este repositorio.
