@@ -1,14 +1,11 @@
 # -*- coding: utf8 -*-
-import json
 import logging
 from asyncio import ensure_future
 from inspect import currentframe
 from uuid import uuid4, UUID
 
-import requests
-
-from classes import ChatBot, ChatbotPhone
-from classes import Settings, FacebookRequest, Entry, Value, Messaging, MessageBody, QueueMessage
+from classes import ChatBot
+from classes import Settings, FacebookRequest, Entry, Messaging, MessageBody, QueueMessage
 from enums import Status
 from .events import ctr_notify_action
 from .amqp_broker import send_message_to_queue, BrokerUnavailable
@@ -18,7 +15,7 @@ settings = Settings()
 log = logging.getLogger(settings.environment)
 
 
-async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: str = None):
+async def ctr_process_messages(req: FacebookRequest, _bot: ChatBot, eventId: str = None):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Message received we have a: {req.object}")
     try:
@@ -36,7 +33,6 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
         _entry = Entry(**req.entry[-1])
         log.info(f"EntryId: {_entry.id}")
 
-        _bot = await ChatBot().get_chatbot_by_uuid(_uuid=_bot_info)
         body = None
 
         match req.object:
@@ -113,43 +109,5 @@ async def ctr_process_messages(req: FacebookRequest, _bot_info: str, eventId: st
         log.info(f"Ending: {currentframe().f_code.co_name}")
     except BrokerUnavailable:
         raise
-    except Exception as e:
-        log.error(e.__str__())
-
-
-async def ctr_send_wa_message(_bot: ChatBot, msg: Value):
-    log.info(f"Sending a message to: {msg.contacts[-1]['profile']}")
-    try:
-        chatbot_phone = await ChatbotPhone.get_phones_by_environment(
-            bot_id=str(_bot.uuid),
-            environment=settings.environment
-        )
-
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {_bot.whatsappToken}'
-        }
-
-        url = settings.facebook_whatsapp_message.format(
-                version=settings.facebook_graph_version,
-                PhoneNumberId=chatbot_phone.phoneId)
-
-        data = json.dumps({
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": msg.contacts[-1]["wa_id"],
-            "type": "text",
-            "text": {
-                "preview_url": False,
-                "body": "this is a new message"
-            }
-        })
-
-        response = requests.request(
-            method="POST",
-            headers=headers,
-            url=url,
-            data=data)
-        log.info(response.json())
     except Exception as e:
         log.error(e.__str__())

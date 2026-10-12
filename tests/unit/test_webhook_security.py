@@ -17,7 +17,7 @@ from starlette.responses import Response
 import app as app_module
 import controller.amqp_broker as broker
 import controller.messages as messages
-from classes import ChatBot, FacebookRequest
+from classes import FacebookRequest
 from controller import BrokerUnavailable
 from utils import is_valid_signature
 
@@ -58,7 +58,7 @@ def client():
 @pytest.fixture
 def bot(monkeypatch):
     _bot = SimpleNamespace(uuid=BOT_ID, verifyToken=VERIFY_TOKEN, appSecret=None)
-    monkeypatch.setattr(ChatBot, "get_chatbot_by_uuid", AsyncMock(return_value=_bot))
+    monkeypatch.setattr(app_module, "find_webhook_bot", lambda bot_id: _bot)
     return _bot
 
 
@@ -129,9 +129,7 @@ def test_notification_is_rejected_when_no_secret_is_configured(client, bot, proc
     process.assert_not_awaited()
 
 
-def test_notification_for_an_unknown_bot_is_not_found(client, process, monkeypatch):
-    monkeypatch.setattr(ChatBot, "get_chatbot_by_uuid", AsyncMock(side_effect=IndexError))
-
+def test_notification_for_an_unknown_bot_is_not_found(client, process):
     response = client.post(WEBHOOK, content=BODY, headers={**JSON, "X-Hub-Signature-256": sign(BODY)})
 
     assert response.status_code == 404
@@ -227,7 +225,6 @@ def test_management_endpoint_opens_with_the_api_key(client, monkeypatch):
 
 @pytest.fixture
 def whatsapp_message(monkeypatch):
-    monkeypatch.setattr(ChatBot, "get_chatbot_by_uuid", AsyncMock(return_value=SimpleNamespace(uuid=BOT_ID)))
     monkeypatch.setattr(messages, "ctr_identify_contact_by_wa_id",
                         AsyncMock(return_value=SimpleNamespace(firstName="Ana", waId="584120000000")))
     return FacebookRequest(**WHATSAPP_PAYLOAD)
@@ -237,7 +234,7 @@ def test_processing_waits_for_the_broker(whatsapp_message, monkeypatch):
     send = AsyncMock()
     monkeypatch.setattr(messages, "send_message_to_queue", send)
 
-    asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot_info=BOT_ID))
+    asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot=SimpleNamespace(uuid=BOT_ID)))
 
     send.assert_awaited_once()
     assert send.await_args.kwargs["queue"] == "llm"
@@ -247,7 +244,7 @@ def test_processing_does_not_swallow_a_broker_failure(whatsapp_message, monkeypa
     monkeypatch.setattr(messages, "send_message_to_queue", AsyncMock(side_effect=BrokerUnavailable("llm")))
 
     with pytest.raises(BrokerUnavailable):
-        asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot_info=BOT_ID))
+        asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot=SimpleNamespace(uuid=BOT_ID)))
 
 
 def publish(monkeypatch, connection):

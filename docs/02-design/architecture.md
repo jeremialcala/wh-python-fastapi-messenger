@@ -112,12 +112,11 @@ C4Component
     Rel(publicador, hermod, "Publica", "AMQP")
 
     UpdateElementStyle(registro, $borderColor="#b30000", $fontColor="#b30000")
-    UpdateElementStyle(repos, $borderColor="#b30000", $fontColor="#b30000")
     UpdateElementStyle(cifrado, $borderColor="#b30000", $fontColor="#b30000")
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-*Eje estructura · fase 02 · Gate 1. En rojo, los tres componentes que el diseño añade y que no existen. Hoy los
-controladores usan las entidades directamente, sin pasar por ningún repositorio.*
+*Eje estructura · fase 02 · Gate 1. En rojo, los dos componentes que el diseño añade y que todavía no existen.
+La capa de repositorio ya existe: los controladores no consultan la base, se lo piden a ella.*
 
 ## Flujos críticos (comportamiento)
 
@@ -366,13 +365,13 @@ Lo que hay que construir para que el código cumpla este diseño, en el orden qu
 
 | Orden | Trabajo | Cubre | ADR |
 |---|---|---|---|
-| 1 | Entidad cliente, `clientId` en cada documento y capa de repositorio | RF01, RS01 | ADR-0012 |
+| 1 | Entidad cliente, `clientId` en cada documento y capa de repositorio. **Hecho**, salvo el alta de clientes, que llega con su clave en el trabajo 2 | RF01, RS01 | ADR-0012 |
 | 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key` | RS02 | ADR-0005, ADR-0009 |
 | 3 | Clave de datos por cliente, cifrado de campos e índice ciego; migrar lo que está en claro | RS05, RS06 | ADR-0010 |
 | 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad | RF12, RNF04, RNF05 | ADR-0011 |
 | 5 | Endpoints para cargar credenciales de Meta, y para exportar y borrar contactos y bots | RF06, RF08, RF09, RF10 | — |
 | 6 | Logs sin datos personales, errores sin detalles, esquema estricto de la notificación | RS07, RS11, RS15 | — |
-| 7 | Retirar el envío por WhatsApp y la mención a `/answers`, que ya no son del gateway | — | ADR-0002 |
+| 7 | Retirar el envío por WhatsApp (**hecho**) y la mención a `/answers`, que ya no son del gateway | — | ADR-0002 |
 
 Del lado del motor, en su repositorio: aceptar el sobre para Messenger, conservar el `botId`, deduplicar, pedir la
 configuración al gateway y enviar la respuesta (ADR-0002, ADR-0003, ADR-0011).

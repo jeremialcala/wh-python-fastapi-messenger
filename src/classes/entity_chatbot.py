@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from datetime import datetime
-from uuid import uuid4, UUID
+from uuid import uuid4
 from mongoengine import *
 from inspect import currentframe
 
@@ -22,6 +22,7 @@ connect(
 
 class ChatBot(Document):
     uuid = UUIDField(required=True, unique=True, default=uuid4)
+    clientId = UUIDField(required=True)
     name = StringField(required=True)
     role = StringField(required=True)
     description = StringField(required=True)
@@ -56,8 +57,3 @@ class ChatBot(Document):
         # log.info(_cred.to_json())
         # _cred.save()
         self.verifyToken = _cred.jwt.serialize()
-
-    @staticmethod
-    async def get_chatbot_by_uuid(_uuid: str):
-        log.info(f"Executing: {currentframe().f_code.co_name}")
-        return [chatbot for chatbot in ChatBot.objects(uuid=UUID(_uuid))][-1]

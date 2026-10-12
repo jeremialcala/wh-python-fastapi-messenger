@@ -15,7 +15,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 import controller.messages as messages
-from classes import ChatBot, FacebookRequest
+from classes import FacebookRequest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ASYNCAPI = yaml.safe_load((ROOT / "docs" / "02-design" / "contracts" / "asyncapi.yaml").read_text(encoding="utf-8"))
@@ -45,13 +45,12 @@ def published(monkeypatch):
 
     contact = SimpleNamespace(firstName="Ana", waId="584120000000", fbId="123456789")
     monkeypatch.setattr(messages, "send_message_to_queue", capture)
-    monkeypatch.setattr(ChatBot, "get_chatbot_by_uuid", AsyncMock(return_value=SimpleNamespace(uuid=BOT_ID)))
     monkeypatch.setattr(messages, "ctr_identify_contact_by_wa_id", AsyncMock(return_value=contact))
     monkeypatch.setattr(messages, "ctr_identify_fb_contact", AsyncMock(return_value=contact))
 
     def run(payload):
         captured.clear()
-        asyncio.run(messages.ctr_process_messages(req=FacebookRequest(**payload), _bot_info=BOT_ID))
+        asyncio.run(messages.ctr_process_messages(req=FacebookRequest(**payload), _bot=SimpleNamespace(uuid=BOT_ID)))
         return dict(captured)
 
     return run

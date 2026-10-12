@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from datetime import datetime
-from uuid import uuid4, UUID
+from uuid import uuid4
 from mongoengine import *
 from enums import Status, Environment
 from .tool_settings import Settings
@@ -19,6 +19,7 @@ connect(
 
 class ChatbotPhone(Document):
     uuid = UUIDField(required=True, unique=True, default=uuid4)
+    clientId = UUIDField(required=True)
     bot_id = UUIDField(required=True)
     environment = StringField(required=True, default="development")
     phoneNumber = StringField()
@@ -36,11 +37,6 @@ class ChatbotPhone(Document):
             "status": Status(self.status).name,
             "createdAt": self.createdAt
         }
-
-    @staticmethod
-    async def get_phones_by_environment(bot_id: str, environment: str):
-        log.info(f"bot_id: {bot_id}")
-        return [phone for phone in ChatbotPhone.objects(bot_id=UUID(bot_id), environment=environment)][-1]
 
     @staticmethod
     async def generate_chatbot_phone_from_request(req: ChatbotPhoneRequest):

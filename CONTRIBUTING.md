@@ -34,8 +34,16 @@ framework. El CI falla si un lock no fija los mismos paquetes que se declaran.
 
 ## Cobertura
 
-El CI exige una cobertura por ramas mínima, hoy del 60 %. Es un suelo para que no baje, no el objetivo: el Gate 2
-pide el 80 %. Al subir la cobertura real, se sube el suelo en `ci.yml` y `build.yml`.
+El CI exige una cobertura por ramas del 80 %, que es lo que pide el Gate 2, y rompe el build por debajo.
+
+## Acceso a datos
+
+Los datos de un cliente (chatbots, números, reglas, intents y contactos) solo se leen y se escriben a través de
+`src/repository`, que exige el cliente y lo añade a cada consulta
+([ADR-0012](docs/00-project/adr/0012-aislamiento-por-cliente-en-la-capa-de-datos.md)). Un controlador no llama a
+`.objects` ni a `.save()`: recibe el repositorio y se lo pide a él. `tests/unit/test_data_access_boundary.py`
+lee el código y falla si algo se lo salta, y una ruta nueva tiene que entrar en
+`tests/unit/test_client_isolation.py`, que también falla si no la cubre.
 
 ## Dual review
 

@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request, Response, Depends, HTTPException
 from fastapi import status
 from fastapi.responses import PlainTextResponse
 from inspect import currentframe
-from uuid import uuid4, UUID
+from uuid import uuid4
 from classes import (Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport,
                      RulesRequest, BotResponse, IntentRequest, ChatBot)
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
@@ -21,26 +21,32 @@ from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_proce
                         ctr_create_chatbot_rules, ctr_create_intent, ctr_get_intents, ctr_get_intent,
                         ctr_update_intent, ctr_delete_intent, ctr_get_bot_tools, BrokerUnavailable)
 
+from repository import TenantRepository, NotFound, find_webhook_bot, operator_client
 from utils import configure_logging, is_valid_signature, secrets_match
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
 
 
-async def require_api_key(request: Request):
+async def get_repository(request: Request) -> TenantRepository:
     """
-        Every management endpoint depends on this: only the two Meta webhook routes are public.
+        Every management endpoint depends on this: only the two Meta webhook routes are public. What it hands
+        over is the repository of the authenticated client, the only way those endpoints have to reach data.
+
+        Until clients authenticate with their own tokens the only caller is the operator, with the admin key,
+        and it works on its own client.
     """
     if not secrets_match(settings.admin_api_key, request.headers.get(API_KEY)):
         log.warning(f"Rejected {request.method} {request.url.path}: missing or wrong admin credential")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="HTTP_401_UNAUTHORIZED")
+    return TenantRepository(operator_client().uuid)
 
 
 async def get_webhook_bot(bot_id: str) -> ChatBot:
     try:
-        # Parsed here so a malformed id is turned away before it costs a database round trip.
-        return await ChatBot.get_chatbot_by_uuid(str(UUID(bot_id)))
-    except (ValueError, LookupError):
+        # A malformed id is turned away before it costs a database round trip.
+        return find_webhook_bot(bot_id)
+    except NotFound:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HTTP_404_NOT_FOUND")
 
 
@@ -54,8 +60,6 @@ async def get_signed_webhook_bot(request: Request, _bot: ChatBot = Depends(get_w
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
     return _bot
 
-
-ADMIN = [Depends(require_api_key)]
 
 app = FastAPI(
     openapi_tags=TAGS_METADATA,
@@ -120,13 +124,14 @@ async def health():
     return {"status": "ok"}
 
 
-@app.post(path="/bot", tags=["Bot"], response_model=BotResponse, dependencies=ADMIN)
-async def create_chatbot(chatbot: ChatbotRequest, request: Request):
+@app.post(path="/bot", tags=["Bot"], response_model=BotResponse)
+async def create_chatbot(chatbot: ChatbotRequest, request: Request,
+                         repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"this is the start of a new chatbot name: {chatbot.name}")
     try:
         log.info(request.state.__dict__)
-        response = await ctr_create_chatbot(request=chatbot, eventId=request.state.event_id)
+        response = await ctr_create_chatbot(repo, request=chatbot, eventId=request.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
@@ -157,7 +162,7 @@ async def message_processor(fb_request: FacebookRequest, bot_id, _bot: ChatBot =
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"this is a new message for this chatbot: {bot_id}")
     try:
-        await ctr_process_messages(req=fb_request, _bot_info=bot_id)
+        await ctr_process_messages(req=fb_request, _bot=_bot)
     except BrokerUnavailable:
         # Anything but a 200 makes Meta deliver the notification again later.
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="HTTP_503_SERVICE_UNAVAILABLE")
@@ -166,16 +171,12 @@ async def message_processor(fb_request: FacebookRequest, bot_id, _bot: ChatBot =
     return "HTTP_200_OK", status.HTTP_200_OK
 
 
-@app.post(path="/chat/{bot_id}/phones", tags=["Chat"], dependencies=ADMIN)
-async def add_whatsapp_phone(bot_id: str, chatbot: ChatbotPhoneRequest, request: Request):
+@app.post(path="/chat/{bot_id}/phones", tags=["Chat"])
+async def add_whatsapp_phone(bot_id: str, chatbot: ChatbotPhoneRequest, request: Request,
+                             repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name} or this chatbot: {bot_id}")
     try:
-        _bot = await ctr_get_chatbot_from_uuid(_uuid=bot_id, eventId=request.state.event_id)
-
-        if _bot.status_code != status.HTTP_200_OK:
-            return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
-
-        response = await ctr_add_phone_chatbot(bot_uuid=bot_id, req=chatbot, eventId=request.state.event_id)
+        response = await ctr_add_phone_chatbot(repo, bot_uuid=bot_id, req=chatbot, eventId=request.state.event_id)
 
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
@@ -184,17 +185,13 @@ async def add_whatsapp_phone(bot_id: str, chatbot: ChatbotPhoneRequest, request:
         raise Exception(e.args)
 
 
-@app.get(path="/chat/{bot_id}/phones", tags=["Chat"], dependencies=ADMIN)
-async def get_chatbot_phones(bot_id, req: Request):
+@app.get(path="/chat/{bot_id}/phones", tags=["Chat"])
+async def get_chatbot_phones(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Starting get_chatbot_phones for this chatbot: {bot_id}")
     try:
-        _bot = await ctr_get_chatbot_from_uuid(bot_id, eventId=req.state.event_id)
-
-        if _bot.status_code != status.HTTP_200_OK:
-            return "HTTP_404_NOT_FOUND", status.HTTP_404_NOT_FOUND
-
-        response = await ctr_get_chatbot_phones(bot_uuid=bot_id, environment=req.query_params.get("environment"))
+        response = await ctr_get_chatbot_phones(repo, bot_uuid=bot_id,
+                                                environment=req.query_params.get("environment"))
 
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
@@ -202,79 +199,82 @@ async def get_chatbot_phones(bot_id, req: Request):
         raise Exception(e.args)
 
 
-@app.get(path="/chat/{bot_id}/info", tags=["Chat"], dependencies=ADMIN)
-async def get_chatbot_info(bot_id, req: Request):
+@app.get(path="/chat/{bot_id}/info", tags=["Chat"])
+async def get_chatbot_info(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     log.info(f"Starting get_chatbot_phones for this chatbot: {bot_id}")
     try:
-        response = await ctr_get_chatbot_from_uuid(bot_id, eventId=req.state.event_id)
+        response = await ctr_get_chatbot_from_uuid(repo, bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
         raise Exception(e.args)
 
 
-@app.get(path="/chat/{bot_id}/rules", tags=["Chat"], dependencies=ADMIN)
-async def get_chatbot_rules(bot_id, req: Request):
+@app.get(path="/chat/{bot_id}/rules", tags=["Chat"])
+async def get_chatbot_rules(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
 
     try:
-        response = await ctr_get_chatbot_rules_from_uuid(bot_id, eventId=req.state.event_id)
+        response = await ctr_get_chatbot_rules_from_uuid(repo, bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
         raise Exception(e.args)
 
 
-@app.post(path="/chat/{bot_id}/rules", tags=["Chat"], dependencies=ADMIN)
-async def add_chatbot_rule(bot_id, req: Request, rules: RulesRequest):
+@app.post(path="/chat/{bot_id}/rules", tags=["Chat"])
+async def add_chatbot_rule(bot_id, req: Request, rules: RulesRequest,
+                           repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
     try:
-        response = await ctr_create_chatbot_rules(request=rules, bot_id=bot_id, eventId=req.state.event_id)
+        response = await ctr_create_chatbot_rules(repo, request=rules, bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
         raise Exception(e.args)
 
 
-@app.post(path="/chat/{bot_id}/intents", tags=["Intents"], dependencies=ADMIN)
-async def add_chatbot_intent(bot_id, req: Request, intent: IntentRequest):
+@app.post(path="/chat/{bot_id}/intents", tags=["Intents"])
+async def add_chatbot_intent(bot_id, req: Request, intent: IntentRequest,
+                             repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
     try:
-        response = await ctr_create_intent(request=intent, bot_id=bot_id, eventId=req.state.event_id)
+        response = await ctr_create_intent(repo, request=intent, bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
         raise Exception(e.args)
 
 
-@app.get(path="/chat/{bot_id}/intents", tags=["Intents"], dependencies=ADMIN)
-async def list_chatbot_intents(bot_id, req: Request):
+@app.get(path="/chat/{bot_id}/intents", tags=["Intents"])
+async def list_chatbot_intents(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
     try:
-        response = await ctr_get_intents(bot_id=bot_id, eventId=req.state.event_id)
+        response = await ctr_get_intents(repo, bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
         raise Exception(e.args)
 
 
-@app.get(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"], dependencies=ADMIN)
-async def get_chatbot_intent(bot_id, intent_id, req: Request):
+@app.get(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"])
+async def get_chatbot_intent(bot_id, intent_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name} for this intent: {intent_id}")
     try:
-        response = await ctr_get_intent(bot_id=bot_id, intent_id=intent_id, eventId=req.state.event_id)
+        response = await ctr_get_intent(repo, bot_id=bot_id, intent_id=intent_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
         raise Exception(e.args)
 
 
-@app.put(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"], dependencies=ADMIN)
-async def update_chatbot_intent(bot_id, intent_id, req: Request, intent: IntentRequest):
+@app.put(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"])
+async def update_chatbot_intent(bot_id, intent_id, req: Request, intent: IntentRequest,
+                                repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name} for this intent: {intent_id}")
     try:
-        response = await ctr_update_intent(request=intent, bot_id=bot_id, intent_id=intent_id,
+        response = await ctr_update_intent(repo, request=intent, bot_id=bot_id, intent_id=intent_id,
                                            eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
@@ -282,22 +282,22 @@ async def update_chatbot_intent(bot_id, intent_id, req: Request, intent: IntentR
         raise Exception(e.args)
 
 
-@app.delete(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"], dependencies=ADMIN)
-async def delete_chatbot_intent(bot_id, intent_id, req: Request):
+@app.delete(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"])
+async def delete_chatbot_intent(bot_id, intent_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name} for this intent: {intent_id}")
     try:
-        response = await ctr_delete_intent(bot_id=bot_id, intent_id=intent_id, eventId=req.state.event_id)
+        response = await ctr_delete_intent(repo, bot_id=bot_id, intent_id=intent_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
         raise Exception(e.args)
 
 
-@app.get(path="/chat/{bot_id}/tools", tags=["Intents"], dependencies=ADMIN)
-async def get_chatbot_tools(bot_id, req: Request):
+@app.get(path="/chat/{bot_id}/tools", tags=["Intents"])
+async def get_chatbot_tools(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
     try:
-        response = await ctr_get_bot_tools(bot_id=bot_id, eventId=req.state.event_id)
+        response = await ctr_get_bot_tools(repo, bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:

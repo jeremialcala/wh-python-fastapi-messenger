@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from datetime import datetime
-from uuid import uuid4, UUID
+from uuid import uuid4
 from inspect import currentframe
 from mongoengine import *
 
@@ -86,6 +86,7 @@ class Action(EmbeddedDocument):
 
 class Intent(Document):
     uuid = UUIDField(required=True, unique=True, default=uuid4)
+    clientId = UUIDField(required=True)
     botId = UUIDField(required=True)
     name = StringField(required=True)
     description = StringField(required=True)
@@ -139,14 +140,3 @@ class Intent(Document):
         """All active actions of this intent as LLM tool definitions."""
         return [action.to_tool_schema() for action in self.actions
                 if action.status == Status.ACT.value]
-
-    @staticmethod
-    async def get_intents_by_bot(bot_id: str):
-        log.info(f"Executing: {currentframe().f_code.co_name}")
-        return [intent for intent in Intent.objects(botId=UUID(bot_id))
-                if intent.status != Status.DIS.value]
-
-    @staticmethod
-    async def get_intent_by_uuid(_uuid: str):
-        log.info(f"Executing: {currentframe().f_code.co_name}")
-        return [intent for intent in Intent.objects(uuid=UUID(_uuid))][-1]
