@@ -42,7 +42,10 @@ Los datos de un cliente (chatbots, números, reglas, intents y contactos) solo s
 `src/repository`, que exige el cliente y lo añade a cada consulta
 ([ADR-0012](docs/00-project/adr/0012-aislamiento-por-cliente-en-la-capa-de-datos.md)). Un controlador no llama a
 `.objects` ni a `.save()`: recibe el repositorio y se lo pide a él. `tests/unit/test_data_access_boundary.py`
-lee el código y falla si algo se lo salta, y una ruta nueva tiene que entrar en
+lee el código y falla si algo se lo salta. Los campos cifrados (números, credenciales de Meta y token de
+verificación) están siempre cifrados en el documento: quien necesita el valor se lo pide al repositorio, y un
+campo nuevo de ese tipo entra en la migración y en la prueba que vuelca la base. Una ruta nueva tiene que
+entrar en
 `tests/unit/test_client_isolation.py`, que también falla si no la cubre.
 
 ## Dual review

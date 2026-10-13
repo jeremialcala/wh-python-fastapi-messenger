@@ -26,12 +26,25 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   audiencia y las claves públicas del gateway.
 - Comandos `python -m ops.gateway_key`, `ops.operator_key` y `ops.client`, y la guía
   `docs/03-implementation/autenticacion.md`.
+- Cifrado de los datos de cada cliente (ADR-0010, ADR-0013): los números de contactos y bots, los tokens de Meta,
+  el App Secret y el token de verificación se guardan cifrados (AES-256-GCM) con una clave por cliente, envuelta
+  por la clave maestra de Andvari. El contacto se busca por un índice ciego.
+- `PUT /chat/{bot_id}/credentials`: el cliente carga y rota las credenciales de Meta de su bot.
+- `python -m migrations.encrypt_client_data`: cifra lo que estaba guardado en claro. Sin `--apply` solo informa.
+- Pruebas de integración contra un OpenBao real, también en el pipeline, y la guía
+  `docs/03-implementation/cifrado-de-datos.md`.
 - `python -m migrations.assign_operator_client`: asigna al cliente del operador los documentos anteriores a la
   existencia de clientes. Sin `--apply` solo informa.
 
 ### Cambiado
 - Los chatbots guardados antes de este cambio responden `404`, también en el webhook, hasta que se ejecute la
   migración que les asigna cliente.
+- **Incompatible:** el servicio no arranca sin los ajustes del servicio de claves (`ANDVARI_ADDR`,
+  `ANDVARI_ROLE_ID` y `ANDVARI_SECRET_ID_FILE`), y fuera de desarrollo la dirección tiene que ser `https`.
+- **Incompatible:** `GET /chat/{bot_id}/info` ya no devuelve los tokens de Meta, solo cuáles están cargados; y
+  `GET /chat/{bot_id}/phones` necesita el servicio de claves para devolver los números.
+- Un bot con secretos en claro responde `404` en el webhook hasta que se ejecute la migración de cifrado.
+- Sin el servicio de claves, el webhook y lo que toca datos cifrados responden `503`.
 - **Incompatible:** la cabecera `X-API-Key` y el ajuste `ADMIN_API_KEY` desaparecen. Todo lo que no es el webhook
   ni `/health` pide el token nuevo, y el servicio no arranca sin `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE`.
 - El operador es un cliente más en las rutas de los chatbots: solo alcanza los suyos.
@@ -47,6 +60,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - El envío de mensajes por WhatsApp desde el gateway, que no se usaba: responder es cosa del motor (ADR-0002).
 
 ### Corregido
+- Un fallo al guardar un contacto se tragaba dentro de un `finally` con `return`, y el mensaje se perdía con un
+  `200`. Ahora la caída del servicio de claves llega hasta Meta como `503`.
 - Un intent se podía leer, cambiar o desactivar a través de cualquier chatbot: la ruta no comprobaba que fuera
   suyo. Y se podían añadir reglas a un chatbot que no existe.
 - Los valores por defecto de las entidades se calculaban una sola vez, al importar. Todos los documentos
