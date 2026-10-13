@@ -14,6 +14,9 @@ import pathlib
 import sys
 
 HIGH = 7.0
+# Lo que no bloquea aunque sea alto: el código de pruebas. Una prueba maneja secretos de mentira y servicios
+# desechables por necesidad, y GitHub clasifica esas alertas aparte ("test"). Se informan, no rompen el build.
+TEST_PATHS = ("tests/",)
 
 
 def rules_by_id(run: dict) -> dict:
@@ -27,8 +30,16 @@ def security_severity(rule: dict) -> float | None:
     return float(value) if value is not None else None
 
 
+def location(result: dict) -> dict:
+    return (result.get("locations") or [{}])[0].get("physicalLocation", {})
+
+
+def in_test_code(result: dict) -> bool:
+    return location(result).get("artifactLocation", {}).get("uri", "").startswith(TEST_PATHS)
+
+
 def describe(result: dict, rule_id: str, severity: float) -> str:
-    place = (result.get("locations") or [{}])[0].get("physicalLocation", {})
+    place = location(result)
     uri = place.get("artifactLocation", {}).get("uri", "?")
     line = place.get("region", {}).get("startLine", "?")
     # En una sola línea: una anotación de GitHub Actions termina en el primer salto.
@@ -44,7 +55,7 @@ def evaluate(folder: str) -> int:
         return 2
 
     rules = results = 0
-    blocking, lower = [], 0
+    blocking, in_tests, lower = [], [], 0
     for file in files:
         for run in json.loads(file.read_text(encoding="utf-8")).get("runs", []):
             known = rules_by_id(run)
@@ -55,7 +66,9 @@ def evaluate(folder: str) -> int:
                 severity = security_severity(known.get(rule_id, {}))
                 if severity is None:
                     continue
-                if severity >= HIGH:
+                if severity >= HIGH and in_test_code(result):
+                    in_tests.append(describe(result, rule_id, severity))
+                elif severity >= HIGH:
                     blocking.append(describe(result, rule_id, severity))
                 else:
                     lower += 1
@@ -66,9 +79,12 @@ def evaluate(folder: str) -> int:
 
     for line in blocking:
         print(f"::error::{line}")
+    for line in in_tests:
+        print(f"::warning::en código de pruebas, no bloquea: {line}")
     if lower:
         print(f"::warning::{lower} hallazgos de seguridad por debajo del umbral; están en la pestaña Security")
-    print(f"{rules} reglas, {results} resultados, {len(blocking)} de seguridad altos o críticos")
+    print(f"{rules} reglas, {results} resultados, {len(blocking)} de seguridad altos o críticos"
+          f" y {len(in_tests)} más en código de pruebas")
     return 1 if blocking else 0
 
 

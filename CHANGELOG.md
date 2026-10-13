@@ -39,6 +39,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ### Cambiado
 - Los chatbots guardados antes de este cambio responden `404`, también en el webhook, hasta que se ejecute la
   migración que les asigna cliente.
+- El gate de análisis estático bloquea por hallazgos altos o críticos fuera del código de pruebas. Los de
+  `tests/` se informan como aviso: una prueba maneja secretos de mentira por necesidad.
 - **Incompatible:** el servicio no arranca sin los ajustes del servicio de claves (`ANDVARI_ADDR`,
   `ANDVARI_ROLE_ID` y `ANDVARI_SECRET_ID_FILE`), y fuera de desarrollo la dirección tiene que ser `https`.
 - **Incompatible:** `GET /chat/{bot_id}/info` ya no devuelve los tokens de Meta, solo cuáles están cargados; y

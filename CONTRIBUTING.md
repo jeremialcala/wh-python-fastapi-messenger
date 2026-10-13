@@ -48,6 +48,19 @@ campo nuevo de ese tipo entra en la migración y en la prueba que vuelca la base
 entrar en
 `tests/unit/test_client_isolation.py`, que también falla si no la cubre.
 
+## Gates de seguridad
+
+El workflow `Seguridad` rompe el build por tres motivos: un secreto en cualquier rama (gitleaks), una dependencia
+con una vulnerabilidad conocida (`pip-audit`), o un hallazgo de seguridad alto o crítico de CodeQL fuera de
+`tests/`. Dos cosas que conviene saber:
+
+- **gitleaks revisa todas las ramas y toda la historia.** Un valor con aspecto de secreto en una rama cualquiera
+  hace fallar todos los pull requests hasta que esa rama desaparece, y corregirlo en un commit posterior no
+  basta. En las pruebas, los secretos de mentira tienen que parecer de mentira: `app-secret-of-this-test`, no una
+  cadena hexadecimal.
+- **Un hallazgo alto en `tests/` no bloquea**, pero sale como aviso y como alerta. Si es inherente a la prueba,
+  se descarta en GitHub con el motivo "used in tests".
+
 ## Dual review
 
 Toda PR requiere revisión humana más análisis asistido por IA.
