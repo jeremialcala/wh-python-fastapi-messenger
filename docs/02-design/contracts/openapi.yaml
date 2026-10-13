@@ -83,6 +83,36 @@ components:
       - url
       title: ApiCallRequest
       type: object
+    BotCredentialsRequest:
+      additionalProperties: false
+      description: 'The Meta credentials of a chatbot. Each one that is sent replaces the stored one; the ones left
+        out stay
+
+        as they are. They are stored encrypted and no endpoint returns them.'
+      properties:
+        appSecret:
+          anyOf:
+          - maxLength: 256
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Appsecret
+        facebookToken:
+          anyOf:
+          - maxLength: 2048
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Facebooktoken
+        whatsappToken:
+          anyOf:
+          - maxLength: 2048
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Whatsapptoken
+      title: BotCredentialsRequest
+      type: object
     BotResponse:
       properties:
         code:
@@ -378,6 +408,44 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
       summary: Message Processor
+      tags:
+      - Chat
+  /chat/{bot_id}/credentials:
+    put:
+      description: 'Loads or rotates the Meta credentials of a chatbot: the page token, the WhatsApp token and the
+        App
+
+        Secret. The ones sent replace the stored ones. The answer says which are loaded, never their values.'
+      operationId: set_chatbot_credentials_chat__bot_id__credentials_put
+      parameters:
+      - in: path
+        name: bot_id
+        required: true
+        schema:
+          title: Bot Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotCredentialsRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Set Chatbot Credentials
       tags:
       - Chat
   /chat/{bot_id}/info:

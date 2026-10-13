@@ -28,6 +28,8 @@ class Contact(Document):
     profilePic = URLField()
     fbId = StringField()
     waId = StringField()
+    # The number is stored encrypted. This is what it is searched by: a keyed hash of it, different per client.
+    waIdIndex = StringField()
     isAdmin = BooleanField(default=False)
     createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)

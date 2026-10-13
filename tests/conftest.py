@@ -13,9 +13,18 @@ GATEWAY_KEYS_FILE = os.path.join(tempfile.mkdtemp(prefix="gateway-keys-"), "gate
 gateway_keys.write_file(GATEWAY_KEYS_FILE, [gateway_keys.new_key()])
 GATEWAY_AUDIENCE = "https://gateway.test"
 
+# The key service is replaced by a double further down. These only have to be there for the settings to load.
+ANDVARI_SECRET_ID_FILE = os.path.join(os.path.dirname(GATEWAY_KEYS_FILE), "secret-id")
+with open(ANDVARI_SECRET_ID_FILE, "w", encoding="utf-8") as _file:
+    _file.write("test-secret-id")
+
 os.environ.update({
     "GATEWAY_KEYS_FILE": GATEWAY_KEYS_FILE,
     "GATEWAY_AUDIENCE": GATEWAY_AUDIENCE,
+    # Nothing listens there: a test that reached the real key service would fail, not hang.
+    "ANDVARI_ADDR": "http://127.0.0.1:1",
+    "ANDVARI_ROLE_ID": "test-role-id",
+    "ANDVARI_SECRET_ID_FILE": ANDVARI_SECRET_ID_FILE,
     "FACEBOOK_APP_SECRET": "test-app-secret",
 
     "CLIENT_ID": "test",
@@ -101,6 +110,64 @@ def empty_database():
     for name in database.list_collection_names():
         database[name].delete_many({})
     yield
+
+
+class FakeKeyService:
+    """
+        Stands in for the key service, and behaves like its Transit engine with a derived key: a data key
+        wrapped for a client only opens with that client's id. The real client is tested against a real
+        OpenBao in tests/integration.
+    """
+
+    def __init__(self):
+        self.master = os.urandom(32)
+        self.down = False
+        self.calls = []
+
+    def _wrapping(self, client_id):
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+        return AESGCM(HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                           info=str(client_id).encode()).derive(self.master))
+
+    def _check(self, operation):
+        from crypto.key_service import KeyServiceUnavailable
+
+        self.calls.append(operation)
+        if self.down:
+            raise KeyServiceUnavailable("ConnectionError")
+
+    def new_data_key(self, client_id):
+        import base64
+
+        self._check("new_data_key")
+        key, nonce = os.urandom(32), os.urandom(12)
+        sealed = self._wrapping(client_id).encrypt(nonce, key, None)
+        return key, "fake:v1:" + base64.b64encode(nonce + sealed).decode()
+
+    def unwrap(self, client_id, wrapped):
+        import base64
+        from cryptography.exceptions import InvalidTag
+        from crypto.key_service import KeyServiceUnavailable
+
+        self._check("unwrap")
+        raw = base64.b64decode(wrapped[len("fake:v1:"):])
+        try:
+            return self._wrapping(client_id).decrypt(raw[:12], raw[12:], None)
+        except InvalidTag:
+            raise KeyServiceUnavailable("decrypt refused: 400") from None
+
+
+@pytest.fixture(autouse=True)
+def key_service():
+    """Each test gets its own key service, with its own master key and no data key left open in memory."""
+    from repository import data_keys
+
+    service = FakeKeyService()
+    data_keys.configure(service)
+    return service
 
 
 class Caller:

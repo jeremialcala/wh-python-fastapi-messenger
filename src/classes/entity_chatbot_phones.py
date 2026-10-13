@@ -31,8 +31,6 @@ class ChatbotPhone(Document):
     def get_phones_info(self):
         return {
             "uuid": str(self.uuid),
-            "phoneNumber": self.phoneNumber,
-            "phoneId": self.phoneId,
             "environment": self.environment,
             "status": Status(self.status).name,
             "createdAt": self.createdAt
