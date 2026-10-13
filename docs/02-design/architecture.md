@@ -17,10 +17,10 @@ marca qué existe y qué falta. La lista completa de diferencias está en
 
 | Contexto | Responsabilidad | Entidades núcleo | Estado |
 |---|---|---|---|
-| Clientes y acceso | Registrar clientes, autenticar cada petición y decidir qué puede ver cada uno | Cliente, clave pública de firma, clave de datos | Construido: registro de clientes, token firmado y cifrado, y aislamiento por cliente. Falta la clave de datos |
+| Clientes y acceso | Registrar clientes, autenticar cada petición y decidir qué puede ver cada uno | Cliente, clave pública de firma, clave de datos | Construido: registro de clientes, token firmado y cifrado, aislamiento por cliente y clave de datos |
 | Gestión de bots | Alta y configuración de un bot: persona, reglas, números y credenciales de Meta | `ChatBot`, `ChatbotPhone`, `Rule` | Construido, sin dueño por bot |
 | Mensajería entrante | Verificar a Meta, normalizar la notificación y publicarla con confirmación | `FacebookRequest`, `MessageBody`, `QueueMessage` | Construido |
-| Contactos | Identificar o crear a quien escribe; exportar y borrar sus datos | `Contact` | Construido sin cifrado, sin exportar ni borrar |
+| Contactos | Identificar o crear a quien escribe; exportar y borrar sus datos | `Contact` | Construido, con el número cifrado; sin exportar ni borrar |
 | Intents y herramientas | Lo que un bot sabe hacer, expuesto al motor como herramientas | `Intent`, `Action`, `ApiCall` | Construido |
 | Trazabilidad | Registrar cada petición y sus pasos | `Event`, `EventAction`, `Jwk` | Construido y desactivado |
 
@@ -89,7 +89,7 @@ C4Component
         Component(publicador, "Publicador", "controller.amqp_broker, pika", "Publica con confirmacion del broker")
         Component(registro, "Registro de clientes", "Repositorio", "Clientes y sus claves publicas de firma")
         Component(repos, "Repositorios por cliente", "Por construir", "Unico acceso a datos, siempre con clientId")
-        Component(cifrado, "Cifrado de campos", "Por construir", "Clave de datos del cliente e indice ciego")
+        Component(cifrado, "Cifrado de campos", "AES-256-GCM", "Clave de datos del cliente e indice ciego")
         Component(entidades, "Entidades", "mongoengine", "Documentos de MongoDB")
     }
 
@@ -111,11 +111,10 @@ C4Component
     Rel(entidades, atlas, "Lee y escribe", "TLS")
     Rel(publicador, hermod, "Publica", "AMQP")
 
-    UpdateElementStyle(cifrado, $borderColor="#b30000", $fontColor="#b30000")
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-*Eje estructura · fase 02 · Gate 1. En rojo, el componente que el diseño añade y que todavía no existe: el
-cifrado de campos. La autenticación, el registro de clientes y la capa de repositorio ya están construidos.*
+*Eje estructura · fase 02 · Gate 1. Los cuatro componentes que el diseño añadía ya están construidos: la
+autenticación, el registro de clientes, la capa de repositorio y el cifrado de campos.*
 
 ## Flujos críticos (comportamiento)
 
@@ -366,9 +365,9 @@ Lo que hay que construir para que el código cumpla este diseño, en el orden qu
 |---|---|---|---|
 | 1 | Entidad cliente, `clientId` en cada documento y capa de repositorio. **Hecho** | RF01, RS01 | ADR-0012 |
 | 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key`. **Hecho**, con el alta de clientes; falta el cliente de servicio del motor | RS02 | ADR-0005, ADR-0009 |
-| 3 | Clave de datos por cliente, cifrado de campos e índice ciego; migrar lo que está en claro | RS05, RS06 | ADR-0010 |
+| 3 | Clave de datos por cliente, cifrado de campos e índice ciego; migrar lo que está en claro. **Hecho**; la migración se ejecuta a mano | RS05, RS06 | ADR-0010 |
 | 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad | RF12, RNF04, RNF05 | ADR-0011 |
-| 5 | Endpoints para cargar credenciales de Meta, y para exportar y borrar contactos y bots | RF06, RF08, RF09, RF10 | — |
+| 5 | Endpoints para cargar credenciales de Meta (**hecho**), y para exportar y borrar contactos y bots | RF06, RF08, RF09, RF10 | — |
 | 6 | Logs sin datos personales, errores sin detalles, esquema estricto de la notificación | RS07, RS11, RS15 | — |
 | 7 | Retirar el envío por WhatsApp (**hecho**) y la mención a `/answers`, que ya no son del gateway | — | ADR-0002 |
 

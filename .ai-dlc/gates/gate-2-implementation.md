@@ -49,6 +49,20 @@ resto de criterios cumplidos.
   otra prueba comprueba qué verificación lo rechaza. Desactivando cada verificación por separado, fallan.
 - Cómo se usa y cómo se opera: [`autenticacion.md`](../../docs/03-implementation/autenticacion.md).
 
+### Hecho: cifrado por cliente (ADR-0010, ADR-0013)
+
+- Los números de contactos y bots, los tokens de Meta, el App Secret y el token de verificación se guardan
+  cifrados con una clave propia de cada cliente, que solo existe envuelta por la clave maestra de Andvari. El
+  contacto se busca por un índice ciego.
+- Las credenciales de Meta se cargan por la API y ya no salen por ella: `/info` deja de devolver los tokens.
+- Sin Andvari, lo cifrado responde `503` y el webhook también: ni se pierde un mensaje ni se da por buena una
+  firma sin comprobar.
+- Las pruebas vuelcan la base y comprueban que nada de eso aparece en claro; rompiendo el cifrado de seis
+  maneras distintas, fallan. El cliente del servicio de claves se prueba contra un OpenBao real, también en
+  el pipeline.
+- Los datos anteriores se cifran con `python -m migrations.encrypt_client_data --apply`.
+- Cómo funciona y cómo se opera: [`cifrado-de-datos.md`](../../docs/03-implementation/cifrado-de-datos.md).
+
 ### Pendiente que deja el primer análisis estático
 
 - 28 hallazgos medios de `py/log-injection` en `app.py` y los controladores: valores de la petición escritos en el

@@ -7,7 +7,9 @@ No abras issues públicos para fallos de seguridad. Escribe al mantenedor indica
 
 ## Gestión de secretos
 
-No hay gestor de secretos. La configuración vive en `config.env` en desarrollo y en un `.env` con permisos
+La clave maestra con la que se protegen los datos de los clientes vive en Andvari, un OpenBao propio, y no sale
+de él: el gateway le pide que la use
+([ADR-0013](docs/00-project/adr/0013-openbao-como-gestor-de-secretos.md)). El resto de la configuración vive en `config.env` en desarrollo y en un `.env` con permisos
 restringidos junto al compose en el servidor; ninguno de los dos se versiona ni entra en la imagen
 (`.gitignore`, `.dockerignore`). Los tokens de Meta y el `appSecret` de cada chatbot están en su documento de
 MongoDB.

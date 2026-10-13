@@ -127,6 +127,7 @@ El repositorio sigue la estructura AI-DLC para un único servicio ([ADR-0001](do
   - **Entidades** (`entity_*.py`): subclases de `mongoengine.Document`. Cada módulo abre su propia conexión a MongoDB al importarse, con los valores de `Settings`.
   - **DTO** (`dto_*.py`): modelos de Pydantic para los cuerpos de petición, las respuestas y el payload anidado del webhook de Facebook/WhatsApp (`dto_facebook_*.py`).
 - **`controller/`** — funciones asíncronas con prefijo `ctr_*`, reexportadas desde `controller/__init__.py`. Construyen un `ResponseData`, persisten datos, emiten acciones de evento y devuelven un `starlette.Response`.
+- **`crypto/`** — el cifrado de los datos de cada cliente: los campos y el índice ciego (`fields.py`) y el cliente del servicio de claves (`key_service.py`).
 - **`auth/`** — la autenticación de todo lo que no es el webhook: verificación del token (`tokens.py`), el par de claves del gateway (`gateway_keys.py`), qué clave pública se le acepta a un cliente (`client_keys.py`) y el lado del cliente como referencia (`client.py`).
 - **`ops/`** — comandos que se ejecutan a mano: `gateway_key` crea y rota el par del gateway, `operator_key` registra la primera clave del operador y `client` es el cliente de referencia.
 - **`repository/`** — la única vía a los datos de un cliente. `TenantRepository` se construye con el cliente y lo añade a cada consulta: lo ajeno responde igual que lo inexistente ([ADR-0012](docs/00-project/adr/0012-aislamiento-por-cliente-en-la-capa-de-datos.md)). Los controladores no consultan la base.
@@ -235,6 +236,8 @@ Los ajustes los carga `src/classes/tool_settings.py` (`pydantic-settings`) desde
 |---|---|
 | `GATEWAY_KEYS_FILE` | Ruta del fichero con el par de claves del gateway, al que los clientes cifran sus tokens. Fuera del repositorio y de la imagen; la app no arranca sin él. Se crea con `python -m ops.gateway_key generate`. |
 | `GATEWAY_AUDIENCE` | Lo que los clientes ponen en el `aud` de sus tokens: la URL pública del despliegue. |
+| `ANDVARI_ADDR`, `ANDVARI_ROLE_ID` | Dirección del servicio de claves (OpenBao) y rol con el que entra el gateway. Fuera de desarrollo la dirección tiene que ser `https`. |
+| `ANDVARI_SECRET_ID_FILE`, `ANDVARI_CA_FILE` | Rutas del fichero con la credencial de ese rol y de la autoridad que firmó el certificado del servicio de claves. |
 | `FACEBOOK_APP_SECRET` | App Secret de Meta con el que se verifican las firmas del webhook. Solo es opcional si cada chatbot lleva su propio `appSecret`. |
 | `CLIENT_ID`, `NATIONAL_ID_URL` | Identificadores de cliente varios. |
 | `DB_NAME`, `DB_HOST`, `DB_USERNAME`, `DB_PASSWORD` | Conexión a MongoDB (admite host SRV de Atlas). |
@@ -308,6 +311,7 @@ Preparación única en el servidor:
 
 - `/srv/apps/bots-gateway/docker-compose.yml`, copiado de [deploy/docker-compose.yml](deploy/docker-compose.yml), y junto a él un `.env` con las claves de [config.env.example](config.env.example).
 - El par de claves del gateway en `keys/gateway-keys.json` y la primera clave del operador registrada: los tres pasos de la puesta en marcha de [autenticacion.md](docs/03-implementation/autenticacion.md).
+- La red Docker externa `andvari`, la credencial del gateway en `keys/andvari-secret-id` y las dos migraciones de datos: la puesta en marcha de [cifrado-de-datos.md](docs/03-implementation/cifrado-de-datos.md).
 - La red Docker externa `hermod` y un usuario de RabbitMQ para el gateway (`QMS_SERVER=hermod`).
 - El paquete de GHCR en **Public**, porque el receptor hace pull anónimo.
 - Una entrada en el `apps.yml` del receptor y el webhook `workflow_run` de este repositorio:
@@ -349,6 +353,7 @@ Se configura en [src/logging_config.yaml](src/logging_config.yaml) y lo aplica a
 | Todo lo que no es el webhook ni `/health` | Token en `Authorization: Bearer`: un JWT firmado por el cliente (`ES256`) dentro de un JWE cifrado para el gateway (`RSA-OAEP-256`, `A256CBC-HS512`). Dura 60 segundos como máximo y vale una vez. `401` si no es válido, sin decir por qué. |
 | Rutas de un cliente (`/bot`, `/chat/{bot_id}/...`) | El token dice quién es; solo alcanza lo suyo. Lo ajeno responde `404`, igual que lo inexistente. |
 | Registro de clientes (`/clients`) | Solo el operador. `403` para cualquier otro cliente. |
+| Datos en reposo | Números de teléfono, tokens de Meta, App Secret y token de verificación, cifrados con una clave por cliente (AES-256-GCM). La clave maestra no sale del servicio de claves. Ver [cifrado-de-datos.md](docs/03-implementation/cifrado-de-datos.md). |
 | `GET /chat/{bot_id}` (verificación) | `hub.verify_token` comparado en tiempo constante con el `verifyToken` del bot. `403` si no coincide. |
 | `POST /chat/{bot_id}` (notificaciones) | `X-Hub-Signature-256`: HMAC-SHA256 del cuerpo crudo con el App Secret de Meta como clave. `403` si no coincide. |
 
