@@ -13,7 +13,7 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 import app as app_module
-from classes import ChatBot, ChatbotPhone, Intent, Rule
+from classes import ChatBot, ChatbotPhone, Contact, Intent, Rule
 from repository import TenantRepository
 
 INTENT = {"name": "check_order", "description": "Order status"}
@@ -56,37 +56,39 @@ def stored(owner):
     repo.add_phone(bot.uuid, ChatbotPhone(phoneNumber="12025550101", phoneId="100000000000001"))
     repo.add_rules(bot.uuid, ["Be kind"])
     intent = repo.add_intent(bot.uuid, Intent(name="check_order", description="Order status"))
-    return bot, intent
+    contact = repo.add_contact(bot.uuid, Contact(firstName="Ana", waId="12025550143"))
+    return bot, intent, contact
 
 
-def call(http: TestClient, caller, method: str, path: str, bot_id, intent_id):
-    return http.request(method, path.format(bot_id=bot_id, intent_id=intent_id), headers=caller.auth,
-                        json=BODIES.get((method, path)))
+def call(http: TestClient, caller, method: str, path: str, bot_id, intent_id, contact_id):
+    return http.request(method, path.format(bot_id=bot_id, intent_id=intent_id, contact_id=contact_id),
+                        headers=caller.auth, json=BODIES.get((method, path)))
 
 
 def test_every_route_of_a_chatbot_is_covered():
-    assert len(BOT_ROUTES) == 12
+    assert len(BOT_ROUTES) == 16
+    # The search of contacts and the deletion of a client have their own tests in test_export_and_delete.
     assert OTHER_ROUTES == [
-        ("DELETE", "/clients/{client_id}/keys/{kid}"), ("DELETE", "/keys/{kid}"), ("GET", "/clients"),
-        ("GET", "/gateway/keys"), ("GET", "/keys"), ("POST", "/bot"), ("POST", "/clients"),
-        ("POST", "/clients/{client_id}/keys"), ("POST", "/keys"),
+        ("DELETE", "/clients/{client_id}"), ("DELETE", "/clients/{client_id}/keys/{kid}"), ("DELETE", "/keys/{kid}"),
+        ("GET", "/clients"), ("GET", "/gateway/keys"), ("GET", "/keys"), ("POST", "/bot"), ("POST", "/clients"),
+        ("POST", "/clients/{client_id}/keys"), ("POST", "/contacts/search"), ("POST", "/keys"),
     ]
 
 
 @pytest.mark.parametrize("method,path", BOT_ROUTES)
 def test_the_owner_reaches_its_chatbot(http, owner, stored, method, path):
-    bot, intent = stored
+    bot, intent, contact = stored
 
-    assert call(http, owner, method, path, bot.uuid, intent.uuid).status_code == 200
+    assert call(http, owner, method, path, bot.uuid, intent.uuid, contact._uuid).status_code == 200
 
 
 @pytest.mark.parametrize("method,path", BOT_ROUTES)
 def test_another_client_gets_not_found(http, stranger, stored, method, path):
-    bot, intent = stored
-    before = {document: document.objects.count() for document in (ChatbotPhone, Rule, Intent)}
+    bot, intent, contact = stored
+    before = {document: document.objects.count() for document in (ChatBot, ChatbotPhone, Rule, Intent, Contact)}
     secrets = ChatBot.objects(uuid=bot.uuid).first().appSecret
 
-    response = call(http, stranger, method, path, bot.uuid, intent.uuid)
+    response = call(http, stranger, method, path, bot.uuid, intent.uuid, contact._uuid)
 
     assert response.status_code == 404
     assert ChatBot.objects(uuid=bot.uuid).first().appSecret == secrets
@@ -96,10 +98,10 @@ def test_another_client_gets_not_found(http, stranger, stored, method, path):
 
 @pytest.mark.parametrize("method,path", BOT_ROUTES)
 def test_a_chatbot_of_another_client_answers_like_one_that_does_not_exist(http, stranger, stored, method, path):
-    bot, intent = stored
+    bot, intent, contact = stored
 
-    foreign = call(http, stranger, method, path, bot.uuid, intent.uuid)
-    missing = call(http, stranger, method, path, uuid4(), intent.uuid)
+    foreign = call(http, stranger, method, path, bot.uuid, intent.uuid, contact._uuid)
+    missing = call(http, stranger, method, path, uuid4(), intent.uuid, contact._uuid)
 
     assert (foreign.status_code, foreign.json()["code"]) == (missing.status_code, missing.json()["code"]) == (404, 404)
 
@@ -107,17 +109,26 @@ def test_a_chatbot_of_another_client_answers_like_one_that_does_not_exist(http, 
 @pytest.mark.parametrize("method,path", BOT_ROUTES)
 def test_the_operator_does_not_reach_the_chatbot_of_a_client(http, operator, stored, method, path):
     """The operator registers clients. It is not a way into their data: on these routes it is one more client."""
-    bot, intent = stored
+    bot, intent, contact = stored
 
-    assert call(http, operator, method, path, bot.uuid, intent.uuid).status_code == 404
+    assert call(http, operator, method, path, bot.uuid, intent.uuid, contact._uuid).status_code == 404
 
 
 @pytest.mark.parametrize("method,path", [route for route in BOT_ROUTES if "{intent_id}" in route[1]])
 def test_an_intent_is_not_reachable_through_another_chatbot(http, owner, stored, method, path):
-    _, intent = stored
+    _, intent, contact = stored
     other = TenantRepository(owner.client_id).add_bot(ChatBot(name="Other", role="r", description="d", tone="t"))
 
-    assert call(http, owner, method, path, other.uuid, intent.uuid).status_code == 404
+    assert call(http, owner, method, path, other.uuid, intent.uuid, contact._uuid).status_code == 404
+
+
+@pytest.mark.parametrize("method,path", [route for route in BOT_ROUTES if "{contact_id}" in route[1]])
+def test_a_contact_is_not_reachable_through_another_chatbot(http, owner, stored, method, path):
+    _, intent, contact = stored
+    other = TenantRepository(owner.client_id).add_bot(ChatBot(name="Other", role="r", description="d", tone="t"))
+
+    assert call(http, owner, method, path, other.uuid, intent.uuid, contact._uuid).status_code == 404
+    assert Contact.objects.count() == 1
 
 
 def test_a_chatbot_belongs_to_whoever_creates_it(http, owner, stranger):

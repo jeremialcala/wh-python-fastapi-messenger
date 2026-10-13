@@ -14,6 +14,7 @@ from .entity_intent import Intent, Action, ApiCall, ActionParameter
 
 from .dto_client_request import ClientRequest, SigningKeyRequest
 from .dto_bot_credentials import BotCredentialsRequest
+from .dto_contact_search import ContactSearchRequest
 from .dto_chatbot import ChatbotRequest
 from .dto_response import ResponseData, BotResponse
 from .dto_chatbot_phone import ChatbotPhoneRequest

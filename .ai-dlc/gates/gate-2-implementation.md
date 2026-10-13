@@ -76,6 +76,26 @@ resto de criterios cumplidos.
 - Pasados al parser del motor tal como está hoy, los sobres de WhatsApp se leen; los de Messenger se rechazan y
   el bot no se conserva, que es la parte de ADR-0011 que toca en su repositorio.
 
+### Hecho: exportar y borrar (RF08, RF09, RF10)
+
+- Un cliente lista los contactos de un bot, encuentra a una persona en todos sus bots por número o por
+  identificador de Messenger, exporta lo guardado de un contacto y lo borra.
+- `DELETE /bot/{bot_id}` borra un bot con todo lo guardado para él, y `DELETE /clients/{client_id}`, solo para
+  el operador, da de baja a un cliente: primero deja de entrar, después se borran sus datos y al final su
+  registro, con su clave de datos envuelta. Una baja interrumpida se termina repitiendo la llamada.
+- Un mensaje en camino hacia un bot que se está borrando no deja un contacto huérfano, y guardar un documento
+  ya borrado no lo devuelve a la base.
+- Las pruebas pasan por la aplicación con tokens reales y después leen la base entera: tras una baja, ningún
+  documento nombra al cliente. Rompiendo el cambio de 43 maneras, fallan en 42; la restante no
+  cambia el comportamiento.
+- En local, contra un MongoDB 8.0 real y desechable, pasa la batería entera; y con tres hilos guardando contactos
+  mientras otro borra el bot no queda ninguno huérfano en 150 rondas, cuando sin la comprobación quedan en 21. No
+  está en el pipeline, que usa una base en memoria.
+- **No alcanza a los respaldos**: un respaldo anterior a la baja contiene la clave envuelta, y Andvari la sigue
+  abriendo (H11 del threat model). Una prueba lo deja escrito para que no se dé por cubierto.
+- De paso se corrige H12: la respuesta a una petición mal formada repetía lo enviado, credenciales incluidas.
+- Cómo funciona y hasta dónde llega: [`exportar-y-borrar.md`](../../docs/03-implementation/exportar-y-borrar.md).
+
 ### Pendiente que deja el primer análisis estático
 
 - 28 hallazgos medios de `py/log-injection` en `app.py` y los controladores: valores de la petición escritos en el
@@ -86,7 +106,7 @@ resto de criterios cumplidos.
 
 - Los siete trabajos de la sección "Brecha entre lo construido y el diseño" de
   [`architecture.md`](../../docs/02-design/architecture.md), en el orden que marca el threat model.
-- Los hallazgos abiertos de [`threat-model.md`](../../docs/02-design/threat-model.md): H3, H5 y H6, y los que salieron
-  al construir el sobre, H9 y H10. H1, H2, H4, H7 y H8 están corregidos.
+- Los hallazgos abiertos de [`threat-model.md`](../../docs/02-design/threat-model.md): H3, H5 y H6; los que salieron
+  al construir el sobre, H9 y H10; y el que salió al construir la baja, H11. H1, H2, H4, H7, H8 y H12 están corregidos.
 - Si cambia la API o el mensaje de la cola, los contratos de `docs/02-design/contracts/` cambian con ellos: las
   pruebas de `tests/contract` lo exigen.

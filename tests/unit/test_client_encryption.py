@@ -393,12 +393,19 @@ def test_credentials_that_are_not_well_formed_are_rejected(http, caller, bot_id,
     assert ChatBot.objects.get().appSecret == before
 
 
-def test_a_rejected_credential_is_not_repeated_in_the_answer(http, caller, bot_id):
-    response = http.put(f"/chat/{bot_id}/credentials", headers=caller.auth,
-                        json={"appSecret": "s3cret-that-must-not-come-back", "other": 1})
+@pytest.mark.parametrize("body", [{"appSecret": "s3cret-that-must-not-come-back", "other": 1},
+                                  {"appSecret": "s3cret-that-must-not-come-back" * 9},
+                                  {"appSecret": ["s3cret-that-must-not-come-back"]},
+                                  {"facebookToken": {"value": "s3cret-that-must-not-come-back"}}],
+                         ids=["next to a field that is not a credential", "too long", "in a list", "in an object"])
+def test_a_rejected_credential_is_not_repeated_in_the_answer(http, caller, bot_id, body):
+    response = http.put(f"/chat/{bot_id}/credentials", headers=caller.auth, json=body)
 
     assert response.status_code == 422
     assert "s3cret-that-must-not-come-back" not in response.text
+    # It still says where the request is wrong and why.
+    assert all(set(error) == {"type", "loc", "msg"} and error["loc"][0] == "body"
+               for error in response.json()["detail"])
 
 
 def test_the_phones_of_a_chatbot_are_listed_with_their_numbers(http, caller, bot_id):

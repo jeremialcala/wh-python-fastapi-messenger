@@ -64,8 +64,8 @@ líneas discontinuas son flujos del diseño que hoy no existen.*
 | T14 | Flujo 11 | T | Una dependencia vulnerable o una imagen manipulada llegan a producción | Imagen base por digest; dependencias fijadas con hashes; análisis de dependencias, de secretos y estático en el pipeline; SBOM | Parcial: falta el SBOM | RS12 |
 | T15 | Secretos | I | Se filtran el `.env` del servidor, la clave privada del gateway o la clave maestra | Fuera del repo y de la imagen, permisos restringidos, y nunca impresos al diagnosticar | Parcial: la clave privada del gateway y la credencial con la que entra en Andvari son ficheros del servidor, fuera del repo y de la imagen; la clave maestra vive en Andvari y no sale de él | RS13, ADR-0008, ADR-0010 |
 | T16 | Flujo 6 | D | El broker no está disponible y el mensaje se pierde con un `200` a Meta | Publicación confirmada; `503` si falla | Construido | RNF02, ADR-0006 |
-| T17 | Base, cola, logs | I | Un interesado pide la supresión y sus datos siguen en la cola, los logs o los respaldos | Borrado por contacto, caducidad en la cola, logs sin datos personales y destrucción de la clave de datos | Pendiente | RF09, RF10, RNF05, ADR-0010 |
-| T18 | Gateway | I | Un error devuelve detalles internos en la respuesta | Respuesta de error genérica y fallo cerrado | Parcial: dos funciones devuelven el texto de la excepción | RS15 |
+| T17 | Base, cola, logs | I | Un interesado pide la supresión y sus datos siguen en la cola, los logs o los respaldos | Borrado por contacto, caducidad en la cola, logs sin datos personales y destrucción de la clave de datos | Parcial: el contacto, el bot y el cliente se borran de la base y la cola caduca a las 24 horas; quedan los logs, lo que guarde el motor y los respaldos, a los que borrar la clave de datos no alcanza (H11) | RF09, RF10, RNF05, ADR-0010 |
+| T18 | Gateway | I | Un error devuelve detalles internos en la respuesta | Respuesta de error genérica y fallo cerrado | Parcial: dos funciones devuelven el texto de la excepción; la respuesta a una petición mal formada ya no repite lo enviado (H12) | RS15 |
 | T19 | Flujo 11/12 | T, E | Un commit malicioso en `main` se construye y se despliega solo | `main` solo admite pull requests, desde ramas permitidas; las pruebas condicionan la imagen; rollback si falla la sonda de vida | Construido; el despliegue en el servidor está sin ejercitar | RF11, ADR-0008 |
 | T20 | Gateway | R | No se puede saber qué cliente hizo qué | Registro de eventos de seguridad atribuido al cliente autenticado | Parcial: solo se registran los rechazos | RS14 |
 | T21 | Flujo 2/3 | D, T | Un cuerpo malformado o enorme provoca errores o consume memoria | Esquema estricto de la notificación y límite de tamaño en el borde | Parcial: el esquema admite listas sin tipar | RS11 |
@@ -130,7 +130,7 @@ quadrantChart
 
 ## Hallazgos del diseño
 
-Defectos que salieron al contrastar el código con el diseño. H1 a H4 y H7 a H9 se comprobaron ejecutándolo; H10, solo en el sobre de la cola.
+Defectos que salieron al contrastar el código con el diseño. H1 a H4, H7 a H9 y H12 se comprobaron ejecutándolo; H10, solo en el sobre de la cola; H11, con un servicio de claves simulado.
 
 | ID | Hallazgo | Impacto | Estado |
 |---|---|---|---|
@@ -144,6 +144,8 @@ Defectos que salieron al contrastar el código con el diseño. H1 a H4 y H7 a H9
 | H8 | **El filtro del eco de Messenger no filtraba nada**: buscaba `is_echo` en un objeto que nunca lo contiene | El eco de lo que envía la propia página seguía el camino de un mensaje de una persona: con una Graph API simulada que devuelve un perfil, se publica y su remitente queda guardado como contacto. No está comprobado qué responde Meta al pedirle el perfil de una página. Con el motor respondiendo, el bot se contestaría a sí mismo | **Corregido**: el eco no se publica ni crea contacto |
 | H9 | **Un fallo al procesar que no sea del broker ni del servicio de claves acaba en `200`**: la base de datos caída al buscar el contacto, o la Graph API sin responder para un contacto nuevo de Messenger | Meta da el mensaje por entregado y no lo reenvía: se pierde. Contradice ADR-0006. En una notificación con varios mensajes se pierden ese y los siguientes | Abierto: falta decidir qué fallos piden reintento a Meta |
 | H10 | **Las fechas de los documentos se guardan en hora local sin zona**, y MongoDB las toma por UTC | En una máquina que no esté en UTC quedan desplazadas tantas horas como su desfase. La imagen corre en UTC, así que en el despliegue no ocurre | Abierto en las entidades guardadas; **corregido** en el sobre de la cola |
+| H11 | **Borrar la clave de datos de un cliente no deja ilegibles sus datos en los respaldos**, al contrario de lo que cuenta ADR-0010. La clave envuelta se guarda en la misma base que los datos, y la clave maestra, una sola derivada por cliente, la sigue abriendo. Lo que no está cifrado (nombres, identificador de Messenger, reglas e intents) no depende de ninguna clave | Quien conserve un respaldo anterior a la baja y pueda usar el servicio de claves lee los números y las credenciales de un cliente dado de baja. La supresión en respaldos depende solo de que el respaldo caduque, y la retención de Atlas está sin comprobar | Abierto: falta decidir entre una clave por cliente que se pueda destruir en Andvari y aceptar la caducidad de los respaldos |
+| H12 | **La respuesta a una petición mal formada repetía lo enviado.** El `422` devolvía el valor rechazado: un App Secret demasiado largo, o de otro tipo, volvía en la respuesta | Una credencial o un número de teléfono acababan en la respuesta y en lo que la registre por el camino | **Corregido**: el `422` dice dónde está el error y por qué, sin el valor |
 
 ## Controles y trazabilidad
 

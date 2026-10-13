@@ -36,7 +36,7 @@ Niveles: Público < Interno < Confidencial < Restringido.
 | Persona, reglas e intents del bot | **Confidencial** (del cliente) | MongoDB; el motor de respuestas los pide por `bot_id` | En claro | Acceso solo del cliente dueño y del motor (RS01, RS06) | Hasta la baja del bot |
 | Identificador del bot (`bot_id`) | **Interno** | URL del webhook, configuración de Meta del cliente, mensajes de la cola y logs | No es un secreto | No debe bastar para acceder a nada (RS18) | Hasta la baja del bot |
 | Clave privada de firma del cliente | **Restringido** | En poder del cliente; nunca llega a la plataforma | No existe todavía | El gateway solo registra la parte pública (ADR-0005) | La decide el cliente |
-| Clave de cifrado de datos del cliente | **Restringido** | Registro del cliente, en MongoDB, envuelta por la clave maestra de Andvari | Solo se guarda envuelta; abierta, en la memoria del gateway cinco minutos como máximo | Cifra los números de teléfono y las credenciales del cliente (ADR-0010, ADR-0013) | Mientras existan datos cifrados con ella |
+| Clave de cifrado de datos del cliente | **Restringido** | Registro del cliente, en MongoDB, envuelta por la clave maestra de Andvari | Solo se guarda envuelta; abierta, en la memoria del gateway cinco minutos como máximo. Se borra con la baja del cliente, pero sigue en los respaldos anteriores | Cifra los números de teléfono y las credenciales del cliente (ADR-0010, ADR-0013) | Mientras existan datos cifrados con ella |
 | Clave privada de cifrado del gateway | **Restringido** | Fichero en el servidor (`GATEWAY_KEYS_FILE`) | Fuera del repo y de la imagen; legible solo por la cuenta del contenedor | Abre los tokens de autenticación; fuera del repo y de la imagen | Hasta rotación |
 | Clave pública de firma de un cliente | **Interno** | Registro del cliente, en MongoDB | En claro: es pública | Con ella se verifica quién envía; su parte privada no sale del cliente | Hasta que el cliente la revoca |
 | Credenciales de MongoDB y RabbitMQ | **Restringido** | `config.env` o `.env` del servidor | Fuera del repo y de la imagen | Igual | Hasta rotación |
@@ -60,7 +60,7 @@ Niveles: Público < Interno < Confidencial < Restringido.
 
 - **Retención.** Máximos de la plataforma que cada cliente puede acortar: 24 horas para un mensaje en la cola y
   12 meses sin actividad para un contacto. El de la cola lo aplica el broker: cada mensaje se publica con una
-  caducidad de 24 horas. El de los contactos no está implementado todavía (RNF05).
+  caducidad de 24 horas. El de los contactos no está implementado todavía (RNF05): se borran a petición, no por plazo.
 - **Alcance de "los números".** El cifrado con la clave del cliente cubre el número del contacto y el número del
   bot (RS05).
 
