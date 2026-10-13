@@ -89,8 +89,9 @@ de recuperación tiene que estar a buen recaudo.
 ## Lo que no hace todavía
 
 - **Dejar ilegible en los respaldos lo de un cliente dado de baja.** La baja borra su clave de datos envuelta junto con
-  sus datos, pero un respaldo anterior la contiene y Andvari la sigue abriendo: ver
-  [exportar-y-borrar.md](exportar-y-borrar.md).
+  sus datos, pero un respaldo anterior la contiene y Andvari la sigue abriendo. Está aceptado: en los respaldos la
+  supresión se cumple cuando caducan, a los 365 días como mucho
+  ([ADR-0014](../00-project/adr/0014-supresion-en-respaldos-por-caducidad.md)).
 - **Rotar la clave de datos de un cliente.** Rotar la clave maestra en Andvari sí es posible: lo ya envuelto se
   sigue abriendo.
 - **El motor de respuestas no obtiene los tokens.** Están cifrados y fuera de la API, pero el cliente de servicio

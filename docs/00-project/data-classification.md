@@ -43,7 +43,7 @@ Niveles: Público < Interno < Confidencial < Restringido.
 | Claves privadas por evento (`certs/*.pem`) | **Restringido** | Disco del contenedor | Ignoradas por git y fuera de la imagen. Función desactivada | Decidir en el Gate 1 si se mantienen | Se decide en el Gate 1, junto con la función |
 | Registro de eventos (`Event`, `EventAction`) con IP de origen | **Interno** (la IP es dato personal) | MongoDB. Función desactivada | — | Definir antes de reactivarlo | Se decide en el Gate 1, junto con la función |
 | Logs de la aplicación | **Confidencial** | Salida del contenedor; Docker conserva 3 ficheros de 10 MB | En `production` solo avisos y errores; por debajo, incluyen nombres, números y contenido | Sin datos personales en ningún nivel (RS07) | La rotación de Docker |
-| Respaldos de la base | **Restringido** | Los gestiona Atlas; `<TODO: confirmar plan y región>` | Sin comprobar | Cifrados y con la misma retención que el dato | La del dato respaldado; sin comprobar en Atlas |
+| Respaldos de la base | **Restringido** | Los gestiona Atlas; `<TODO: confirmar plan y región>` | Sin comprobar | Cifrados, con acceso restringido y con caducidad | 365 días como máximo (ADR-0014); sin configurar ni comprobar en Atlas |
 | Código, documentación e imagen | **Público** | GitHub y GHCR | Sin secretos | Igual | Indefinida |
 
 ## Reglas
@@ -64,9 +64,19 @@ Niveles: Público < Interno < Confidencial < Restringido.
 - **Alcance de "los números".** El cifrado con la clave del cliente cubre el número del contacto y el número del
   bot (RS05).
 
+## Decidido el 2026-10-13
+
+- **Respaldos.** Los respaldos de la base se conservan 365 días como máximo, y en ellos la supresión se cumple
+  por caducidad ([ADR-0014](adr/0014-supresion-en-respaldos-por-caducidad.md)). Lo borrado de la base puede
+  seguir en un respaldo hasta 365 días; sumado a los 12 meses sin actividad, los datos de un contacto pueden
+  existir hasta 24 meses después de su último mensaje. Este máximo es del clúster entero: un cliente no puede
+  acortarlo para sí.
+
 ## Datos por aportar
 
 - **Delegado de protección de datos.** Sin designar, y sin confirmar que no aplique.
+- **Plan del clúster y política de respaldo.** No consta el plan del clúster de Atlas. Una retención propia solo
+  se puede configurar en un clúster `M10` o superior; hay que configurar los 365 días y comprobarlos.
 - **Región de la base.** No consta en qué región está el clúster de Atlas; determina si hay transferencia
   internacional (arts. 44 y siguientes). Comprobado el 2026-10-12: los nodos del clúster configurado no están en
   los rangos de direcciones que publican AWS y Google Cloud, lo que apunta a Azure. La región exacta hay que

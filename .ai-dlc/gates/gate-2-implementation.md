@@ -92,7 +92,8 @@ resto de criterios cumplidos.
   mientras otro borra el bot no queda ninguno huérfano en 150 rondas, cuando sin la comprobación quedan en 21. No
   está en el pipeline, que usa una base en memoria.
 - **No alcanza a los respaldos**: un respaldo anterior a la baja contiene la clave envuelta, y Andvari la sigue
-  abriendo (H11 del threat model). Una prueba lo deja escrito para que no se dé por cubierto.
+  abriendo (H11 del threat model). Una prueba lo deja escrito para que no se dé por cubierto. Aceptado el
+  2026-10-13 con ADR-0014: en los respaldos la supresión se cumple por caducidad, a los 365 días como mucho.
 - De paso se corrige H12: la respuesta a una petición mal formada repetía lo enviado, credenciales incluidas.
 - Cómo funciona y hasta dónde llega: [`exportar-y-borrar.md`](../../docs/03-implementation/exportar-y-borrar.md).
 
@@ -107,6 +108,7 @@ resto de criterios cumplidos.
 - Los siete trabajos de la sección "Brecha entre lo construido y el diseño" de
   [`architecture.md`](../../docs/02-design/architecture.md), en el orden que marca el threat model.
 - Los hallazgos abiertos de [`threat-model.md`](../../docs/02-design/threat-model.md): H3, H5 y H6; los que salieron
-  al construir el sobre, H9 y H10; y el que salió al construir la baja, H11. H1, H2, H4, H7, H8 y H12 están corregidos.
+  al construir el sobre, H9 y H10; y lo que deja pendiente H11, aceptado con ADR-0014: configurar y comprobar en Atlas la retención de 365 días, y el
+  registro de supresiones. H1, H2, H4, H7, H8 y H12 están corregidos.
 - Si cambia la API o el mensaje de la cola, los contratos de `docs/02-design/contracts/` cambian con ellos: las
   pruebas de `tests/contract` lo exigen.

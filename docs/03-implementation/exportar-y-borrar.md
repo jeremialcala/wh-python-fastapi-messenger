@@ -104,7 +104,7 @@ Borrar aquí quita los datos de la base en uso. No llega a:
 | Mensajes en la cola `llm` | 24 horas como máximo: cada mensaje se publica con esa caducidad | Construido |
 | El motor de respuestas y su LLM | Lo que el motor guarde. No tiene todavía forma de recibir un borrado, y no está revisado qué conserva | Abierto, en su repositorio |
 | Logs del gateway | La rotación de Docker. Por debajo de `production` contienen números y nombres | Abierto (RS07) |
-| Respaldos de la base | Lo que dure la retención de respaldos de Atlas, sin comprobar | Abierto (H11) |
+| Respaldos de la base | 365 días como máximo desde el borrado: es la retención de los respaldos (ADR-0014) | Decidido; sin configurar ni comprobar en Atlas |
 | Meta | Sus propios términos con el cliente | Fuera del servicio |
 
 **Los respaldos, en concreto.** [ADR-0010](../00-project/adr/0010-clave-de-cifrado-de-datos-por-cliente.md) cuenta
@@ -112,8 +112,19 @@ con que destruir la clave de datos de un cliente deje ilegibles sus datos tambi�
 construido, no es así: la clave de datos envuelta se guarda en la misma base que los datos, de modo que un respaldo
 anterior a la baja la contiene, y la clave maestra de Andvari, que es una sola derivada por cliente, la sigue
 abriendo. Además, lo que no está cifrado (nombres, identificador de Messenger, reglas e intents) se lee en un
-respaldo sin clave alguna. Hoy la supresión en respaldos depende solo de que el respaldo caduque. Es el hallazgo
-H11 del [threat model](../02-design/threat-model.md), y está pendiente de decisión.
+respaldo sin clave alguna. Es el hallazgo H11 del [threat model](../02-design/threat-model.md).
+
+Decidido el 2026-10-13 en [ADR-0014](../00-project/adr/0014-supresion-en-respaldos-por-caducidad.md): se acepta,
+y en los respaldos la supresión se cumple por caducidad. Los respaldos de la base se conservan 365 días como
+máximo, así que lo borrado desaparece del último respaldo, como mucho, 365 días después. Esto trae tres
+obligaciones:
+
+- **Decírselo al cliente.** Una supresión no es completa hasta pasado ese plazo, y es él quien responde ante quien
+  pidió el borrado.
+- **Si se restaura un respaldo, repetir los borrados** hechos después de su fecha. Lo restaurado trae de vuelta lo
+  que se había borrado.
+- **Configurar y comprobar la retención en Atlas.** Solo se puede en un clúster `M10` o superior, y el plan del
+  clúster no consta.
 
 ## Rastro
 
@@ -127,4 +138,6 @@ auditoría por cliente que pide RS14.
   [clasificación de datos](../00-project/data-classification.md) no se aplica: el contacto no guarda cuándo
   escribió por última vez.
 - **Avisar al motor de respuestas** de que un contacto, un bot o un cliente se han borrado.
-- **Destruir la clave de un cliente de forma que alcance a los respaldos** (H11).
+- **Guardar un registro de supresiones** que dure lo que los respaldos, para poder repetirlas tras una
+  restauración. Hoy solo queda la línea del log, que Docker rota.
+- **Destruir la clave de un cliente de forma que alcance a los respaldos.** Descartado en ADR-0014.

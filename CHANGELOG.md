@@ -47,6 +47,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   intents; `DELETE /clients/{client_id}`, solo para el operador, borra a un cliente con todo lo suyo, su clave de
   datos envuelta incluida. Los respaldos anteriores a una baja siguen siendo legibles.
 - Guía `docs/03-implementation/exportar-y-borrar.md`.
+- ADR-0014, aceptado: en los respaldos la supresión se cumple por caducidad, y los respaldos de la base se
+  conservan 365 días como máximo. Corrige el apartado de borrado de ADR-0010, que contaba con que destruir la
+  clave de datos de un cliente alcanzara a los respaldos.
 
 ### Cambiado
 - **Incompatible para el consumidor de la cola:** el gateway publica un sobre por cada mensaje de la notificación,

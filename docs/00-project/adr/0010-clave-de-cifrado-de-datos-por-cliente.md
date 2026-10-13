@@ -43,6 +43,11 @@ no por el número. Dos clientes con el mismo contacto producen índices distinto
 **Borrado.** Destruir la clave de datos de un cliente deja ilegibles todos sus datos cifrados, también los que
 queden en respaldos. Es lo que da cumplimiento práctico a la baja de un cliente (RF10).
 
+> **Corregido el 2026-10-13 por [ADR-0014](0014-supresion-en-respaldos-por-caducidad.md).** Tal como quedó
+> construido, esto no se cumple en los respaldos: la clave envuelta se guarda en la misma base que los datos, y
+> la clave maestra, una sola derivada por cliente, la sigue abriendo. La baja borra los datos y la clave envuelta
+> de la base en uso; en los respaldos, la supresión se cumple cuando caducan, a los 365 días como mucho.
+
 ## Alternativas consideradas
 
 | Opción | Pros | Contras | Riesgo de seguridad |
@@ -55,15 +60,16 @@ queden en respaldos. Es lo que da cumplimiento práctico a la baja de un cliente
 ## Consecuencias
 
 - Positivas: una copia de la base, un volcado o un respaldo no exponen números ni credenciales (AB03). La baja de
-  un cliente es verificable.
+  un cliente es verificable en la base en uso; en los respaldos depende de su caducidad (ADR-0014).
 - Negativas / deuda asumida:
   - **"Bajo la llave del cliente" significa aquí una clave por cliente, no una clave que solo tenga el cliente.**
     El operador puede descifrar, porque el servicio lo necesita para funcionar. Hay que decírselo así al cliente.
   - Hay que migrar los datos que ya existen en claro.
   - El índice ciego revela que dos registros del mismo cliente tienen el mismo número. Se acepta.
   - Perder la clave maestra es perder todos los datos cifrados: necesita su propio respaldo, separado de la base.
-- Impacto en threat model: cubre la fuga de la base (T3) y la supresión incompleta en respaldos (T17). La clave
-  maestra se suma a los secretos del servidor (T15).
+- Impacto en threat model: cubre la fuga de la base (T3). La supresión incompleta en respaldos (T17) no la cubre
+  el cifrado, sino la caducidad de los respaldos (ADR-0014). La clave maestra se suma a los secretos del servidor
+  (T15).
 
 ## Abierto
 
