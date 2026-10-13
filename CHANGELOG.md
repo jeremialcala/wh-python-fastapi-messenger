@@ -51,6 +51,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   hacerse, en ficheros fuera de la base de datos (`ERASURES_DIR`), con identificadores y fechas y sin datos
   personales. `python -m migrations.replay_erasures` repite los borrados después de restaurar un respaldo; sin
   `--apply` solo informa.
+- ADR-0015, aceptado: a Meta solo se le pide reintento, con un `503`, cuando falta algo que el servicio necesita.
+- Límite de tamaño: ninguna petición puede pasar de 3 MiB, que es lo más que envía Meta. Por encima responde `413`,
+  antes de comprobar firma o token.
 - ADR-0014, aceptado: en los respaldos la supresión se cumple por caducidad, y los respaldos de la base se
   conservan 365 días como máximo. Corrige el apartado de borrado de ADR-0010, que contaba con que destruir la
   clave de datos de un cliente alcanzara a los respaldos.
@@ -81,6 +84,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - Cada petición deja una sola línea en el log: el método, la ruta tal como está declarada, los identificadores bien
   formados de su dirección, el código y el tiempo. Ya no se escribe la dirección tal como llegó ni la de quien llama.
 - De un fallo se escribe en el log su tipo y la línea de la que salió, no su texto.
+- **Cambia lo que se responde a Meta** (ADR-0015). Una notificación firmada que no es JSON recibe `200` y un aviso en
+  el log; antes recibía `422`. Una sin tipo de objeto o sin entradas se descarta con un aviso; antes se aceptaba
+  rellenando valores de ejemplo. Sin firma válida la respuesta es `403` aunque el cuerpo no sea JSON; antes era `422`.
+- Si no responde la base de datos, el webhook responde `503`, igual que cuando falta el broker o el servicio de
+  claves.
+- Un mensaje de Messenger se publica sin el nombre cuando la Graph API no da el perfil, y su contacto se guarda sin
+  él.
+- Los mensajes de una notificación que se dejan fuera por incompletos, y las notificaciones de un tipo que no se
+  atiende, dejan un aviso en el log.
 - La imagen arranca Uvicorn sin su log de accesos.
 - **Incompatible:** la cabecera `X-API-Key` y el ajuste `ADMIN_API_KEY` desaparecen. Todo lo que no es el webhook
   ni `/health` pide el token nuevo, y el servicio no arranca sin `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE`.
@@ -104,6 +116,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - El filtro que debía descartar el eco de lo que envía la propia página en Messenger no descartaba nada: el eco
   seguía el camino de un mensaje más.
 - La fecha del sobre dependía de la zona horaria de la máquina: fuera de UTC salía desplazada.
+- Con la base de datos caída, el webhook respondía `200` y el mensaje se perdía. Ahora responde `503` y Meta lo
+  reenvía.
+- Si la Graph API no devolvía el perfil de quien escribía por Messenger, el mensaje se perdía con un `200`.
+- Un mensaje que fallaba al procesarse se llevaba consigo a los que venían detrás en la misma notificación.
+- A una notificación sin tipo de objeto o sin entradas se le ponían valores de ejemplo en vez de rechazarla.
 - Un fallo al guardar un contacto se tragaba dentro de un `finally` con `return`, y el mensaje se perdía con un
   `200`. Ahora la caída del servicio de claves llega hasta Meta como `503`.
 - Un intent se podía leer, cambiar o desactivar a través de cualquier chatbot: la ruta no comprobaba que fuera
@@ -124,6 +141,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   para ficción. Siguen en la historia de git y en las imágenes ya publicadas.
 - La respuesta a una petición mal formada repetía lo enviado: una credencial de Meta rechazada por su formato volvía
   en el `422`. Ya no devuelve el valor.
+- El cuerpo de una notificación se interpretaba antes de comprobar su firma: quien no tenía el secreto de la
+  aplicación podía hacer que el servicio interpretara lo que enviara. Ahora no se lee nada sin firma válida.
 - El log de accesos de Uvicorn escribía cada petición con su query string, también en `production`: el token de
   verificación que Meta envía al comprobar el webhook quedaba en el log del contenedor. Está apagado.
 - Los logs ya no llevan números, nombres, identificadores de Messenger, contenido de mensajes, reglas ni credenciales,

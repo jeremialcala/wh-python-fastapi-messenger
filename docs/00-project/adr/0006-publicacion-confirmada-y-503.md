@@ -11,6 +11,10 @@
 
 Decisión ya construida (PR #3, versión 0.1.0). Se registra aquí para que conste con sus alternativas.
 
+> **Ampliada el 2026-10-13 por [ADR-0015](0015-que-se-responde-a-meta.md)**, que fija qué se responde en los demás
+> casos: `503` también cuando no responden la base de datos o el servicio de claves, y `200` para lo firmado que
+> no se entiende o no se puede procesar.
+
 ## Contexto
 
 El gateway respondía `200` a Meta nada más recibir la notificación y publicaba en RabbitMQ en segundo plano. Si el
