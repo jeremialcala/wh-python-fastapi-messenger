@@ -115,9 +115,9 @@ resto de criterios cumplidos.
 
 ### Pendiente que deja el primer análisis estático
 
-- 28 hallazgos medios de `py/log-injection` en `app.py` y los controladores: valores de la petición escritos en el
-  log tal cual. No rompen el build porque están por debajo del umbral, pero se cierran con el trabajo de logs sin
-  datos personales.
+- Los 28 hallazgos medios de `py/log-injection` en `app.py` y los controladores, valores de la petición escritos
+  en el log tal cual, están cerrados con el trabajo de logs sin datos personales: el análisis de ese cambio no
+  encuentra ninguno, y no queda ningún hallazgo de seguridad abierto. Quedan 59 de calidad.
 
 ## Heredado del Gate 1
 

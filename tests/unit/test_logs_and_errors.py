@@ -394,11 +394,10 @@ def test_a_failure_is_described_by_its_kind_and_where_it_came_from():
     def fails():
         raise ValueError("12025550143 is not a valid number")
 
-    try:
+    with pytest.raises(ValueError) as failure:
         fails()
-    except ValueError as error:
-        described = describe(error)
 
+    described = describe(failure.value)
     assert described.startswith("ValueError at test_logs_and_errors.py:")
     assert "12025550143" not in described and "valid number" not in described
 
@@ -407,23 +406,21 @@ def test_a_failure_inside_a_library_says_which_line_of_the_service_was_running(c
     repo = TenantRepository(caller.client_id)
     bot = repo.add_bot(ChatBot(name="x", role="x", description="x", tone="x"))
 
-    try:
+    with pytest.raises(Exception) as failure:
         # The database library refuses it, and says so repeating the value.
         repo.add_contact(bot.uuid, Contact(firstName="Ana", profilePic="12025550143 is not an address"))
-    except Exception as error:
-        text, described = str(error), describe(error)
 
-    assert "12025550143" in text
+    described = describe(failure.value)
+    assert "12025550143" in str(failure.value)
     assert described.startswith("ValidationError at tenant.py:") and described.endswith(")")
     assert "(document.py:" in described and "12025550143" not in described
 
 
 def test_a_failure_outside_the_service_says_the_line_that_raised_it():
-    try:
+    with pytest.raises(ValueError) as failure:
         json.loads("{12025550143")
-    except ValueError as error:
-        described = describe(error)
 
+    described = describe(failure.value)
     assert described.startswith("JSONDecodeError at decoder.py:") and "12025550143" not in described
 
 
