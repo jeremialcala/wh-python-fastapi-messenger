@@ -660,11 +660,12 @@ def test_the_repository_of_another_client_deletes_nothing_of_this_one(caller, st
 
 def test_a_copy_of_the_database_from_before_the_deletion_still_opens(http, operator, leaving, people):
     """
-        A known gap, H11 in the threat model, stated here so that it is not taken for covered: the wrapped data
-        key is stored with the data, and the key service is not asked to destroy anything. Whoever keeps a copy
-        of the database from before the deletion, and can use the key service, still reads the numbers.
+        H11 in the threat model, stated here so that it is not taken for covered: the wrapped data key is
+        stored with the data, and the key service is not asked to destroy anything. Whoever keeps a copy of
+        the database from before the deletion, and can use the key service, still reads the numbers.
 
-        When the key of a client can be destroyed in the key service, this test has to be turned around.
+        Accepted in ADR-0014: in backups, what was deleted is gone when the backup expires, 365 days later at
+        most. If the key of a client can one day be destroyed in the key service, this test is turned around.
     """
     database = mongoengine.get_db()
     copy = {name: [document for document in database[name].find({})
