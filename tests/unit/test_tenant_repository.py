@@ -18,13 +18,13 @@ def new_bot(name: str = "Bot") -> ChatBot:
 
 
 @pytest.fixture
-def owner():
-    return TenantRepository(uuid4())
+def owner(register):
+    return TenantRepository(register("acme").client_id)
 
 
 @pytest.fixture
-def stranger():
-    return TenantRepository(uuid4())
+def stranger(register):
+    return TenantRepository(register("globex").client_id)
 
 
 @pytest.fixture
@@ -54,8 +54,9 @@ def test_the_owner_reads_what_it_stored(owner, stored):
 
     assert owner.get_bot(bot.uuid).uuid == bot.uuid
     assert owner.get_bot(str(bot.uuid)).uuid == bot.uuid
-    assert [phone.phoneNumber for phone in owner.list_phones(bot.uuid)] == ["12025550101"]
-    assert [phone.phoneId for phone in owner.list_phones(bot.uuid, "development")] == ["100000000000001"]
+    assert [owner.phone_numbers(phone) for phone in owner.list_phones(bot.uuid)] == [
+        {"phoneNumber": "12025550101", "phoneId": "100000000000001"}]
+    assert len(owner.list_phones(bot.uuid, "development")) == 1
     assert owner.list_phones(bot.uuid, "production") == []
     assert [rule.rule for rule in owner.list_rules(bot.uuid)] == ["Be kind"]
     assert [item.uuid for item in owner.list_intents(bot.uuid)] == [intent.uuid]
@@ -158,7 +159,7 @@ def test_the_operator_client_is_created_once():
     assert first.uuid == second.uuid
     assert isinstance(first.uuid, UUID)
     assert first.role == Role.OPERATOR.value
-    assert Client.objects.count() == 1
+    assert Client.objects(name="operator").count() == 1
 
 
 @pytest.fixture

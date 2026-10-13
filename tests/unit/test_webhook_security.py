@@ -56,6 +56,9 @@ def client():
 def bot(monkeypatch):
     _bot = SimpleNamespace(uuid=BOT_ID, verifyToken=VERIFY_TOKEN, appSecret=None)
     monkeypatch.setattr(app_module, "find_webhook_bot", lambda bot_id: _bot)
+    # Read when asked for, not now: the tests change the secrets of the bot after this.
+    monkeypatch.setattr(app_module, "webhook_secrets",
+                        lambda bot: SimpleNamespace(verify_token=bot.verifyToken, app_secret=bot.appSecret))
     return _bot
 
 

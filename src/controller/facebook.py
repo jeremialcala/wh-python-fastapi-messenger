@@ -10,6 +10,7 @@ from fastapi import status
 from classes import ChatBot, Contact, ProfileInfo
 from classes import Settings
 from enums import Status
+from crypto.key_service import KeyServiceUnavailable
 from repository import TenantRepository
 from .events import ctr_notify_action
 
@@ -37,7 +38,8 @@ async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot, eventId: s
             method=currentframe().f_code.co_name
         ))
     try:
-        url = settings.facebook_graph_url.format(fb_id=fb_id, ACCESSTOKEN=_bot.facebookToken)
+        _token = TenantRepository(_bot.clientId).bot_secrets(_bot).facebook_token
+        url = settings.facebook_graph_url.format(fb_id=fb_id, ACCESSTOKEN=_token)
         try:
             resp = requests.get(url, timeout=5)
         except requests.RequestException as e:
@@ -60,6 +62,9 @@ async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot, eventId: s
                 status=Status.COM.value
             ))
         return await Contact.generate_contact_from_fb(_bot.uuid, _profile)
+
+    except KeyServiceUnavailable:
+        raise
 
     except Exception as e:
         if eventId is not None:
@@ -102,6 +107,10 @@ async def ctr_identify_fb_contact(fbId: str, _bot: ChatBot, eventId: str = None)
             repo.add_contact(_bot.uuid, contact)
         log.info(contact)
 
+    except KeyServiceUnavailable:
+        # Not a failure of this message: Meta has to be told to send it again.
+        raise
+
     except Exception as e:
         log.error(e.__str__())
         if eventId is not None:
@@ -127,7 +136,8 @@ async def ctr_identify_fb_contact(fbId: str, _bot: ChatBot, eventId: str = None)
                 status=Status.COM.value
             ))
         log.info(f"Ending: {currentframe().f_code.co_name}")
-        return contact
+    # Outside the finally: from inside it, the return swallowed whatever had been raised.
+    return contact
 
 
 async def ctr_identify_contact_by_wa_id(wa_id: str, name: str, _bot: ChatBot, eventId: str = None):
@@ -160,6 +170,10 @@ async def ctr_identify_contact_by_wa_id(wa_id: str, name: str, _bot: ChatBot, ev
             contact = repo.add_contact(_bot.uuid, Contact(_uuid=uuid4(), firstName=name, waId=wa_id))
         log.info(contact)
 
+    except KeyServiceUnavailable:
+        # Not a failure of this message: Meta has to be told to send it again.
+        raise
+
     except Exception as e:
         log.error(e.__str__())
         if eventId is not None:
@@ -184,4 +198,5 @@ async def ctr_identify_contact_by_wa_id(wa_id: str, name: str, _bot: ChatBot, ev
                 status=Status.COM.value
             ))
         log.info(f"Ending: {currentframe().f_code.co_name}")
-        return contact
+    # Outside the finally: from inside it, the return swallowed whatever had been raised.
+    return contact

@@ -42,9 +42,12 @@ class ChatBot(Document):
             "name": self.name,
             "rol": self.role,
             "tone": self.tone,
-            "verifyToken": self.verifyToken,
-            "facebookToken": self.facebookToken,
-            "whatsappToken": self.whatsappToken
+            # Which Meta credentials are loaded, never their values: those go in and do not come out.
+            "credentials": {
+                "facebookToken": bool(self.facebookToken),
+                "whatsappToken": bool(self.whatsappToken),
+                "appSecret": bool(self.appSecret)
+            }
         }
 
     def generate_verification_token(self):

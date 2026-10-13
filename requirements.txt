@@ -20,6 +20,8 @@ pydantic-settings>=2.2.1
 
 # Keys and Cryptography
 jwcrypto>=1.5.6
+# AES-256-GCM for the fields encrypted with each client's data key
+cryptography>=45
 
 # Sample values for the request models
 faker>=24.3.0

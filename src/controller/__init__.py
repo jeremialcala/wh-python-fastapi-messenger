@@ -6,3 +6,4 @@ from .events import *
 from .amqp_broker import *
 from .intents import *
 from .clients import *
+from .credentials import *

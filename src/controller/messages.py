@@ -8,6 +8,7 @@ from classes import ChatBot
 from classes import Settings, FacebookRequest, Entry, Messaging, MessageBody, QueueMessage
 from enums import Status
 from .events import ctr_notify_action
+from crypto.key_service import KeyServiceUnavailable
 from .amqp_broker import send_message_to_queue, BrokerUnavailable
 from .facebook import ctr_identify_fb_contact, ctr_identify_contact_by_wa_id
 
@@ -81,7 +82,8 @@ async def ctr_process_messages(req: FacebookRequest, _bot: ChatBot, eventId: str
                 body = MessageBody(
                     botId=str(_bot.uuid),
                     type=req.object,
-                    contact={"name": contact.firstName, "waId": contact.waId},
+                    # The number as Meta sent it: the stored contact only holds it encrypted.
+                    contact={"name": contact.firstName, "waId": _entry.change.value.contacts[-1]['wa_id']},
                     message=_entry.change.value.__dict__
                 )
 
@@ -107,7 +109,7 @@ async def ctr_process_messages(req: FacebookRequest, _bot: ChatBot, eventId: str
             ))
 
         log.info(f"Ending: {currentframe().f_code.co_name}")
-    except BrokerUnavailable:
+    except (BrokerUnavailable, KeyServiceUnavailable):
         raise
     except Exception as e:
         log.error(e.__str__())

@@ -12,7 +12,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from inspect import currentframe
 from uuid import uuid4
 from classes import (Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport,
-                     RulesRequest, BotResponse, IntentRequest, ChatBot, ClientRequest, SigningKeyRequest)
+                     RulesRequest, BotResponse, IntentRequest, ChatBot, ClientRequest, SigningKeyRequest,
+                     BotCredentialsRequest)
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
                        CONTACT, HUB_SIGNATURE)
@@ -22,13 +23,15 @@ from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_proce
                         ctr_create_chatbot_rules, ctr_create_intent, ctr_get_intents, ctr_get_intent,
                         ctr_update_intent, ctr_delete_intent, ctr_get_bot_tools, BrokerUnavailable,
                         ctr_register_client, ctr_list_clients, ctr_get_client, ctr_add_signing_key,
-                        ctr_remove_signing_key, ctr_gateway_keys)
+                        ctr_remove_signing_key, ctr_gateway_keys, ctr_set_bot_credentials)
 
 from auth.gateway_keys import GatewayKeys
 from auth.principal import Principal, authenticate
 from auth.tokens import InvalidToken
+from crypto.fields import NotEncrypted
+from crypto.key_service import KeyServiceUnavailable, OpenBaoKeyService
 from enums import Role
-from repository import TenantRepository, NotFound, find_webhook_bot
+from repository import TenantRepository, BotSecrets, NotFound, find_webhook_bot, data_keys
 from utils import configure_logging, is_valid_signature, secrets_match
 
 settings = Settings()
@@ -37,6 +40,13 @@ log = logging.getLogger(settings.environment)
 
 # Read once, at start: without the gateway's key pair no client could authenticate, so the app does not start.
 GATEWAY_KEYS = GatewayKeys.load(settings.gateway_keys_file)
+
+# The key service is only reached when a data key is needed: the app starts without it, and until it answers
+# whatever needs a key gets a 503. Outside development it must be reached over TLS.
+if not settings.andvari_addr.startswith("https://") and settings.environment != "development":
+    raise ValueError("ANDVARI_ADDR must be an https address")
+data_keys.configure(OpenBaoKeyService(settings.andvari_addr, settings.andvari_role_id,
+                                      settings.andvari_secret_id_file, settings.andvari_ca_file))
 
 bearer = HTTPBearer(auto_error=False, bearerFormat="JWE",
                     description="A JWT signed by the client (ES256), inside a JWE encrypted to the gateway "
@@ -80,11 +90,29 @@ async def get_webhook_bot(bot_id: str) -> ChatBot:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HTTP_404_NOT_FOUND")
 
 
+def webhook_secrets(bot: ChatBot) -> BotSecrets:
+    """
+        What Meta's verification and signature are checked against, opened with the key of the client that
+        owns the chatbot. Without the key there is nothing to check against, and the answer is never to let
+        the request through.
+    """
+    try:
+        return TenantRepository(bot.clientId).bot_secrets(bot)
+    except KeyServiceUnavailable as e:
+        log.error(f"Key service unavailable: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="HTTP_503_SERVICE_UNAVAILABLE") from None
+    except NotEncrypted:
+        # Secrets written by hand, or from before they were encrypted and the migration has not reached them.
+        log.error(f"Chatbot {bot.uuid} holds secrets that are not encrypted: run the encryption migration")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HTTP_404_NOT_FOUND") from None
+
+
 async def get_signed_webhook_bot(request: Request, _bot: ChatBot = Depends(get_webhook_bot)) -> ChatBot:
     """
         Meta signs every notification with the App Secret, over the body exactly as it was sent.
     """
-    secret = _bot.appSecret or settings.facebook_app_secret
+    secret = webhook_secrets(_bot).app_secret or settings.facebook_app_secret
     if not is_valid_signature(secret, await request.body(), request.headers.get(HUB_SIGNATURE)):
         log.warning(f"Rejected webhook for chatbot {_bot.uuid}: missing or invalid {HUB_SIGNATURE}")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
@@ -179,7 +207,7 @@ async def verify(request: Request, bot_id, _bot: ChatBot = Depends(get_webhook_b
 
     challenge = request.query_params.get(HUB_CHALLENGE)
     if (request.query_params.get(HUB_MODE) != SUBSCRIBE or not challenge
-            or not secrets_match(_bot.verifyToken, request.query_params.get(HUB_VERIFY_TOKEN))):
+            or not secrets_match(webhook_secrets(_bot).verify_token, request.query_params.get(HUB_VERIFY_TOKEN))):
         log.warning(f"Rejected webhook verification for chatbot {bot_id}")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
 
@@ -193,7 +221,7 @@ async def message_processor(fb_request: FacebookRequest, bot_id, _bot: ChatBot =
     log.info(f"this is a new message for this chatbot: {bot_id}")
     try:
         await ctr_process_messages(req=fb_request, _bot=_bot)
-    except BrokerUnavailable:
+    except (BrokerUnavailable, KeyServiceUnavailable):
         # Anything but a 200 makes Meta deliver the notification again later.
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="HTTP_503_SERVICE_UNAVAILABLE")
 
@@ -239,6 +267,16 @@ async def get_chatbot_info(bot_id, req: Request, repo: TenantRepository = Depend
         return response
     except Exception as e:
         raise Exception(e.args)
+
+
+@app.put(path="/chat/{bot_id}/credentials", tags=["Chat"], response_model=ResponseData)
+async def set_chatbot_credentials(bot_id: str, credentials: BotCredentialsRequest,
+                                  repo: TenantRepository = Depends(get_repository)):
+    """
+        Loads or rotates the Meta credentials of a chatbot: the page token, the WhatsApp token and the App
+        Secret. The ones sent replace the stored ones. The answer says which are loaded, never their values.
+    """
+    return await ctr_set_bot_credentials(repo, bot_id, credentials)
 
 
 @app.get(path="/chat/{bot_id}/rules", tags=["Chat"])

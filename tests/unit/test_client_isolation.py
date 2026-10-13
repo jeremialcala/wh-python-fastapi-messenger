@@ -22,6 +22,7 @@ BODIES = {
     ("POST", "/chat/{bot_id}/rules"): {"rules": ["Be kind"]},
     ("POST", "/chat/{bot_id}/intents"): INTENT,
     ("PUT", "/chat/{bot_id}/intents/{intent_id}"): INTENT,
+    ("PUT", "/chat/{bot_id}/credentials"): {"appSecret": "an-app-secret"},
 }
 BOT = {"name": "Mine", "role": "Sales Assistant", "description": "A test chatbot", "tone": "helpful"}
 PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/health")}
@@ -64,7 +65,7 @@ def call(http: TestClient, caller, method: str, path: str, bot_id, intent_id):
 
 
 def test_every_route_of_a_chatbot_is_covered():
-    assert len(BOT_ROUTES) == 11
+    assert len(BOT_ROUTES) == 12
     assert OTHER_ROUTES == [
         ("DELETE", "/clients/{client_id}/keys/{kid}"), ("DELETE", "/keys/{kid}"), ("GET", "/clients"),
         ("GET", "/gateway/keys"), ("GET", "/keys"), ("POST", "/bot"), ("POST", "/clients"),
@@ -83,10 +84,12 @@ def test_the_owner_reaches_its_chatbot(http, owner, stored, method, path):
 def test_another_client_gets_not_found(http, stranger, stored, method, path):
     bot, intent = stored
     before = {document: document.objects.count() for document in (ChatbotPhone, Rule, Intent)}
+    secrets = ChatBot.objects(uuid=bot.uuid).first().appSecret
 
     response = call(http, stranger, method, path, bot.uuid, intent.uuid)
 
     assert response.status_code == 404
+    assert ChatBot.objects(uuid=bot.uuid).first().appSecret == secrets
     assert {document: document.objects.count() for document in before} == before
     assert Intent.objects(uuid=intent.uuid).first().status == intent.status
 
