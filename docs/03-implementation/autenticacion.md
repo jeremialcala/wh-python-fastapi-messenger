@@ -1,0 +1,134 @@
+# Autenticación: cómo se llama al servicio y cómo se opera
+
+* **Estado:** review
+* **Fecha:** 2026-10-12
+* **Decisores:** Jeremi Alcala
+* **Fase AI-DLC:** 03-implementation
+* **Versión:** 0.1.0
+
+Todo endpoint que no sea el webhook de Meta ni `/health` pide un token en la cabecera
+`Authorization: Bearer <token>`. El token es un JWT firmado por el cliente, metido dentro de un JWE cifrado para el
+gateway. Las decisiones están en [ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md),
+[ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md) y
+[ADR-0009](../00-project/adr/0009-parametros-del-token-de-autenticacion.md); esto es cómo se usan.
+
+## Las claves que intervienen
+
+| Clave | De quién | Dónde vive la parte privada | Para qué |
+|---|---|---|---|
+| Par P-256 de firma | De cada cliente, operador incluido | Solo en el cliente | Demuestra quién envía. El gateway guarda la parte pública |
+| Par RSA de cifrado | Del gateway | En un fichero del servidor, fuera del repositorio y de la imagen | Que solo el gateway lea el token |
+
+El gateway no guarda ningún secreto de un cliente: si alguien se lleva la base, no se lleva con qué hacerse pasar
+por nadie.
+
+## Para un cliente
+
+### El token
+
+1. **Firmar** un JWT con la clave privada, algoritmo `ES256`. La cabecera lleva el `kid` que devolvió el registro.
+2. **Cifrar** ese JWT como JWE compacto para una clave pública del gateway: `RSA-OAEP-256` con `A256CBC-HS512`. La
+   cabecera lleva `cty: JWT` y el `kid` de la clave del gateway.
+
+| Campo del JWT | Valor |
+|---|---|
+| `iss` | El identificador del cliente (`uuid`) |
+| `aud` | La audiencia del gateway, la que devolvió el registro |
+| `iat`, `exp` | `exp` como máximo 60 segundos después de `iat` |
+| `jti` | Un identificador nuevo en cada token |
+
+Un token vale **una vez y 60 segundos**: hay que construir uno por petición. Cualquier otro algoritmo se rechaza.
+Un token rechazado recibe siempre el mismo `401`, sin decir el motivo; el motivo queda en el log del gateway.
+
+### Con el cliente de referencia
+
+`src/ops/client.py` hace esos dos pasos y no necesita nada del servicio. Sirve tal cual o como ejemplo para
+hacerlo con otra librería JOSE.
+
+```bash
+# Una vez: crea la clave. Escribe la privada en el fichero e imprime la pública, que es la que se registra.
+python -m ops.client new-key mi-clave.json
+
+# En cada petición: un token nuevo.
+curl -H "Authorization: Bearer $(python -m ops.client token mi-clave.json <uuid del cliente> <audiencia> gateway-publicas.json)" \
+     https://<gateway>/keys
+```
+
+`gateway-publicas.json` es lo que el registro devolvió en `gateway.keys`, guardado como `{"keys": [...]}`. Los
+comandos se ejecutan desde `src/` de este repositorio con `jwcrypto` instalado, o con la imagen del servicio.
+
+### Rotar la clave propia
+
+Un cliente puede tener dos claves a la vez, para cambiar sin corte:
+
+1. `POST /keys` con la clave pública nueva.
+2. Empezar a firmar con la nueva.
+3. `DELETE /keys/{kid}` con el `kid` de la antigua.
+
+No se puede borrar la última clave: el cliente se quedaría fuera. Si pierde su clave, es el operador quien le
+registra otra.
+
+## Para el operador
+
+Los comandos se ejecutan con la imagen del servicio, en el servidor.
+
+### Puesta en marcha
+
+```bash
+# 1. El par de claves del gateway. La privada se escribe en el fichero, solo para su dueño, y no se imprime.
+docker run --rm -v /srv/apps/bots-gateway/keys:/keys <imagen> python -m ops.gateway_key generate /keys/gateway-keys.json
+
+# 2. En el .env: la ruta del fichero dentro del contenedor y la audiencia que pondrán los clientes en sus tokens.
+#    GATEWAY_KEYS_FILE=/run/gateway/gateway-keys.json
+#    GATEWAY_AUDIENCE=https://bots.example.com
+
+# 3. La primera clave del operador. Se crea en la máquina del operador, y al servidor solo va la parte pública.
+python -m ops.client new-key operador.json > operador-publica.json
+docker compose run --rm -v $PWD/operador-publica.json:/tmp/operador.json:ro gateway python -m ops.operator_key /tmp/operador.json
+```
+
+Sin el fichero de claves, o con uno que no puede usar, **el servicio no arranca**. El contenedor corre con el
+usuario `10001`, que tiene que poder leer el fichero: `chown 10001` y `chmod 400`.
+
+El paso 3 existe porque todos los endpoints piden un token y nadie puede firmar uno antes de tener una clave
+registrada. Devuelve el `uuid` del cliente del operador y el `kid` de su clave.
+
+### Alta de un cliente
+
+El cliente crea su clave y envía la parte pública. El operador la registra:
+
+```
+POST /clients
+{"name": "acme", "signingKey": {"kty": "EC", "crv": "P-256", "x": "...", "y": "..."}}
+```
+
+La respuesta lleva lo que el cliente necesita: su `uuid`, el `kid` de su clave, la audiencia y las claves públicas
+del gateway. Solo se acepta una clave pública P-256; una privada se rechaza y no se guarda.
+
+### Revocar y recuperar
+
+| Situación | Qué hacer |
+|---|---|
+| Una clave de un cliente está comprometida | `DELETE /clients/{client_id}/keys/{kid}`. Deja de valer en el acto |
+| Un cliente perdió su clave | `POST /clients/{client_id}/keys` con la pública nueva |
+| El operador perdió la suya | Repetir el paso 3 de la puesta en marcha |
+
+El operador registra clientes, pero no entra en sus datos: en las rutas de los chatbots es un cliente más y solo
+alcanza los suyos.
+
+### Rotar el par del gateway
+
+1. `python -m ops.gateway_key generate <fichero>` añade un par nuevo; el anterior sigue valiendo.
+2. Reiniciar el servicio, que lee el fichero al arrancar.
+3. Los clientes piden las claves con `GET /gateway/keys` y pasan a cifrar con la nueva, la última de la lista.
+4. Cuando ya nadie cifra con la antigua: `python -m ops.gateway_key drop <fichero> <kid>` y otro reinicio.
+
+## Lo que no hace todavía
+
+- **El motor de respuestas no tiene acceso.** El cliente de servicio de solo lectura que prevé ADR-0009 no está
+  construido.
+- **No hay límite de tasa.** Los intentos fallidos se registran, pero nada los frena; es RS10, en el borde.
+- **Un cliente no se puede desactivar por la API.** Revocar sus claves lo deja fuera; el estado del cliente solo se
+  cambia en la base.
+- **La clave privada del gateway es un fichero.** Pasará a Andvari cuando el gateway se integre con él para el
+  cifrado de datos (ADR-0013).

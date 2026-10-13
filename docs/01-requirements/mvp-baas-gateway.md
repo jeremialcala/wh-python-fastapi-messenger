@@ -80,7 +80,7 @@ C4Context
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
 *Eje estructura · fase 01 · Gate 0. El diagrama muestra el objetivo, y dos de sus relaciones no existen hoy: la
-gestión solo es alcanzable desde la red privada y con la clave única del operador, y el motor de respuestas (en
+gestión solo es alcanzable desde la red privada, aunque cada cliente ya entra con su propio token, y el motor de respuestas (en
 rojo) está en implementación: no está desplegado, no lee las reglas ni las herramientas del bot y todavía no envía
 respuestas.*
 
@@ -125,7 +125,7 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | ID | Escenario | Control | Estado |
 |---|---|---|---|
 | AB01 | Un tercero envía al webhook una notificación sin firma, o firmada con otro secreto, para inyectar mensajes en la cola | RS03 | Construido |
-| AB02 | El cliente A lee o modifica los bots, contactos o tokens del cliente B usando un UUID que conoce o adivina | RS01 | Construido en la capa de datos; falta que cada cliente se autentique (RS02) |
+| AB02 | El cliente A lee o modifica los bots, contactos o tokens del cliente B usando un UUID que conoce o adivina | RS01 | Construido |
 | AB03 | Una copia de la base (volcado, respaldo, acceso indebido a Atlas) expone números de teléfono y tokens de Meta | RS05, RS06 | Pendiente |
 | AB04 | Un tercero recorre el hostname público y encuentra `/docs`, `/openapi.json` o los endpoints de gestión | RS09 | Pendiente |
 | AB05 | Un bot en internet prueba credenciales de gestión o tokens de verificación | RS02, RS04, RS10 | Parcial |
@@ -139,14 +139,14 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | AB13 | Una dependencia vulnerable o una imagen manipulada llegan a producción | RS12 | Parcial |
 | AB14 | Un interesado pide la supresión y sus datos siguen en la cola, los logs o los respaldos | RF09, RNF05 | Pendiente |
 | AB15 | El motor de respuestas, o quien robe su credencial, obtiene los tokens de Meta de todos los clientes | RS06 | Pendiente |
-| AB16 | Alguien captura un JWE de autenticación válido y lo reenvía, o fabrica uno con la clave pública del gateway | RS02 | Pendiente |
+| AB16 | Alguien captura un JWE de autenticación válido y lo reenvía, o fabrica uno con la clave pública del gateway | RS02 | Construido |
 
 ## Requisitos funcionales
 
 | ID | Requisito | Estado | Verificación |
 |---|---|---|---|
-| RF01 | El operador registra a un cliente, y el registro le da material de clave propio con el que se autentica y con el que se controlan sus bots y sus datos por separado ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)) | Parcial: existe la entidad cliente y el cliente del operador; falta el alta de clientes con su clave | — |
-| RF02 | Un cliente crea y administra sus bots: persona, reglas, intents y números | Parcial: existe para bots sin dueño, con la clave única | Pruebas unitarias de autenticación |
+| RF01 | El operador registra a un cliente, y el registro le da material de clave propio con el que se autentica y con el que se controlan sus bots y sus datos por separado ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)) | Construido: el operador da de alta al cliente con su clave pública de firma. La clave de datos por cliente llega con RS05 | — |
+| RF02 | Un cliente crea y administra sus bots: persona, reglas, intents y números | Construido: cada cliente administra los suyos con su token | Pruebas unitarias de autenticación |
 | RF03 | Meta verifica el webhook de cada bot con su token de verificación | Construido | `tests/unit/test_webhook_security.py` |
 | RF04 | El gateway recibe notificaciones de Messenger y de WhatsApp, identifica o crea el contacto y publica el mensaje en la cola `llm` | Construido | Pruebas unitarias del camino de WhatsApp; Messenger sin prueba; falta integración con MongoDB y RabbitMQ reales |
 | RF05 | Con el `bot_id` del mensaje, el motor de respuestas obtiene del gateway la configuración del bot: system prompt, herramientas y token de Meta ([ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md)) | Parcial: el gateway la expone en `/rules`, `/tools` e `/info`, pero bajo la clave única del operador; el motor no la consulta y descarta el `bot_id` | `tests/unit/test_intent_tool_schema.py` para las herramientas; el system prompt no tiene prueba |
@@ -247,8 +247,8 @@ OWASP Top 10 en su edición 2025.
 
 | ID | Requisito | Estado | ASVS | OWASP Top 10 |
 |---|---|---|---|---|
-| RS01 | Un cliente solo accede a los elementos de su propio registro: sus claves, sus bots, sus contactos y sus credenciales; todo lo demás se deniega por defecto | Parcial: `clientId` en cada documento y capa de repositorio obligatoria, con pruebas que recorren todas las rutas; hasta RS02 el único cliente que entra es el del operador | V4.1, V4.2 | A01 |
-| RS02 | Todo endpoint que no sea el webhook se autentica con un JWT firmado por el cliente y metido dentro de un JWE ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md), [ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)): el gateway verifica la firma con la clave pública registrada del cliente, y el token caduca y no se puede reutilizar | Pendiente: hoy lo sustituye una única clave de operador, `X-API-Key`, de 32 caracteres o más y comparada en tiempo constante. Las piezas de JWE existen en el código, por evento y desactivadas | V2.10, V3.5, V6.2 | A07 |
+| RS01 | Un cliente solo accede a los elementos de su propio registro: sus claves, sus bots, sus contactos y sus credenciales; todo lo demás se deniega por defecto | Construido | V4.1, V4.2 | A01 |
+| RS02 | Todo endpoint que no sea el webhook se autentica con un JWT firmado por el cliente y metido dentro de un JWE ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md), [ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)): el gateway verifica la firma con la clave pública registrada del cliente, y el token caduca y no se puede reutilizar | Construido. Falta el cliente de servicio del motor | V2.10, V3.5, V6.2 | A07 |
 | RS03 | Solo se procesan notificaciones con `X-Hub-Signature-256` válida sobre el cuerpo crudo | Construido | V2.10, V9.2 | A08 |
 | RS04 | El token de verificación se compara en tiempo constante, y un bot sin token no se puede verificar | Construido | V2.10 | A07 |
 | RS05 | El número de teléfono de un contacto y el número de WhatsApp de un bot se guardan cifrados con una clave propia del cliente dueño del bot, y el contacto se puede localizar sin guardar el número en claro | Pendiente | V6.2, V8.3 | A04 |
@@ -259,12 +259,12 @@ OWASP Top 10 en su edición 2025.
 | RS10 | El borde limita la tasa de peticiones por origen y por bot | Pendiente | V11.1 | A06 |
 | RS11 | Toda entrada se valida contra un esquema estricto y con límite de tamaño | Parcial: Pydantic valida, pero `FacebookRequest` acepta listas sin tipar y no hay límite de tamaño | V5.1, V13.2 | A05 |
 | RS12 | Imagen base por digest, dependencias fijadas y analizadas en cada build, y SBOM publicado | Parcial: imagen por digest, dependencias fijadas con hashes y analizadas en cada build; falta el SBOM | V14.2 | A03 |
-| RS13 | Ningún secreto vive en el repo ni en la imagen, y el servicio no arranca sin su clave de gestión | Construido | V2.10, V14.1 | A02 |
+| RS13 | Ningún secreto vive en el repo ni en la imagen, y el servicio no arranca sin el par de claves con el que abre los tokens | Construido | V2.10, V14.1 | A02 |
 | RS14 | Queda registro de los eventos de seguridad (rechazos, altas, bajas y accesos de gestión), atribuibles a un cliente | Parcial: se registran los rechazos; no hay auditoría por cliente | V7.2 | A09 |
 | RS15 | Un error no revela detalles internos y falla cerrado | Parcial: dos funciones de `controller/chatbot.py` devuelven el texto de la excepción en la respuesta | V7.4 | A10 |
 | RS16 | El texto del usuario final se trata como entrada no confiable para el LLM, y las llamadas a API de los intents solo pueden ir a destinos permitidos | Parcial: según su documentación, el motor filtra la entrada con guardrails y trata la salida del LLM como no confiable; la ejecución de acciones no está construida, así que el control de destinos no existe | V5.2, V12.6 | A05, A06 |
 | RS17 | El contenedor corre sin privilegios y solo puede escribir donde necesita | Construido | V14.1 | A02 |
-| RS18 | El `bot_id` identifica pero no autoriza: ninguna configuración de un bot se entrega solo por conocerlo | Construido: toda la configuración exige la clave de gestión; las únicas rutas que funcionan solo con el `bot_id` son las del webhook, que son también las únicas autenticadas solo con la firma y el token de verificación ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)) | V4.2 | A01 |
+| RS18 | El `bot_id` identifica pero no autoriza: ninguna configuración de un bot se entrega solo por conocerlo | Construido: toda la configuración exige el token del cliente dueño del bot; las únicas rutas que funcionan solo con el `bot_id` son las del webhook, que se autentican con la firma y el token de verificación de Meta | V4.2 | A01 |
 
 ## Threat assessment inicial
 

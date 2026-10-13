@@ -36,8 +36,8 @@ respuestas, protegiendo los datos personales de los usuarios finales conforme al
   - Canales que no sean Messenger y WhatsApp Business.
   - Gestión de las plantillas de mensaje y de las cuentas de Meta de los clientes: se hace en Meta.
 
-El alcance mezcla lo que ya existe con lo que falta. El gateway de hoy recibe y encola mensajes para bots sin
-dueño, bajo una única clave de administración; el modelo multi-cliente y la protección de datos son requisitos
+El alcance mezcla lo que ya existe con lo que falta. El gateway de hoy recibe y encola mensajes, y cada
+cliente administra sus bots con su propio token; la protección de los datos en reposo es un requisito
 todavía sin construir. El detalle, requisito por requisito, está en el
 [PRD](../01-requirements/mvp-baas-gateway.md).
 
@@ -115,7 +115,7 @@ mindmap
 
 | Riesgo | Por qué importa | Tratamiento |
 |---|---|---|
-| El modelo multi-cliente no existe en el código | Hoy cualquier poseedor de la clave única ve todos los bots y sus tokens | Requisito RS01; no admitir un segundo cliente hasta cerrarlo |
+| El modelo multi-cliente no existe en el código | Hoy cualquier poseedor de la clave única ve todos los bots y sus tokens | Cerrado: RS01 y RS02 están construidos. Falta el cifrado de los datos (RS05, RS06) antes de admitir a un cliente externo |
 | Los datos personales se guardan en claro | Una fuga de la base expone números, nombres y tokens de Meta | Requisitos RS05 y RS06 |
 | El ciclo no se cierra con el motor de respuestas | `ms-python-metamsghandler` está en implementación: clasifica el mensaje pero todavía no responde, no está desplegado, rechaza los mensajes de Messenger del gateway y descarta el bot de destino. Además necesitará los tokens de Meta de cada cliente para enviar | Requisitos RF07, RF12 y RS06; contrato AsyncAPI común en el Gate 1 |
 | Servidor doméstico sin UPS | Un corte largo deja el webhook caído y Meta puede dejar de entregar | Aceptado con vigilancia; se revisa en el placement del Gate 1 |

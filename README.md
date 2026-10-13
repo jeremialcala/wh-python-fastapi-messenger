@@ -127,6 +127,8 @@ El repositorio sigue la estructura AI-DLC para un único servicio ([ADR-0001](do
   - **Entidades** (`entity_*.py`): subclases de `mongoengine.Document`. Cada módulo abre su propia conexión a MongoDB al importarse, con los valores de `Settings`.
   - **DTO** (`dto_*.py`): modelos de Pydantic para los cuerpos de petición, las respuestas y el payload anidado del webhook de Facebook/WhatsApp (`dto_facebook_*.py`).
 - **`controller/`** — funciones asíncronas con prefijo `ctr_*`, reexportadas desde `controller/__init__.py`. Construyen un `ResponseData`, persisten datos, emiten acciones de evento y devuelven un `starlette.Response`.
+- **`auth/`** — la autenticación de todo lo que no es el webhook: verificación del token (`tokens.py`), el par de claves del gateway (`gateway_keys.py`), qué clave pública se le acepta a un cliente (`client_keys.py`) y el lado del cliente como referencia (`client.py`).
+- **`ops/`** — comandos que se ejecutan a mano: `gateway_key` crea y rota el par del gateway, `operator_key` registra la primera clave del operador y `client` es el cliente de referencia.
 - **`repository/`** — la única vía a los datos de un cliente. `TenantRepository` se construye con el cliente y lo añade a cada consulta: lo ajeno responde igual que lo inexistente ([ADR-0012](docs/00-project/adr/0012-aislamiento-por-cliente-en-la-capa-de-datos.md)). Los controladores no consultan la base.
 - **`migrations/`** — pasos de datos que se ejecutan a mano. `assign_operator_client` asigna al cliente del operador los documentos anteriores a la existencia de clientes: `python -m migrations.assign_operator_client` informa y `--apply` escribe.
 - **`constants/`** — `documentation.py` alimenta los metadatos de OpenAPI; `facebook.py` contiene las claves de verificación `hub.*`; `headers.py` y `formats.py`, los nombres de cabecera y los tipos de contenido.
@@ -143,7 +145,7 @@ Definido en [src/app.py](src/app.py):
    - Anota la hora de inicio y añade `X-Processing-Time` a la respuesta.
    - Construye un DTO `EventTransport` (uuid, recurso, método y origen del cliente). La creación del evento está solo esbozada: la llamada a `ctr_create_event` está comentada y `request.state.event_id` vale `None`.
    - Envuelve `call_next` en try/except/finally, de modo que ante un fallo siempre se devuelve un `ResponseData` con `500`.
-2. **Las dependencias** autentican la petición antes de que corra ningún handler: `X-API-Key` en los endpoints de gestión y `X-Hub-Signature-256` en las notificaciones entrantes (ver [Seguridad](#seguridad)).
+2. **Las dependencias** autentican la petición antes de que corra ningún handler: el token del cliente en todo lo que no es el webhook, y `X-Hub-Signature-256` en las notificaciones entrantes (ver [Seguridad](#seguridad)). Las rutas de un cliente reciben su repositorio; las del registro exigen además que sea el operador.
 3. **Los handlers de ruta** llaman al controlador `ctr_*` que corresponde y devuelven su `Response`.
 4. **Los controladores** emiten registros `EventAction` (solo cuando hay un `eventId`), persisten con mongoengine y, para los mensajes entrantes, publican en RabbitMQ. La publicación se espera y el broker la confirma antes de que Meta reciba su `200`.
 
@@ -154,7 +156,7 @@ Definido en [src/app.py](src/app.py):
 URL base (Docker en local): `http://localhost:5002`
 Documentación interactiva: `http://localhost:5002/docs` (Swagger) · `http://localhost:5002/redoc`
 
-Solo son públicas las dos rutas del webhook (`GET` y `POST /chat/{bot_id}`) y `GET /health`. Cualquier otro endpoint exige la cabecera `X-API-Key` y responde `401` sin ella.
+Solo son públicas las dos rutas del webhook (`GET` y `POST /chat/{bot_id}`) y `GET /health`. Cualquier otro endpoint exige un token en `Authorization: Bearer` y responde `401` sin uno válido: un JWT firmado por el cliente dentro de un JWE cifrado para el gateway. Cómo se construye, y cómo se da de alta a un cliente, está en [docs/03-implementation/autenticacion.md](docs/03-implementation/autenticacion.md).
 
 ### Gestión de bots — etiqueta `Bot`
 
@@ -231,7 +233,8 @@ Los ajustes los carga `src/classes/tool_settings.py` (`pydantic-settings`) desde
 
 | Variable | Descripción |
 |---|---|
-| `ADMIN_API_KEY` | Clave de los endpoints de gestión (cabecera `X-API-Key`). Mínimo 32 caracteres; la app no arranca sin ella. |
+| `GATEWAY_KEYS_FILE` | Ruta del fichero con el par de claves del gateway, al que los clientes cifran sus tokens. Fuera del repositorio y de la imagen; la app no arranca sin él. Se crea con `python -m ops.gateway_key generate`. |
+| `GATEWAY_AUDIENCE` | Lo que los clientes ponen en el `aud` de sus tokens: la URL pública del despliegue. |
 | `FACEBOOK_APP_SECRET` | App Secret de Meta con el que se verifican las firmas del webhook. Solo es opcional si cada chatbot lleva su propio `appSecret`. |
 | `CLIENT_ID`, `NATIONAL_ID_URL` | Identificadores de cliente varios. |
 | `DB_NAME`, `DB_HOST`, `DB_USERNAME`, `DB_PASSWORD` | Conexión a MongoDB (admite host SRV de Atlas). |
@@ -262,7 +265,8 @@ pip install --require-hashes -r requirements-dev.lock
 
 # 3. Configura
 #    Copia config.env.example a config.env y rellena tus credenciales de
-#    MongoDB / RabbitMQ / Meta y la ADMIN_API_KEY
+#    MongoDB / RabbitMQ / Meta, y crea el par de claves del gateway:
+#    PYTHONPATH=src python -m ops.gateway_key generate gateway-keys.json
 
 # 4. Arranca la API
 uvicorn app:app --app-dir src --host 0.0.0.0 --port 5002 --reload
@@ -303,6 +307,7 @@ Fusionar a `main` construye y despliega:
 Preparación única en el servidor:
 
 - `/srv/apps/bots-gateway/docker-compose.yml`, copiado de [deploy/docker-compose.yml](deploy/docker-compose.yml), y junto a él un `.env` con las claves de [config.env.example](config.env.example).
+- El par de claves del gateway en `keys/gateway-keys.json` y la primera clave del operador registrada: los tres pasos de la puesta en marcha de [autenticacion.md](docs/03-implementation/autenticacion.md).
 - La red Docker externa `hermod` y un usuario de RabbitMQ para el gateway (`QMS_SERVER=hermod`).
 - El paquete de GHCR en **Public**, porque el receptor hace pull anónimo.
 - Una entrada en el `apps.yml` del receptor y el webhook `workflow_run` de este repositorio:
@@ -341,7 +346,9 @@ Se configura en [src/logging_config.yaml](src/logging_config.yaml) y lo aplica a
 
 | Superficie | Control |
 |---|---|
-| Endpoints de gestión (`/bot`, `/chat/{bot_id}/phones`, `/info`, `/rules`, `/intents`, `/tools`) | Cabecera `X-API-Key` comparada en tiempo constante con `ADMIN_API_KEY`. `401` si no coincide. |
+| Todo lo que no es el webhook ni `/health` | Token en `Authorization: Bearer`: un JWT firmado por el cliente (`ES256`) dentro de un JWE cifrado para el gateway (`RSA-OAEP-256`, `A256CBC-HS512`). Dura 60 segundos como máximo y vale una vez. `401` si no es válido, sin decir por qué. |
+| Rutas de un cliente (`/bot`, `/chat/{bot_id}/...`) | El token dice quién es; solo alcanza lo suyo. Lo ajeno responde `404`, igual que lo inexistente. |
+| Registro de clientes (`/clients`) | Solo el operador. `403` para cualquier otro cliente. |
 | `GET /chat/{bot_id}` (verificación) | `hub.verify_token` comparado en tiempo constante con el `verifyToken` del bot. `403` si no coincide. |
 | `POST /chat/{bot_id}` (notificaciones) | `X-Hub-Signature-256`: HMAC-SHA256 del cuerpo crudo con el App Secret de Meta como clave. `403` si no coincide. |
 

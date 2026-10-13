@@ -4,6 +4,8 @@
 #   * the image tag is never `latest`: the receiver injects IMAGE_TAG with the commit sha,
 #     so a rollback is just bringing the previous tag back up
 #   * settings come from .env next to this file (same keys as config.env.example)
+#   * the gateway's key pair is a file next to this one, readable only by uid 10001 and mounted read-only:
+#     the service does not start without it (docs/03-implementation/autenticacion.md)
 #   * loopback only: whoever publishes it is a tunnel, and it must publish /chat/<uuid> and nothing else
 #   * RabbitMQ is not here: it is reached over the external `hermod` network, as host `hermod`
 
@@ -19,6 +21,9 @@ services:
     environment:
       # Two cores on the host, and they also route the network.
       WEB_CONCURRENCY: 2
+      GATEWAY_KEYS_FILE: /run/gateway/gateway-keys.json
+    volumes:
+      - ./keys/gateway-keys.json:/run/gateway/gateway-keys.json:ro
     ports:
       - "127.0.0.1:5002:5002"
     networks: [hermod]

@@ -1,8 +1,8 @@
 # Contrato OpenAPI del gateway (fase 02-design, Gate 1). Refleja la API tal como está construida.
 # Generado con .ai-dlc/scripts/gen_openapi.py: regenerar, no editar a mano.
 # Sin valores por defecto ni ejemplos: en el código son aleatorios y cambian en cada arranque.
-# No declara esquemas de seguridad porque la aplicación no los declara: la cabecera X-API-Key y la firma
-# X-Hub-Signature-256 se comprueban en dependencias que OpenAPI no ve.
+# Declara el token de autenticación (HTTPBearer: un JWT firmado dentro de un JWE). La firma X-Hub-Signature-256
+# del webhook no aparece: se comprueba en una dependencia que OpenAPI no ve.
 components:
   schemas:
     ActionParameterRequest:
@@ -137,6 +137,24 @@ components:
           type: string
       title: ChatbotRequest
       type: object
+    ClientRequest:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 64
+          minLength: 3
+          pattern: ^[A-Za-z0-9][A-Za-z0-9 ._-]*$
+          title: Name
+          type: string
+        signingKey:
+          additionalProperties: true
+          title: Signingkey
+          type: object
+      required:
+      - signingKey
+      - name
+      title: ClientRequest
+      type: object
     FacebookRequest:
       properties:
         entry:
@@ -179,6 +197,29 @@ components:
       - description
       title: IntentRequest
       type: object
+    ResponseData:
+      properties:
+        code:
+          title: Code
+          type: integer
+        data:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - items: {}
+            type: array
+          - {}
+          - type: 'null'
+          title: Data
+        message:
+          title: Message
+          type: string
+        timestamp:
+          format: date-time
+          title: Timestamp
+          type: string
+      title: ResponseData
+      type: object
     RulesRequest:
       properties:
         rules:
@@ -186,6 +227,17 @@ components:
           title: Rules
           type: array
       title: RulesRequest
+      type: object
+    SigningKeyRequest:
+      additionalProperties: false
+      properties:
+        signingKey:
+          additionalProperties: true
+          title: Signingkey
+          type: object
+      required:
+      - signingKey
+      title: SigningKeyRequest
       type: object
     ValidationError:
       properties:
@@ -213,6 +265,13 @@ components:
       - type
       title: ValidationError
       type: object
+  securitySchemes:
+    HTTPBearer:
+      bearerFormat: JWE
+      description: A JWT signed by the client (ES256), inside a JWE encrypted to the gateway (RSA-OAEP-256, A256CBC-HS512).
+        It lasts 60 seconds at most and is valid once.
+      scheme: bearer
+      type: http
 info:
   contact:
     email: jeremialcala@gmail.com
@@ -261,6 +320,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Create Chatbot
       tags:
       - Bot
@@ -340,6 +401,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Get Chatbot Info
       tags:
       - Chat
@@ -364,6 +427,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: List Chatbot Intents
       tags:
       - Intents
@@ -393,6 +458,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Add Chatbot Intent
       tags:
       - Intents
@@ -422,6 +489,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Delete Chatbot Intent
       tags:
       - Intents
@@ -450,6 +519,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Get Chatbot Intent
       tags:
       - Intents
@@ -484,6 +555,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Update Chatbot Intent
       tags:
       - Intents
@@ -508,6 +581,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Get Chatbot Phones
       tags:
       - Chat
@@ -538,6 +613,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Add Whatsapp Phone
       tags:
       - Chat
@@ -562,6 +639,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Get Chatbot Rules
       tags:
       - Chat
@@ -591,6 +670,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Add Chatbot Rule
       tags:
       - Chat
@@ -615,9 +696,144 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - HTTPBearer: []
       summary: Get Chatbot Tools
       tags:
       - Intents
+  /clients:
+    get:
+      operationId: list_clients_clients_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+      security:
+      - HTTPBearer: []
+      summary: List Clients
+      tags:
+      - Clients
+    post:
+      description: 'The operator registers a client with its first public key. The answer carries what the client
+        needs to
+
+        call the service: its identifier, the audience and the gateway''s public keys.'
+      operationId: register_client_clients_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Register Client
+      tags:
+      - Clients
+  /clients/{client_id}/keys:
+    post:
+      operationId: add_client_key_clients__client_id__keys_post
+      parameters:
+      - in: path
+        name: client_id
+        required: true
+        schema:
+          title: Client Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SigningKeyRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Add Client Key
+      tags:
+      - Clients
+  /clients/{client_id}/keys/{kid}:
+    delete:
+      description: 'Revoking a key is deleting it: the tokens signed with it stop being accepted at once.'
+      operationId: remove_client_key_clients__client_id__keys__kid__delete
+      parameters:
+      - in: path
+        name: client_id
+        required: true
+        schema:
+          title: Client Id
+          type: string
+      - in: path
+        name: kid
+        required: true
+        schema:
+          title: Kid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Remove Client Key
+      tags:
+      - Clients
+  /gateway/keys:
+    get:
+      description: 'The audience and the public keys a client encrypts its tokens to. A client that is already in
+        asks here
+
+        for the new key when the gateway rotates its own.'
+      operationId: gateway_keys_gateway_keys_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+      security:
+      - HTTPBearer: []
+      summary: Gateway Keys
+      tags:
+      - Clients
   /health:
     get:
       description: 'Liveness only: it answers without touching MongoDB or RabbitMQ, so a slow dependency does not
@@ -634,7 +850,81 @@ paths:
       summary: Health
       tags:
       - Health
+  /keys:
+    get:
+      operationId: list_my_keys_keys_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+      security:
+      - HTTPBearer: []
+      summary: List My Keys
+      tags:
+      - Clients
+    post:
+      description: 'A client registers a second public key to rotate: both work until it removes the old one.'
+      operationId: add_my_key_keys_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SigningKeyRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Add My Key
+      tags:
+      - Clients
+  /keys/{kid}:
+    delete:
+      description: 'A client revokes one of its keys. It cannot remove the last one: only the operator can let it
+        back in.'
+      operationId: remove_my_key_keys__kid__delete
+      parameters:
+      - in: path
+        name: kid
+        required: true
+        schema:
+          title: Kid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Remove My Key
+      tags:
+      - Clients
 tags:
+- description: The registry of clients and of the public keys they sign their tokens with.
+  name: Clients
 - description: 'This entry will manage the chatbot lifecycle, '
   name: Bot
 - description: This is conversation management and communication control

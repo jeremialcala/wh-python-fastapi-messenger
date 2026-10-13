@@ -3,8 +3,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Required: the app refuses to start without a key for the management endpoints.
-    admin_api_key: str = Field(min_length=32)
+    # Required: the app refuses to start without the key pair clients encrypt their tokens to. It is the path of
+    # a JWK Set file kept outside the repository and the image.
+    gateway_keys_file: str = Field(min_length=1)
+    # What clients put in the aud of their tokens, so a token issued for another service is not valid here.
+    gateway_audience: str = Field(min_length=8)
     # Meta App Secret used to verify webhook signatures; a bot's own appSecret overrides it.
     facebook_app_secret: str | None = None
 
@@ -44,4 +47,5 @@ class Settings(BaseSettings):
     facebook_graph_version: str
 
     # hide_input_in_errors: a rejected setting must not be echoed into the startup traceback.
-    model_config = SettingsConfigDict(env_file="config.env", hide_input_in_errors=True)
+    # extra="ignore": a key left over in config.env from a setting that no longer exists must not stop the start.
+    model_config = SettingsConfigDict(env_file="config.env", hide_input_in_errors=True, extra="ignore")
