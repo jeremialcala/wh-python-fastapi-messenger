@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .errors import NotFound, Conflict
+from .errors import NotFound, Conflict, database_failed
 from . import data_keys, erasures
 from .erasures import RegisterUnavailable
 from .tenant import TenantRepository, BotSecrets

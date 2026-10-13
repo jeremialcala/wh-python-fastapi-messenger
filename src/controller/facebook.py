@@ -11,7 +11,7 @@ from classes import ChatBot, Contact, ProfileInfo
 from classes import Settings
 from enums import Status
 from crypto.key_service import KeyServiceUnavailable
-from repository import TenantRepository
+from repository import TenantRepository, database_failed
 from utils import describe
 from .events import ctr_notify_action
 
@@ -66,6 +66,9 @@ async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot, eventId: s
         raise
 
     except Exception as e:
+        if database_failed(e):
+            # The token of the page could not be read. Not the same as the Graph API not giving the profile.
+            raise
         if eventId is not None:
             ensure_future(ctr_notify_action(
                 _uuid=_action,
@@ -75,7 +78,10 @@ async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot, eventId: s
                 description=describe(e),
                 status=Status.ERR.value
             ))
-        log.error(describe(e))
+        log.error(f"No profile from the Graph API, the contact is stored without it: {describe(e)}")
+        # The message does not depend on the name: whoever wrote is known by its identifier. The Graph API
+        # refuses profiles for reasons that asking again does not change, such as a permission the page lacks.
+        return Contact(_uuid=uuid4(), fbId=fb_id)
 
 
 async def ctr_identify_fb_contact(fbId: str, _bot: ChatBot, eventId: str = None) -> Contact:
@@ -121,7 +127,7 @@ async def ctr_identify_fb_contact(fbId: str, _bot: ChatBot, eventId: str = None)
                 status=Status.ERR.value
             ))
 
-        raise Exception(e.args)
+        raise
 
     finally:
         if eventId is not None:
@@ -182,7 +188,7 @@ async def ctr_identify_contact_by_wa_id(wa_id: str, name: str, _bot: ChatBot, ev
                 description=describe(e),
                 status=Status.ERR.value
             ))
-        raise Exception(e.args)
+        raise
 
     finally:
         if eventId is not None:

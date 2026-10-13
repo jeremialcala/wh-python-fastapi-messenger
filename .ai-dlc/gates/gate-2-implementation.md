@@ -113,6 +113,20 @@ resto de criterios cumplidos.
   Rompiendo el cambio de 40 maneras, fallan en las 40.
 - Queda del sexto trabajo de la brecha el esquema estricto de la notificación y el límite de tamaño (RS11).
 
+### Hecho: qué se responde a Meta, notificación estricta y límite de tamaño (RS11, H9, ADR-0015)
+
+- El cuerpo del webhook no se lee hasta comprobar la firma, y una notificación tiene que traer su tipo de
+  objeto y sus entradas: ya no se rellena lo que falte con valores de ejemplo.
+- Ninguna petición pasa de 3 MiB, que es lo más que envía Meta: por encima, `413` antes de mirar firma o token.
+- Se corrige H9: si no responde la base de datos, Meta recibe `503` y reenvía. Antes recibía `200` y el
+  mensaje se perdía. La excepción que llega con la base parada se comprobó contra un MongoDB real.
+- Lo firmado que no se entiende, y el mensaje que falla por sí mismo, reciben `200` y quedan en el log; un
+  mensaje que falla ya no se lleva a los demás de su notificación.
+- Sin el perfil de la Graph API, el mensaje de Messenger se publica sin el nombre en vez de perderse.
+- Rompiendo el cambio de 38 maneras, las pruebas fallan en 37; la restante no cambia la respuesta. Con el
+  servicio real y un MongoDB real que se para y se arranca: `503` con la base parada, `200` al volver.
+- Los modelos de gestión siguen sin acotar la longitud de sus campos: RS11 queda en parcial por eso.
+
 ### Pendiente que deja el primer análisis estático
 
 - Los 28 hallazgos medios de `py/log-injection` en `app.py` y los controladores, valores de la petición escritos
@@ -123,8 +137,9 @@ resto de criterios cumplidos.
 
 - Los siete trabajos de la sección "Brecha entre lo construido y el diseño" de
   [`architecture.md`](../../docs/02-design/architecture.md), en el orden que marca el threat model.
-- Los hallazgos abiertos de [`threat-model.md`](../../docs/02-design/threat-model.md): H3, H5 y H6; los que salieron
-  al construir el sobre, H9 y H10; y lo que deja pendiente H11, aceptado con ADR-0014: configurar y comprobar en Atlas la retención de 365 días, y el
-  registro de supresiones. H1, H2, H4, H7, H8 y H12 están corregidos.
+- Los hallazgos abiertos de [`threat-model.md`](../../docs/02-design/threat-model.md): H3, H5 y H6; el que salió
+  al construir el sobre y sigue abierto, H10; y lo que deja pendiente H11, aceptado con ADR-0014: configurar y comprobar en Atlas la retención de 365 días, y el
+  registro de supresiones. H1, H2, H4, H7, H8, H9, H12 y H13
+  están corregidos.
 - Si cambia la API o el mensaje de la cola, los contratos de `docs/02-design/contracts/` cambian con ellos: las
   pruebas de `tests/contract` lo exigen.

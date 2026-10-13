@@ -22,11 +22,12 @@ from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPT
 from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_process_messages, ctr_add_phone_chatbot,
                         ctr_get_chatbot_phones, ctr_create_event, ctr_get_chatbot_rules_from_uuid,
                         ctr_create_chatbot_rules, ctr_create_intent, ctr_get_intents, ctr_get_intent,
-                        ctr_update_intent, ctr_delete_intent, ctr_get_bot_tools, BrokerUnavailable,
+                        ctr_update_intent, ctr_delete_intent, ctr_get_bot_tools,
                         ctr_register_client, ctr_list_clients, ctr_get_client, ctr_add_signing_key,
                         ctr_remove_signing_key, ctr_gateway_keys, ctr_set_bot_credentials, ctr_list_contacts,
                         ctr_search_contacts, ctr_export_contact, ctr_delete_contact, ctr_delete_chatbot,
-                        ctr_delete_client)
+                        ctr_delete_client, RETRY_LATER)
+from controller.incoming import NotUnderstood, read_notification
 
 from auth.gateway_keys import GatewayKeys
 from auth.principal import Principal, authenticate
@@ -34,8 +35,9 @@ from auth.tokens import InvalidToken
 from crypto.fields import NotEncrypted
 from crypto.key_service import KeyServiceUnavailable, OpenBaoKeyService
 from enums import Role
-from repository import TenantRepository, BotSecrets, NotFound, find_webhook_bot, data_keys, erasures
-from utils import configure_logging, describe, is_valid_signature, secrets_match
+from repository import (TenantRepository, BotSecrets, NotFound, find_webhook_bot, data_keys, erasures,
+                        database_failed)
+from utils import BodySizeLimit, configure_logging, describe, is_valid_signature, secrets_match
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -88,12 +90,22 @@ async def require_operator(principal: Principal = Depends(get_principal)) -> Pri
     return principal
 
 
+def database_unavailable(error: Exception) -> HTTPException:
+    """What Meta is answered when the database does not do its part: a 503, so that it sends it again."""
+    log.error(f"The database is unavailable: {describe(error)}")
+    return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="HTTP_503_SERVICE_UNAVAILABLE")
+
+
 async def get_webhook_bot(bot_id: str) -> ChatBot:
     try:
         # A malformed id is turned away before it costs a database round trip.
         return find_webhook_bot(bot_id)
     except NotFound:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HTTP_404_NOT_FOUND")
+    except Exception as e:
+        if not database_failed(e):
+            raise
+        raise database_unavailable(e) from None
 
 
 def webhook_secrets(bot: ChatBot) -> BotSecrets:
@@ -116,6 +128,10 @@ def webhook_secrets(bot: ChatBot) -> BotSecrets:
         # The client that owned it is gone, and its key with it: there is nobody to receive this for.
         log.error(f"Chatbot {bot.uuid} belongs to a client that does not exist")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HTTP_404_NOT_FOUND") from None
+    except Exception as e:
+        if not database_failed(e):
+            raise
+        raise database_unavailable(e) from None
 
 
 async def get_signed_webhook_bot(request: Request, _bot: ChatBot = Depends(get_webhook_bot)) -> ChatBot:
@@ -143,6 +159,12 @@ app = FastAPI(
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
 )
+
+
+# No request may be larger than this: it is the largest notification Meta sends, and nothing a client sends comes
+# close. Added before the interceptor, so that the interceptor is outside it and logs what is turned away.
+MAX_BODY_BYTES = 3 * 1024 * 1024
+app.add_middleware(BodySizeLimit, limit=MAX_BODY_BYTES)
 
 
 @app.exception_handler(RequestValidationError)
@@ -258,12 +280,29 @@ async def verify(request: Request, bot_id, _bot: ChatBot = Depends(get_webhook_b
     return PlainTextResponse(challenge)
 
 
-@app.post(path="/chat/{bot_id}", tags=["Chat"])
-async def message_processor(fb_request: FacebookRequest, bot_id, _bot: ChatBot = Depends(get_signed_webhook_bot)):
+# The body is not declared as a parameter: it would be parsed before the signature is checked. It is read by
+# hand once the signature is good, and this is only what the contract says of it.
+NOTIFICATION = {"requestBody": {"required": True, "content": {"application/json": {
+    "schema": FacebookRequest.model_json_schema()}}}}
+
+
+@app.post(path="/chat/{bot_id}", tags=["Chat"], openapi_extra=NOTIFICATION)
+async def message_processor(request: Request, bot_id, _bot: ChatBot = Depends(get_signed_webhook_bot)):
+    """
+        What Meta is answered. 403 without a good signature, before anything of the body is read. 200 for
+        everything it signed, also for what the service does not understand or cannot process: asking for it
+        again would not change it, and Meta stops delivering to a webhook that keeps failing. 503 only when
+        something the service needs is not there: then Meta sends it again later.
+    """
     log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
-        await ctr_process_messages(req=fb_request, _bot=_bot)
-    except (BrokerUnavailable, KeyServiceUnavailable):
+        notification = read_notification(await request.body())
+    except NotUnderstood as e:
+        log.warning(f"A signed notification for chatbot {_bot.uuid} was not understood: {e}")
+        return "HTTP_200_OK", status.HTTP_200_OK
+    try:
+        await ctr_process_messages(req=notification, _bot=_bot)
+    except RETRY_LATER:
         # Anything but a 200 makes Meta deliver the notification again later.
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="HTTP_503_SERVICE_UNAVAILABLE")
 

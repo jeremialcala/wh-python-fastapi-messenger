@@ -8,10 +8,34 @@
 """
 from dataclasses import dataclass
 
-__all__ = ["WHATSAPP", "MESSENGER", "IncomingMessage", "incoming_messages"]
+from pydantic import ValidationError
+
+from classes import FacebookRequest
+
+__all__ = ["WHATSAPP", "MESSENGER", "IncomingMessage", "NotUnderstood", "read_notification", "incoming_messages"]
 
 WHATSAPP = "whatsapp_business_account"
 MESSENGER = "page"
+
+# Why a message of a notification is left out. Said to the log as it is: none of it comes from the notification.
+NO_NUMBER = "sent to no number"
+INCOMPLETE = "without identifier or sender"
+
+
+class NotUnderstood(ValueError):
+    """
+        What was sent is not a notification the service can read. It says which kind of problem it is, in words
+        of the service: never anything of what was sent.
+    """
+
+
+def read_notification(raw: bytes) -> FacebookRequest:
+    """The notification in a body that Meta signed. Read only once the signature is known to be good."""
+    try:
+        return FacebookRequest.model_validate_json(raw)
+    except ValidationError as e:
+        not_json = any(error["type"] == "json_invalid" for error in e.errors())
+        raise NotUnderstood("it is not JSON" if not_json else "it does not have the shape of one") from None
 
 
 @dataclass(frozen=True)
@@ -37,18 +61,22 @@ def _whatsapp_sender(contacts: list[dict], number: str) -> dict | None:
     return next((contact for contact in contacts if contact.get("wa_id") == number), None)
 
 
-def _whatsapp(entries):
+def _whatsapp(entries, left_out: list):
     for entry in _dicts(entries):
         for change in _dicts(entry.get("changes")):
             value = change.get("value")
-            metadata = value.get("metadata") if isinstance(value, dict) else None
+            if not isinstance(value, dict):
+                continue
+            metadata, messages = value.get("metadata"), _dicts(value.get("messages"))
             # Without the number the message was sent to, the response engine has nowhere to answer from.
             if not isinstance(metadata, dict) or not _text(metadata.get("phone_number_id")):
+                left_out.extend([NO_NUMBER] * len(messages))
                 continue
             contacts = _dicts(value.get("contacts"))
-            for message in _dicts(value.get("messages")):
+            for message in messages:
                 message_id, number = _text(message.get("id")), _text(message.get("from"))
                 if not (message_id and number):
+                    left_out.append(INCOMPLETE)
                     continue
                 contact = _whatsapp_sender(contacts, number)
                 profile = contact.get("profile") if contact else None
@@ -64,7 +92,7 @@ def _whatsapp(entries):
                     })
 
 
-def _messenger(entries):
+def _messenger(entries, left_out: list):
     for entry in _dicts(entries):
         for event in _dicts(entry.get("messaging")):
             message, sender = event.get("message"), event.get("sender")
@@ -74,14 +102,20 @@ def _messenger(entries):
             if message.get("is_echo"):
                 continue
             message_id, sender_id = _text(message.get("mid")), _text(sender.get("id"))
-            if message_id and sender_id:
-                yield IncomingMessage(message_id=message_id, sender=sender_id, name=None, content=event)
+            if not (message_id and sender_id):
+                left_out.append(INCOMPLETE)
+                continue
+            yield IncomingMessage(message_id=message_id, sender=sender_id, name=None, content=event)
 
 
 READERS = {WHATSAPP: _whatsapp, MESSENGER: _messenger}
 
 
-def incoming_messages(channel: str, entries) -> list[IncomingMessage]:
-    """Every message of the notification that a person sent and the response engine can answer, in order."""
+def incoming_messages(channel: str, entries, left_out: list | None = None) -> list[IncomingMessage]:
+    """
+        Every message of the notification that a person sent and the response engine can answer, in order. Why
+        each message that is not among them was left out is added to `left_out`, if it is given. What is not a
+        message from a person is not there: nothing was left out.
+    """
     reader = READERS.get(channel)
-    return list(reader(entries)) if reader else []
+    return list(reader(entries, [] if left_out is None else left_out)) if reader else []

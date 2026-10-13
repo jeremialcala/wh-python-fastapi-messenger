@@ -209,17 +209,6 @@ components:
           title: Waid
       title: ContactSearchRequest
       type: object
-    FacebookRequest:
-      properties:
-        entry:
-          items: {}
-          title: Entry
-          type: array
-        object:
-          title: Object
-          type: string
-      title: FacebookRequest
-      type: object
     HTTPValidationError:
       properties:
         detail:
@@ -437,6 +426,14 @@ paths:
       tags:
       - Chat
     post:
+      description: 'What Meta is answered. 403 without a good signature, before anything of the body is read. 200
+        for
+
+        everything it signed, also for what the service does not understand or cannot process: asking for it
+
+        again would not change it, and Meta stops delivering to a webhook that keeps failing. 503 only when
+
+        something the service needs is not there: then Meta sends it again later.'
       operationId: message_processor_chat__bot_id__post
       parameters:
       - in: path
@@ -449,7 +446,31 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/FacebookRequest'
+              description: 'A notification from Meta, as far as the service reads it: the kind of object it is about
+                and its entries.
+
+                Both have to be there, and nothing is filled in for what is missing. Whatever else Meta sends, today
+                or
+
+                tomorrow, is ignored: it adds fields without notice.'
+              properties:
+                entry:
+                  items:
+                    additionalProperties: true
+                    type: object
+                  maxItems: 1000
+                  title: Entry
+                  type: array
+                object:
+                  maxLength: 64
+                  minLength: 1
+                  title: Object
+                  type: string
+              required:
+              - object
+              - entry
+              title: FacebookRequest
+              type: object
         required: true
       responses:
         '200':
