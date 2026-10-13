@@ -7,3 +7,4 @@ from .amqp_broker import *
 from .intents import *
 from .clients import *
 from .credentials import *
+from .contacts import *

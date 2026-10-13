@@ -7,7 +7,10 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from classes import ChatBot, ChatbotPhone, Contact, Intent, Rule
+from mongoengine import Q
+from mongoengine.errors import SaveConditionError
+
+from classes import ChatBot, ChatbotPhone, Client, Contact, Intent, Rule
 from crypto.fields import ClientCipher
 from enums import Status
 
@@ -19,6 +22,10 @@ from .errors import NotFound
 BOT_SECRETS = ("verifyToken", "facebookToken", "whatsappToken", "appSecret")
 BOT_CREDENTIALS = ("facebookToken", "whatsappToken", "appSecret")
 PHONE_FIELDS = ("phoneNumber", "phoneId")
+
+# What is stored for a chatbot, and the field that says which one: all of it goes when the chatbot does.
+OF_A_BOT = (("contacts", Contact, "botId"), ("phones", ChatbotPhone, "bot_id"), ("rules", Rule, "botId"),
+            ("intents", Intent, "botId"))
 
 
 @dataclass(frozen=True)
@@ -55,9 +62,14 @@ class TenantRepository:
         return document.objects(clientId=self.client_id, **filters)
 
     def _save_own(self, document):
+        """Saves the changes to a document that is already stored."""
         if document.clientId != self.client_id:
             raise NotFound(type(document).__name__)
-        document.save()
+        try:
+            # Without the condition, saving a document that was deleted in the meantime would bring part of it back.
+            document.save(save_condition={"clientId": self.client_id})
+        except SaveConditionError:
+            raise NotFound(type(document).__name__) from None
         return document
 
     # --- Chatbots ---------------------------------------------------------------------------------------------------
@@ -68,6 +80,10 @@ class TenantRepository:
         for field in BOT_SECRETS:
             setattr(bot, field, self._cipher.encrypt(f"ChatBot.{field}", getattr(bot, field)))
         bot.save()
+        if not Client.objects(uuid=self.client_id, status=Status.ACT.value).count():
+            # The client was deleted while this was on its way: nothing is left behind in its name.
+            bot.delete()
+            raise NotFound(self.client_id)
         return bot
 
     def bot_secrets(self, bot: ChatBot) -> BotSecrets:
@@ -85,8 +101,7 @@ class TenantRepository:
                 raise ValueError(field)
             if value is not None:
                 setattr(bot, field, self._cipher.encrypt(f"ChatBot.{field}", value))
-        bot.save()
-        return bot
+        return self._save_own(bot)
 
     def get_bot(self, bot_id) -> ChatBot:
         bot = self._own(ChatBot, uuid=as_uuid(bot_id)).first()
@@ -94,13 +109,39 @@ class TenantRepository:
             raise NotFound(bot_id)
         return bot
 
+    def delete_bot(self, bot_id) -> dict:
+        """
+            Deletes a chatbot and everything stored for it, and says how many of each. The chatbot goes first:
+            from then on the webhook does not find it and nothing more is stored for it. What a call that failed
+            halfway left behind is deleted by calling again, so it is only not found when nothing of it is left.
+        """
+        bot_uuid = as_uuid(bot_id)
+        deleted = {"chatbots": self._own(ChatBot, uuid=bot_uuid).delete()}
+        for name, document, field in OF_A_BOT:
+            deleted[name] = self._own(document, **{field: bot_uuid}).delete()
+        if not any(deleted.values()):
+            raise NotFound(bot_id)
+        return deleted
+
+    def delete_all(self) -> dict:
+        """Deletes every chatbot of the client and everything stored for them. Chatbots first, as in delete_bot."""
+        deleted = {"chatbots": self._own(ChatBot).delete()}
+        for name, document, _ in OF_A_BOT:
+            deleted[name] = self._own(document).delete()
+        return deleted
+
     def _add_to_bot(self, bot_id, document, field: str, seal=None):
-        setattr(document, field, self.get_bot(bot_id).uuid)
+        bot_uuid = self.get_bot(bot_id).uuid
+        setattr(document, field, bot_uuid)
         document.clientId = self.client_id
         if seal is not None:
             # Only once the chatbot is known to be the client's: nothing is encrypted for a stranger.
             seal(document)
         document.save()
+        if not self._own(ChatBot, uuid=bot_uuid).count():
+            # The chatbot was deleted between the lookup and the save: this would be left behind, out of reach.
+            document.delete()
+            raise NotFound(bot_id)
         return document
 
     # --- Phones -----------------------------------------------------------------------------------------------------
@@ -176,3 +217,40 @@ class TenantRepository:
         if contact.clientId != self.client_id:
             raise NotFound(contact._uuid)
         return self._cipher.decrypt("Contact.waId", contact.waId)
+
+    def list_contacts(self, bot_id, offset: int = 0, limit: int = 100) -> tuple:
+        """How many contacts the chatbot has, and one page of them, oldest first."""
+        contacts = self._own(Contact, botId=self.get_bot(bot_id).uuid)
+        return contacts.count(), list(contacts.order_by("id").skip(offset).limit(limit))
+
+    def find_contacts(self, wa_id: str | None = None, fb_id: str | None = None) -> list:
+        """
+            One person in every chatbot of the client, by number or by Messenger id: whoever asks for their data
+            asks the client, not one of its chatbots.
+        """
+        if (wa_id is None) == (fb_id is None):
+            raise ValueError("Either a number or a Messenger id")
+        if wa_id is not None:
+            identity = {"waIdIndex": self._cipher.blind_index("Contact.waId", wa_id)}
+        else:
+            identity = {"fbId": fb_id}
+        return list(self._own(Contact, **identity).order_by("id"))
+
+    def get_contact(self, bot_id, contact_id) -> Contact:
+        contact = self._own(Contact, botId=self.get_bot(bot_id).uuid, _uuid=as_uuid(contact_id)).first()
+        if contact is None:
+            raise NotFound(contact_id)
+        return contact
+
+    def delete_contact(self, bot_id, contact_id) -> int:
+        """
+            Deletes a contact of a chatbot. Two first messages arriving at once can store the same person twice,
+            and deleting one would leave the other: every document of that person for that chatbot goes.
+        """
+        contact = self.get_contact(bot_id, contact_id)
+        same = Q(_uuid=contact._uuid)
+        if contact.waIdIndex:
+            same |= Q(waIdIndex=contact.waIdIndex)
+        if contact.fbId:
+            same |= Q(fbId=contact.fbId)
+        return self._own(Contact, botId=contact.botId).filter(same).delete()

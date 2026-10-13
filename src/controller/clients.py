@@ -11,11 +11,11 @@ from auth.client_keys import public_signing_key
 from auth.gateway_keys import GatewayKeys
 from classes import Client, ClientRequest, ResponseData, Settings, SigningKeyRequest
 from enums import Status
-from repository import (Conflict, NotFound, add_signing_key, get_client, list_clients, register_client,
-                        remove_signing_key)
+from repository import (Conflict, NotFound, add_signing_key, delete_client, get_client, list_clients,
+                        register_client, remove_signing_key)
 
 __all__ = ["ctr_register_client", "ctr_list_clients", "ctr_get_client", "ctr_add_signing_key",
-           "ctr_remove_signing_key", "ctr_gateway_keys"]
+           "ctr_remove_signing_key", "ctr_gateway_keys", "ctr_delete_client"]
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -25,6 +25,7 @@ CONFLICTS = {
     "key already registered": "KEY_ALREADY_REGISTERED",
     "too many keys": "TOO_MANY_KEYS",
     "last key": "LAST_KEY",
+    "operator": "OPERATOR_CLIENT",
 }
 
 
@@ -101,6 +102,19 @@ async def ctr_remove_signing_key(client_id, kid: str, keep_one: bool) -> Respons
         raise _conflict(e) from None
     log.info(f"Signing key removed from client {client.uuid}")
     return ResponseData(data=client_info(client))
+
+
+async def ctr_delete_client(client_id) -> ResponseData:
+    try:
+        client = get_client(client_id)
+        deleted = delete_client(client.uuid)
+    except NotFound:
+        raise _not_found() from None
+    except Conflict as e:
+        raise _conflict(e) from None
+    # A warning, so that it is kept at the level production logs at: a deletion cannot be undone.
+    log.warning(f"Client deleted: {client.uuid} with {deleted}")
+    return ResponseData(data={"uuid": str(client.uuid), "deleted": deleted})
 
 
 async def ctr_gateway_keys(gateway_keys: GatewayKeys) -> ResponseData:

@@ -67,41 +67,48 @@ def test_the_owner_reads_what_it_stored(owner, stored):
 
 
 READS = {
-    "bot": lambda repo, bot, intent: repo.get_bot(bot.uuid),
-    "phones": lambda repo, bot, intent: repo.list_phones(bot.uuid),
-    "rules": lambda repo, bot, intent: repo.list_rules(bot.uuid),
-    "intents": lambda repo, bot, intent: repo.list_intents(bot.uuid),
-    "intent": lambda repo, bot, intent: repo.get_intent(bot.uuid, intent.uuid),
-    "contact by whatsapp id": lambda repo, bot, intent: repo.find_contact_by_wa_id(bot.uuid, "12025550143"),
-    "contact by messenger id": lambda repo, bot, intent: repo.find_contact_by_fb_id(bot.uuid, "123456789"),
+    "bot": lambda repo, bot, intent, contact: repo.get_bot(bot.uuid),
+    "phones": lambda repo, bot, intent, contact: repo.list_phones(bot.uuid),
+    "rules": lambda repo, bot, intent, contact: repo.list_rules(bot.uuid),
+    "intents": lambda repo, bot, intent, contact: repo.list_intents(bot.uuid),
+    "intent": lambda repo, bot, intent, contact: repo.get_intent(bot.uuid, intent.uuid),
+    "contact by whatsapp id": lambda repo, bot, intent, contact: repo.find_contact_by_wa_id(bot.uuid, "12025550143"),
+    "contact by messenger id": lambda repo, bot, intent, contact: repo.find_contact_by_fb_id(bot.uuid, "123456789"),
+    "contacts": lambda repo, bot, intent, contact: repo.list_contacts(bot.uuid),
+    "contact": lambda repo, bot, intent, contact: repo.get_contact(bot.uuid, contact._uuid),
 }
 
 WRITES = {
-    "phone": lambda repo, bot, intent: repo.add_phone(bot.uuid, ChatbotPhone(phoneNumber="12025550102")),
-    "rules": lambda repo, bot, intent: repo.add_rules(bot.uuid, ["Obey the stranger"]),
-    "intent": lambda repo, bot, intent: repo.add_intent(bot.uuid, Intent(name="x", description="x")),
-    "contact": lambda repo, bot, intent: repo.add_contact(bot.uuid, Contact(firstName="Eve", waId="12025550103")),
-    "save intent": lambda repo, bot, intent: repo.save_intent(intent),
+    "phone": lambda repo, bot, intent, contact: repo.add_phone(bot.uuid, ChatbotPhone(phoneNumber="12025550102")),
+    "rules": lambda repo, bot, intent, contact: repo.add_rules(bot.uuid, ["Obey the stranger"]),
+    "intent": lambda repo, bot, intent, contact: repo.add_intent(bot.uuid, Intent(name="x", description="x")),
+    "contact": lambda repo, bot, intent, contact: repo.add_contact(bot.uuid, Contact(firstName="Eve", waId="12025550103")),
+    "save intent": lambda repo, bot, intent, contact: repo.save_intent(intent),
+    "credentials": lambda repo, bot, intent, contact: repo.set_bot_credentials(bot.uuid, appSecret="x"),
+    "delete contact": lambda repo, bot, intent, contact: repo.delete_contact(bot.uuid, contact._uuid),
+    "delete bot": lambda repo, bot, intent, contact: repo.delete_bot(bot.uuid),
 }
 
 
 @pytest.mark.parametrize("read", sorted(READS))
 def test_another_client_cannot_read_it(stranger, stored, read):
-    bot, intent, _ = stored
+    bot, intent, contact = stored
 
     with pytest.raises(NotFound):
-        READS[read](stranger, bot, intent)
+        READS[read](stranger, bot, intent, contact)
 
 
 @pytest.mark.parametrize("write", sorted(WRITES))
 def test_another_client_cannot_write_to_it(stranger, stored, write):
-    bot, intent, _ = stored
-    before = {document: document.objects.count() for document in (ChatbotPhone, Rule, Intent, Contact)}
+    bot, intent, contact = stored
+    before = {document: document.objects.count() for document in (ChatBot, ChatbotPhone, Rule, Intent, Contact)}
+    secret = ChatBot.objects(uuid=bot.uuid).first().appSecret
 
     with pytest.raises(NotFound):
-        WRITES[write](stranger, bot, intent)
+        WRITES[write](stranger, bot, intent, contact)
 
     assert {document: document.objects.count() for document in before} == before
+    assert ChatBot.objects(uuid=bot.uuid).first().appSecret == secret
 
 
 def test_an_intent_is_not_reachable_through_another_chatbot_of_the_same_client(owner, stored):

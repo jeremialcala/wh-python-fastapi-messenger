@@ -11,8 +11,10 @@ from mongoengine.errors import NotUniqueError
 from classes import Client
 from enums import Role, Status
 
+from . import data_keys
 from .errors import Conflict, NotFound
-from .tenant import as_uuid
+from .tenant import TenantRepository, as_uuid
+from .tokens import forget_tokens
 
 OPERATOR_NAME = "operator"
 # Two at most: the one in use and the one that replaces it, so a client rotates without a gap.
@@ -84,6 +86,26 @@ def remove_signing_key(client_id, kid: str, keep_one: bool = False) -> Client:
     client.signingKeys = remaining
     client.save()
     return client
+
+
+def delete_client(client_id) -> dict:
+    """
+        Deletes a client with everything stored for it, and says how many of each. The order is what makes it
+        safe to interrupt and to call again: first nobody gets in as the client, then its data goes, and the
+        client itself goes last, taking its wrapped data key with it.
+    """
+    client = get_client(client_id)
+    if client.role == Role.OPERATOR.value:
+        # Without the operator nobody registers a client or lets one back in.
+        raise Conflict("operator")
+    Client.objects(uuid=client.uuid).update_one(set__signingKeys=[], set__status=Status.DIS.value,
+                                                set__statusDate=datetime.now())
+    deleted = TenantRepository(client.uuid).delete_all()
+    forget_tokens(client.uuid)
+    client.delete()
+    # The open key of this process. Any other process drops its own within data_keys.OPEN_FOR seconds.
+    data_keys.forget(client.uuid)
+    return deleted
 
 
 def find_signer(client_id: UUID, kid: str) -> tuple | None:

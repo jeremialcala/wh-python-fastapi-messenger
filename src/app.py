@@ -5,15 +5,16 @@ import time
 import asyncio
 
 from starlette.concurrency import iterate_in_threadpool
-from fastapi import FastAPI, Request, Response, Depends, HTTPException
+from fastapi import FastAPI, Request, Response, Depends, HTTPException, Query
 from fastapi import status
-from fastapi.responses import PlainTextResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from inspect import currentframe
 from uuid import uuid4
 from classes import (Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport,
                      RulesRequest, BotResponse, IntentRequest, ChatBot, ClientRequest, SigningKeyRequest,
-                     BotCredentialsRequest)
+                     BotCredentialsRequest, ContactSearchRequest)
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
                        CONTACT, HUB_SIGNATURE)
@@ -23,7 +24,9 @@ from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_proce
                         ctr_create_chatbot_rules, ctr_create_intent, ctr_get_intents, ctr_get_intent,
                         ctr_update_intent, ctr_delete_intent, ctr_get_bot_tools, BrokerUnavailable,
                         ctr_register_client, ctr_list_clients, ctr_get_client, ctr_add_signing_key,
-                        ctr_remove_signing_key, ctr_gateway_keys, ctr_set_bot_credentials)
+                        ctr_remove_signing_key, ctr_gateway_keys, ctr_set_bot_credentials, ctr_list_contacts,
+                        ctr_search_contacts, ctr_export_contact, ctr_delete_contact, ctr_delete_chatbot,
+                        ctr_delete_client)
 
 from auth.gateway_keys import GatewayKeys
 from auth.principal import Principal, authenticate
@@ -106,6 +109,10 @@ def webhook_secrets(bot: ChatBot) -> BotSecrets:
         # Secrets written by hand, or from before they were encrypted and the migration has not reached them.
         log.error(f"Chatbot {bot.uuid} holds secrets that are not encrypted: run the encryption migration")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HTTP_404_NOT_FOUND") from None
+    except NotFound:
+        # The client that owned it is gone, and its key with it: there is nobody to receive this for.
+        log.error(f"Chatbot {bot.uuid} belongs to a client that does not exist")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HTTP_404_NOT_FOUND") from None
 
 
 async def get_signed_webhook_bot(request: Request, _bot: ChatBot = Depends(get_webhook_bot)) -> ChatBot:
@@ -133,6 +140,16 @@ app = FastAPI(
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(_request: Request, error: RequestValidationError):
+    """
+        Says where a request is wrong and why, never with what: by default the answer repeats what was sent,
+        and what is sent here are credentials, phone numbers and messages.
+    """
+    detail = [{"type": item["type"], "loc": list(item["loc"]), "msg": item["msg"]} for item in error.errors()]
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": detail})
 
 
 @app.middleware("http")
@@ -194,6 +211,15 @@ async def create_chatbot(chatbot: ChatbotRequest, request: Request,
         return response
     except Exception as e:
         raise Exception(e.args)
+
+
+@app.delete(path="/bot/{bot_id}", tags=["Bot"], response_model=ResponseData)
+async def delete_chatbot(bot_id: str, repo: TenantRepository = Depends(get_repository)):
+    """
+        Deletes a chatbot and everything stored for it: its contacts, phones, rules and intents. It cannot be
+        undone. From then on its webhook answers 404: the subscription in Meta has to be removed as well.
+    """
+    return await ctr_delete_chatbot(repo, bot_id)
 
 
 @app.get(path="/chat/{bot_id}", tags=["Chat"])
@@ -277,6 +303,38 @@ async def set_chatbot_credentials(bot_id: str, credentials: BotCredentialsReques
         Secret. The ones sent replace the stored ones. The answer says which are loaded, never their values.
     """
     return await ctr_set_bot_credentials(repo, bot_id, credentials)
+
+
+@app.get(path="/chat/{bot_id}/contacts", tags=["Contacts"], response_model=ResponseData)
+async def list_contacts(bot_id: str, offset: int = Query(default=0, ge=0),
+                        limit: int = Query(default=100, ge=1, le=500),
+                        repo: TenantRepository = Depends(get_repository)):
+    """The contacts of a chatbot, oldest first, a page at a time, with everything stored about each."""
+    return await ctr_list_contacts(repo, bot_id, offset, limit)
+
+
+@app.get(path="/chat/{bot_id}/contacts/{contact_id}", tags=["Contacts"], response_model=ResponseData)
+async def export_contact(bot_id: str, contact_id: str, repo: TenantRepository = Depends(get_repository)):
+    """Everything the service stores about a contact. It does not keep the messages: those go to the queue."""
+    return await ctr_export_contact(repo, bot_id, contact_id)
+
+
+@app.delete(path="/chat/{bot_id}/contacts/{contact_id}", tags=["Contacts"], response_model=ResponseData)
+async def delete_contact(bot_id: str, contact_id: str, repo: TenantRepository = Depends(get_repository)):
+    """
+        Deletes a contact of a chatbot. It cannot be undone. If the same person writes again, it is stored
+        again as a new contact.
+    """
+    return await ctr_delete_contact(repo, bot_id, contact_id)
+
+
+@app.post(path="/contacts/search", tags=["Contacts"], response_model=ResponseData)
+async def search_contacts(search: ContactSearchRequest, repo: TenantRepository = Depends(get_repository)):
+    """
+        Finds a person among the contacts of all the chatbots of the client, by WhatsApp number or by
+        Messenger id. It is how a request from somebody for their data starts.
+    """
+    return await ctr_search_contacts(repo, search)
 
 
 @app.get(path="/chat/{bot_id}/rules", tags=["Chat"])
@@ -410,6 +468,15 @@ async def register_client(client: ClientRequest, _operator: Principal = Depends(
 @app.get(path="/clients", tags=["Clients"], response_model=ResponseData)
 async def list_clients(_operator: Principal = Depends(require_operator)):
     return await ctr_list_clients()
+
+
+@app.delete(path="/clients/{client_id}", tags=["Clients"], response_model=ResponseData)
+async def delete_client(client_id: str, _operator: Principal = Depends(require_operator)):
+    """
+        The operator takes a client off the service: its keys stop working at once, and its chatbots, with
+        everything stored for them, and its data key are deleted. It cannot be undone.
+    """
+    return await ctr_delete_client(client_id)
 
 
 @app.post(path="/clients/{client_id}/keys", tags=["Clients"], response_model=ResponseData)

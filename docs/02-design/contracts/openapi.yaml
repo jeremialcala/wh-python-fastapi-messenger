@@ -185,6 +185,30 @@ components:
       - name
       title: ClientRequest
       type: object
+    ContactSearchRequest:
+      additionalProperties: false
+      description: 'Who to look for among the contacts of a client: a WhatsApp number or a Messenger id, one of
+        the two.
+
+        It travels in the body, not in the address: an address ends up in logs along the way.'
+      properties:
+        fbId:
+          anyOf:
+          - maxLength: 64
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Fbid
+        waId:
+          anyOf:
+          - maxLength: 32
+            minLength: 1
+            pattern: ^[0-9+() .-]*[0-9][0-9+() .-]*$
+            type: string
+          - type: 'null'
+          title: Waid
+      title: ContactSearchRequest
+      type: object
     FacebookRequest:
       properties:
         entry:
@@ -355,6 +379,38 @@ paths:
       summary: Create Chatbot
       tags:
       - Bot
+  /bot/{bot_id}:
+    delete:
+      description: 'Deletes a chatbot and everything stored for it: its contacts, phones, rules and intents. It
+        cannot be
+
+        undone. From then on its webhook answers 404: the subscription in Meta has to be removed as well.'
+      operationId: delete_chatbot_bot__bot_id__delete
+      parameters:
+      - in: path
+        name: bot_id
+        required: true
+        schema:
+          title: Bot Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Delete Chatbot
+      tags:
+      - Bot
   /chat/{bot_id}:
     get:
       operationId: verify_chat__bot_id__get
@@ -410,6 +466,123 @@ paths:
       summary: Message Processor
       tags:
       - Chat
+  /chat/{bot_id}/contacts:
+    get:
+      description: The contacts of a chatbot, oldest first, a page at a time, with everything stored about each.
+      operationId: list_contacts_chat__bot_id__contacts_get
+      parameters:
+      - in: path
+        name: bot_id
+        required: true
+        schema:
+          title: Bot Id
+          type: string
+      - in: query
+        name: offset
+        required: false
+        schema:
+          minimum: 0
+          title: Offset
+          type: integer
+      - in: query
+        name: limit
+        required: false
+        schema:
+          maximum: 500
+          minimum: 1
+          title: Limit
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: List Contacts
+      tags:
+      - Contacts
+  /chat/{bot_id}/contacts/{contact_id}:
+    delete:
+      description: 'Deletes a contact of a chatbot. It cannot be undone. If the same person writes again, it is
+        stored
+
+        again as a new contact.'
+      operationId: delete_contact_chat__bot_id__contacts__contact_id__delete
+      parameters:
+      - in: path
+        name: bot_id
+        required: true
+        schema:
+          title: Bot Id
+          type: string
+      - in: path
+        name: contact_id
+        required: true
+        schema:
+          title: Contact Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Delete Contact
+      tags:
+      - Contacts
+    get:
+      description: 'Everything the service stores about a contact. It does not keep the messages: those go to the
+        queue.'
+      operationId: export_contact_chat__bot_id__contacts__contact_id__get
+      parameters:
+      - in: path
+        name: bot_id
+        required: true
+        schema:
+          title: Bot Id
+          type: string
+      - in: path
+        name: contact_id
+        required: true
+        schema:
+          title: Contact Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Export Contact
+      tags:
+      - Contacts
   /chat/{bot_id}/credentials:
     put:
       description: 'Loads or rotates the Meta credentials of a chatbot: the page token, the WhatsApp token and the
@@ -814,6 +987,38 @@ paths:
       summary: Register Client
       tags:
       - Clients
+  /clients/{client_id}:
+    delete:
+      description: 'The operator takes a client off the service: its keys stop working at once, and its chatbots,
+        with
+
+        everything stored for them, and its data key are deleted. It cannot be undone.'
+      operationId: delete_client_clients__client_id__delete
+      parameters:
+      - in: path
+        name: client_id
+        required: true
+        schema:
+          title: Client Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Delete Client
+      tags:
+      - Clients
   /clients/{client_id}/keys:
     post:
       operationId: add_client_key_clients__client_id__keys_post
@@ -883,6 +1088,36 @@ paths:
       summary: Remove Client Key
       tags:
       - Clients
+  /contacts/search:
+    post:
+      description: 'Finds a person among the contacts of all the chatbots of the client, by WhatsApp number or by
+
+        Messenger id. It is how a request from somebody for their data starts.'
+      operationId: search_contacts_contacts_search_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactSearchRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Search Contacts
+      tags:
+      - Contacts
   /gateway/keys:
     get:
       description: 'The audience and the public keys a client encrypts its tokens to. A client that is already in
@@ -997,6 +1232,9 @@ tags:
   name: Bot
 - description: This is conversation management and communication control
   name: Chat
+- description: 'The people who wrote to a chatbot: listing them, finding one, exporting what is stored about it
+    and deleting it.'
+  name: Contacts
 - description: Configure intents and their actions (API calls) as LLM tool definitions, stored per chatbot and consumed
     by the downstream worker.
   name: Intents

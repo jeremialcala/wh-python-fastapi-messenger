@@ -18,3 +18,8 @@ def remember_token(client_id: UUID, jti: str, expires_at: datetime) -> bool:
     except NotUniqueError:
         return False
     return True
+
+
+def forget_tokens(client_id: UUID) -> int:
+    """Deletes what is remembered of a client's tokens. Only for a client that no longer gets in."""
+    return SeenToken.objects(clientId=client_id).delete()
