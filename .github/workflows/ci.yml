@@ -27,6 +27,20 @@ jobs:
           BAO_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
         ports:
           - 8200:8200
+      # Publishing is tested against a real broker, the same version as the one in production.
+      rabbitmq:
+        image: rabbitmq:4.3.5-management@sha256:57bddb6fbc3498b5d8b5a14dc6f4506073ebcf94c66ba2a7678c335faa8dd631
+        env:
+          RABBITMQ_DEFAULT_USER: test
+          RABBITMQ_DEFAULT_PASS: test
+        ports:
+          - 5672:5672
+        # The job waits for this one: it takes a few seconds to accept connections.
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v7
 
@@ -46,6 +60,8 @@ jobs:
           OPENBAO_TEST_TOKEN: dev-root
           # Here the integration tests must run: without this they would be skipped without a word.
           OPENBAO_TEST_REQUIRED: "1"
+          RABBITMQ_TEST_ADDR: 127.0.0.1:5672
+          RABBITMQ_TEST_REQUIRED: "1"
 
   image:
     runs-on: ubuntu-latest
