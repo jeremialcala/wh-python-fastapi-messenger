@@ -11,6 +11,7 @@ from inspect import currentframe
 from classes import ChatbotRequest, ChatBot, ChatbotPhone, RulesRequest
 from classes import Settings, ResponseData, ChatbotPhoneRequest
 from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
+from crypto.key_service import KeyServiceUnavailable
 from repository import TenantRepository, NotFound
 from .events import ctr_notify_action
 from enums import Status
@@ -45,9 +46,16 @@ async def ctr_create_chatbot(repo: TenantRepository, request: ChatbotRequest, ev
         _chatbot = ChatBot.from_json(request.json())
         _chatbot.uuid = uuid4()
         _chatbot.generate_verification_token()
+        # Kept before it is stored: once in the repository the document only holds it encrypted.
+        _verify_token = _chatbot.verifyToken
         repo.add_bot(_chatbot)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
-                            data=_chatbot.chatbot_info())
+                            data={**_chatbot.chatbot_info(), "verifyToken": _verify_token})
+
+    except KeyServiceUnavailable as e:
+        log.error(f"Key service unavailable: {e}")
+        body = ResponseData(code=status.HTTP_503_SERVICE_UNAVAILABLE, message="SERVICE UNAVAILABLE",
+                            data=None)
 
     except OperationError as e:
         log.error(e.__str__())
@@ -100,8 +108,14 @@ async def ctr_get_chatbot_from_uuid(repo: TenantRepository, _uuid: str, eventId:
 
     try:
         _chatbot = repo.get_bot(_uuid)
+        # The verification token is the client's to paste into Meta. The Meta tokens are not returned.
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
-                            data=_chatbot.chatbot_info())
+                            data={**_chatbot.chatbot_info(),
+                                  "verifyToken": repo.bot_secrets(_chatbot).verify_token})
+    except KeyServiceUnavailable as e:
+        log.error(f"Key service unavailable: {e}")
+        body = ResponseData(code=status.HTTP_503_SERVICE_UNAVAILABLE, message="SERVICE UNAVAILABLE",
+                            data=None)
     except (ValueError, NotFound) as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {_uuid} was not found",
@@ -156,6 +170,10 @@ async def ctr_add_phone_chatbot(repo: TenantRepository, bot_uuid, req: ChatbotPh
         repo.add_phone(bot_uuid, _chatbot_phone)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=None)
+    except KeyServiceUnavailable as e:
+        log.error(f"Key service unavailable: {e}")
+        body = ResponseData(code=status.HTTP_503_SERVICE_UNAVAILABLE, message="SERVICE UNAVAILABLE",
+                            data=None)
     except NotFound as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_uuid} was not found",
@@ -202,7 +220,8 @@ async def ctr_get_chatbot_phones(repo: TenantRepository, bot_uuid: str, environm
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
     try:
-        _phones = [phone.get_phones_info() for phone in repo.list_phones(bot_uuid, environment)]
+        _phones = [{**phone.get_phones_info(), **repo.phone_numbers(phone)}
+                   for phone in repo.list_phones(bot_uuid, environment)]
         if environment is not None:
             # Asking for one environment answers with a single phone, the last one registered for it.
             if not _phones:
@@ -211,6 +230,10 @@ async def ctr_get_chatbot_phones(repo: TenantRepository, bot_uuid: str, environm
 
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=_phones)
+    except KeyServiceUnavailable as e:
+        log.error(f"Key service unavailable: {e}")
+        body = ResponseData(code=status.HTTP_503_SERVICE_UNAVAILABLE, message="SERVICE UNAVAILABLE",
+                            data=None)
     except (ValueError, NotFound) as e:
         log.error(e.__str__())
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"RECORD NOT FOUND")

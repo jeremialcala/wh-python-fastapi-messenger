@@ -42,8 +42,24 @@ Los datos de un cliente (chatbots, números, reglas, intents y contactos) solo s
 `src/repository`, que exige el cliente y lo añade a cada consulta
 ([ADR-0012](docs/00-project/adr/0012-aislamiento-por-cliente-en-la-capa-de-datos.md)). Un controlador no llama a
 `.objects` ni a `.save()`: recibe el repositorio y se lo pide a él. `tests/unit/test_data_access_boundary.py`
-lee el código y falla si algo se lo salta, y una ruta nueva tiene que entrar en
+lee el código y falla si algo se lo salta. Los campos cifrados (números, credenciales de Meta y token de
+verificación) están siempre cifrados en el documento: quien necesita el valor se lo pide al repositorio, y un
+campo nuevo de ese tipo entra en la migración y en la prueba que vuelca la base. Una ruta nueva tiene que
+entrar en
 `tests/unit/test_client_isolation.py`, que también falla si no la cubre.
+
+## Gates de seguridad
+
+El workflow `Seguridad` rompe el build por tres motivos: un secreto en cualquier rama (gitleaks), una dependencia
+con una vulnerabilidad conocida (`pip-audit`), o un hallazgo de seguridad alto o crítico de CodeQL fuera de
+`tests/`. Dos cosas que conviene saber:
+
+- **gitleaks revisa todas las ramas y toda la historia.** Un valor con aspecto de secreto en una rama cualquiera
+  hace fallar todos los pull requests hasta que esa rama desaparece, y corregirlo en un commit posterior no
+  basta. En las pruebas, los secretos de mentira tienen que parecer de mentira: `app-secret-of-this-test`, no una
+  cadena hexadecimal.
+- **Un hallazgo alto en `tests/` no bloquea**, pero sale como aviso y como alerta. Si es inherente a la prueba,
+  se descarta en GitHub con el motivo "used in tests".
 
 ## Dual review
 

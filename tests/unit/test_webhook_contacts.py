@@ -10,7 +10,6 @@ import json
 import os
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -49,8 +48,8 @@ def graph_api(monkeypatch):
 
 
 @pytest.fixture
-def owner():
-    return TenantRepository(uuid4())
+def owner(register):
+    return TenantRepository(register("acme").client_id)
 
 
 @pytest.fixture
@@ -71,7 +70,7 @@ def test_a_whatsapp_contact_is_stored_under_the_client_of_the_chatbot(owner, bot
     assert notify(bot.uuid, WHATSAPP).status_code == 200
 
     contact = Contact.objects.get()
-    assert (contact.clientId, contact.botId, contact.waId, contact.firstName) == (
+    assert (contact.clientId, contact.botId, owner.contact_number(contact), contact.firstName) == (
         owner.client_id, bot.uuid, "12025550143", "Ana")
     queue.assert_awaited_once()
 
@@ -94,8 +93,8 @@ def test_a_known_contact_is_not_stored_again(bot, queue, graph_api, payload):
     assert queue.await_count == 2
 
 
-def test_the_same_person_writing_to_chatbots_of_two_clients_is_two_contacts(owner, bot, queue):
-    other = TenantRepository(uuid4())
+def test_the_same_person_writing_to_chatbots_of_two_clients_is_two_contacts(owner, bot, queue, register):
+    other = TenantRepository(register("globex").client_id)
     their_bot = other.add_bot(ChatBot(name="Theirs", role="r", description="d", tone="t"))
 
     notify(bot.uuid, WHATSAPP)

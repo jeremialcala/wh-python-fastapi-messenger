@@ -23,6 +23,16 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # The client of the key service is tested against a real one, in development mode: it starts unsealed and
+    # with a known root token, which the tests use to set it up like the one in production.
+    services:
+      openbao:
+        image: openbao/openbao:2.7.1@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf
+        env:
+          BAO_DEV_ROOT_TOKEN_ID: dev-root
+          BAO_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+        ports:
+          - 8200:8200
     steps:
       - uses: actions/checkout@v7
 
@@ -37,6 +47,11 @@ jobs:
 
       # Branch coverage below what Gate 2 asks for breaks the build.
       - run: pytest --cov=src --cov-branch --cov-fail-under=80
+        env:
+          OPENBAO_TEST_ADDR: http://127.0.0.1:8200
+          OPENBAO_TEST_TOKEN: dev-root
+          # Here the integration tests must run: without this they would be skipped without a word.
+          OPENBAO_TEST_REQUIRED: "1"
 
   build:
     # Nothing is published, and so nothing is deployed, unless the tests pass.

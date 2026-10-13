@@ -8,6 +8,15 @@ class Settings(BaseSettings):
     gateway_keys_file: str = Field(min_length=1)
     # What clients put in the aud of their tokens, so a token issued for another service is not valid here.
     gateway_audience: str = Field(min_length=8)
+    # The key service that holds the master key: an OpenBao. The app starts without reaching it, but nothing
+    # encrypted can be read or written until it answers.
+    andvari_addr: str = Field(min_length=8)
+    andvari_role_id: str = Field(min_length=1)
+    # Path of the file with the AppRole secret id. A file, not a variable: it does not show in the environment
+    # of the container, and it can be rotated without a restart.
+    andvari_secret_id_file: str = Field(min_length=1)
+    # The CA that signed the key service's certificate. Without it, the system's are used.
+    andvari_ca_file: str | None = None
     # Meta App Secret used to verify webhook signatures; a bot's own appSecret overrides it.
     facebook_app_secret: str | None = None
 

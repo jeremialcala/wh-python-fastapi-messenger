@@ -111,7 +111,8 @@ jobs:
           upload: always
 
       # CodeQL por sí solo NO rompe el build: deja una alerta y sigue. Este paso es el umbral: rompe con hallazgos
-      # de seguridad altos o críticos, que es lo que pide el Gate 2; el resto se queda en la pestaña Security.
+      # de seguridad altos o críticos fuera del código de pruebas, que es lo que pide el Gate 2; los de las pruebas
+      # se informan como aviso, y el resto se queda en la pestaña Security.
       # El script tiene sus pruebas en tests/unit/test_sast_threshold.py.
       - name: Umbral de severidad sobre el SARIF
         run: python3 .ai-dlc/scripts/sast_threshold.py sarif-python

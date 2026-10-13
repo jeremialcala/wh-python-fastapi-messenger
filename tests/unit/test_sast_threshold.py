@@ -27,12 +27,12 @@ def rule(rule_id: str, severity: str | None) -> dict:
     return {"id": rule_id, "defaultConfiguration": {"level": "error"}, "properties": properties}
 
 
-def result(rule_id: str) -> dict:
+def result(rule_id: str, path: str = "src/app.py") -> dict:
     return {
         "ruleId": rule_id,
         "rule": {"id": rule_id, "index": 0, "toolComponent": {"index": 0}},
         "message": {"text": "finding"},
-        "locations": [{"physicalLocation": {"artifactLocation": {"uri": "src/app.py"}, "region": {"startLine": 35}}}],
+        "locations": [{"physicalLocation": {"artifactLocation": {"uri": path}, "region": {"startLine": 35}}}],
     }
 
 
@@ -76,6 +76,33 @@ def test_the_rule_is_found_when_the_result_only_carries_the_rule_object(threshol
     finding = result("py/full-ssrf")
     del finding["ruleId"]
     folder = write_sarif(tmp_path, [rule("py/full-ssrf", "9.1")], [finding])
+
+    assert threshold.evaluate(folder) == 1
+
+
+@pytest.mark.parametrize("path", ["tests/integration/test_openbao_key_service.py", "tests/conftest.py"])
+def test_a_high_finding_in_test_code_is_reported_but_does_not_break_the_build(threshold, tmp_path, capsys, path):
+    folder = write_sarif(tmp_path, [rule("py/clear-text-storage-sensitive-data", "7.5")],
+                         [result("py/clear-text-storage-sensitive-data", path)])
+
+    assert threshold.evaluate(folder) == 0
+    output = capsys.readouterr().out
+    assert f"::warning::en código de pruebas, no bloquea: {path}:35" in output
+    assert "0 de seguridad altos o críticos y 1 más en código de pruebas" in output
+
+
+@pytest.mark.parametrize("path", ["src/app.py", ".ai-dlc/scripts/gen_openapi.py", "src/tests/helper.py",
+                                  "deploy/tests/x.py", "testsuite.py"])
+def test_a_high_finding_anywhere_else_breaks_the_build(threshold, tmp_path, path):
+    """Only the tests folder is test code: not what merely has the word in its path, nor the other scripts."""
+    folder = write_sarif(tmp_path, [rule("py/code-injection", "9.3")], [result("py/code-injection", path)])
+
+    assert threshold.evaluate(folder) == 1
+
+
+def test_a_finding_in_shipped_code_still_blocks_next_to_one_in_test_code(threshold, tmp_path):
+    folder = write_sarif(tmp_path, [rule("py/code-injection", "9.3")],
+                         [result("py/code-injection", "tests/unit/test_x.py"), result("py/code-injection")])
 
     assert threshold.evaluate(folder) == 1
 

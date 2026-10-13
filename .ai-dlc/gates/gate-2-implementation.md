@@ -10,7 +10,7 @@
 
 | Criterio | Estado | Evidencia |
 |---|---|---|
-| SAST sin hallazgos críticos o altos | Gate activo | Workflow `Seguridad`, trabajo `sast`: CodeQL sobre todo el código, también en los pull requests, y el build se rompe con cualquier hallazgo de seguridad alto o crítico (`security-severity` ≥ 7,0). Primer análisis completo: 92 resultados; uno alto, que era un falso positivo por el nombre de una constante y ya no aparece; 28 medios de `py/log-injection`, abiertos; y 63 de calidad |
+| SAST sin hallazgos críticos o altos | Gate activo | Workflow `Seguridad`, trabajo `sast`: CodeQL sobre todo el código, también en los pull requests, y el build se rompe con cualquier hallazgo de seguridad alto o crítico (`security-severity` ≥ 7,0) fuera del código de pruebas; los de `tests/` se informan como aviso y no bloquean (decisión del 2026-10-12). Primer análisis completo: 92 resultados; uno alto, que era un falso positivo por el nombre de una constante y ya no aparece; 28 medios de `py/log-injection`, abiertos; y 63 de calidad |
 | Dependencias verificadas (SCA) | Gate activo | `requirements.lock` y `requirements-dev.lock` con hashes; trabajo `dependencias` con `pip-audit` sobre el lock. Al añadirlo: 14 vulnerabilidades conocidas con las dependencias anteriores, todas de Starlette 0.36.3, y ninguna con las nuevas |
 | Cobertura ≥ 80 % por ramas | Gate activo: 86 % | El CI rompe el build por debajo del 80 %. Era del 61 % antes de las pruebas de aislamiento, que pasan por los controladores y el repositorio de verdad, contra una base en memoria |
 | Dual review | Pendiente | — |
@@ -48,6 +48,20 @@ resto de criterios cumplidos.
 - Las pruebas usan tokens reales: cada forma de falsificar, alterar o reenviar uno acaba en el mismo `401`, y
   otra prueba comprueba qué verificación lo rechaza. Desactivando cada verificación por separado, fallan.
 - Cómo se usa y cómo se opera: [`autenticacion.md`](../../docs/03-implementation/autenticacion.md).
+
+### Hecho: cifrado por cliente (ADR-0010, ADR-0013)
+
+- Los números de contactos y bots, los tokens de Meta, el App Secret y el token de verificación se guardan
+  cifrados con una clave propia de cada cliente, que solo existe envuelta por la clave maestra de Andvari. El
+  contacto se busca por un índice ciego.
+- Las credenciales de Meta se cargan por la API y ya no salen por ella: `/info` deja de devolver los tokens.
+- Sin Andvari, lo cifrado responde `503` y el webhook también: ni se pierde un mensaje ni se da por buena una
+  firma sin comprobar.
+- Las pruebas vuelcan la base y comprueban que nada de eso aparece en claro; rompiendo el cifrado de seis
+  maneras distintas, fallan. El cliente del servicio de claves se prueba contra un OpenBao real, también en
+  el pipeline.
+- Los datos anteriores se cifran con `python -m migrations.encrypt_client_data --apply`.
+- Cómo funciona y cómo se opera: [`cifrado-de-datos.md`](../../docs/03-implementation/cifrado-de-datos.md).
 
 ### Pendiente que deja el primer análisis estático
 
