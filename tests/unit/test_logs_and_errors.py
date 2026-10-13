@@ -191,7 +191,7 @@ def test_what_is_turned_away_does_not_reach_the_log_either(http, caller, logged)
         call(http, caller, "DELETE", f"/clients/{uuid4()}"),
     ]
 
-    assert [response.status_code for response in answers] == [403, 403, 422, 401, 401, 422, 422, 422, 422, 404, 404,
+    assert [response.status_code for response in answers] == [403, 403, 403, 401, 401, 422, 422, 422, 422, 404, 404,
                                                               422, 404, 403]
     text = logged()
     for sent in (*SENT, "challenge-marker", "wrong-verify-token-marker", "wrong-secret-marker", "body-marker",
@@ -222,7 +222,8 @@ def test_what_the_graph_api_answers_does_not_reach_the_log(http, caller, logged,
     assert "Error" in text or "Exception" in text or "answered 400" in text
     for sent in (*SENT, "graph-error-marker", "graph-shape-marker", "access_token"):
         assert sent not in text
-    assert Contact.objects.count() == 0
+    # The contact is stored without the profile: the message does not wait for it.
+    assert [contact.firstName for contact in Contact.objects] == [None]
 
 
 def test_a_failure_of_the_broker_is_logged_by_its_kind(http, caller, logged, monkeypatch):
