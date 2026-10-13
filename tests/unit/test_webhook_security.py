@@ -33,6 +33,7 @@ WHATSAPP_PAYLOAD = {
             "field": "messages",
             "value": {
                 "messaging_product": "whatsapp",
+                "metadata": {"display_phone_number": "15550001111", "phone_number_id": "100000000000001"},
                 "contacts": [{"profile": {"name": "Ana"}, "wa_id": "584120000000"}],
                 "messages": [{"from": "584120000000", "id": "wamid.TEST", "type": "text", "text": {"body": "hola"}}],
             },
@@ -233,6 +234,15 @@ def test_publish_is_confirmed_by_the_broker(monkeypatch):
     channel.confirm_delivery.assert_called_once()
     assert channel.basic_publish.call_args.kwargs["mandatory"] is True
     connection.return_value.close.assert_called_once()
+
+
+def test_a_published_message_is_persistent_and_expires_after_24_hours(monkeypatch):
+    connection = MagicMock()
+
+    publish(monkeypatch, connection)
+
+    properties = connection.return_value.channel.return_value.basic_publish.call_args.kwargs["properties"]
+    assert (properties.delivery_mode, properties.expiration) == (2, "86400000")
 
 
 def test_unreachable_broker_is_reported(monkeypatch):

@@ -5,7 +5,7 @@
     process start time as its creation date, and every queue message shared one `_uuid`.
 """
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -25,13 +25,20 @@ def test_each_document_gets_its_own_identifier(entity):
 
 @pytest.mark.parametrize("entity", [e for e in ENTITIES if e is not Credentials], ids=lambda entity: entity.__name__)
 def test_creation_date_is_the_moment_the_document_is_created(entity):
-    before = datetime.now()
+    before = time.time()
     time.sleep(0.002)
 
     document = entity()
 
-    assert document.createdAt > before
-    assert document.statusDate > before
+    assert document.createdAt.timestamp() > before
+    assert document.statusDate.timestamp() > before
+
+
+def test_a_queue_message_is_dated_with_its_time_zone():
+    # Without one, the date in the envelope shifts by the offset of whatever machine created it.
+    message = QueueMessage()
+
+    assert message.createdAt.utcoffset() == message.statusDate.utcoffset() == timedelta(0)
 
 
 def test_each_credential_gets_its_own_signing_key():

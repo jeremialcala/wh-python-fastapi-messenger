@@ -1,18 +1,22 @@
 # Contrato AsyncAPI del gateway (fase 02-design, Gate 1).
-# Estado: approved (Gate 1, 2026-10-12). Versión: 0.1.0.
+# Estado: approved (Gate 1, 2026-10-12). Versión: 1.0.0.
 #
-# Describe el mensaje que el gateway publica HOY en la cola `llm`, con su defecto conocido incluido (metadata).
+# Describe el sobre versión 1 que el gateway publica en la cola `llm`, decidido en ADR-0011.
 # tests/contract/test_queue_contract.py genera ese mensaje con el código real y lo valida contra el esquema
 # SobreMensaje: si el código cambia el mensaje, la prueba falla y hay que actualizar este fichero.
 #
-# El contrato objetivo, con los cambios que cada lado debe hacer, está decidido en ADR-0011.
+# Lo que el motor de respuestas tiene que hacer con él (aceptarlo para Messenger, conservar el bot y deduplicar)
+# está en ADR-0011 y es trabajo de su repositorio.
 asyncapi: 3.0.0
 info:
   title: Gateway BaaS de mensajería
-  version: 0.1.0
+  version: 1.0.0
   description: >-
-    Mensajes que el gateway publica para el motor de respuestas (ms-python-metamsghandler). Un mensaje por
-    notificación de Meta aceptada: firma verificada, contacto identificado y bot de destino conocido.
+    Mensajes que el gateway publica para el motor de respuestas (ms-python-metamsghandler). Un sobre por cada
+    mensaje que una persona envía al bot: firma de la notificación verificada, contacto identificado y bot de
+    destino conocido. Una notificación de Meta puede traer varios mensajes y produce un sobre por cada uno. Los
+    acuses de entrega y de lectura, los ecos de lo que envía la propia página y las pulsaciones de botones de
+    Messenger no se publican.
 defaultContentType: application/json
 servers:
   hermod:
@@ -27,8 +31,9 @@ channels:
   llm:
     address: llm
     description: >-
-      Cola durable. El gateway publica en el exchange por defecto con la clave de enrutado `llm`, con mensajes
-      persistentes y confirmación del broker. El contenido viaja sin cifrar.
+      Cola durable, declarada sin argumentos por los dos lados. El gateway publica en el exchange por defecto con
+      la clave de enrutado `llm`, con mensajes persistentes y confirmación del broker. El contenido viaja sin
+      cifrar.
     messages:
       sobreMensaje:
         $ref: '#/components/messages/SobreMensaje'
@@ -48,15 +53,18 @@ operations:
       $ref: '#/channels/llm'
     summary: Publica un mensaje entrante ya verificado.
     description: >-
-      El gateway responde 200 a Meta solo cuando el broker confirma el mensaje, y 503 si no puede publicarlo.
-      Meta reintenta ante un 503, así que el consumidor puede recibir el mismo mensaje más de una vez; hoy
-      ningún lado deduplica.
+      El gateway responde 200 a Meta solo cuando el broker confirma todos los mensajes de la notificación, y 503
+      si no puede publicar alguno. Meta reintenta ante un 503 con la notificación entera, así que el consumidor
+      puede recibir el mismo mensaje más de una vez: se reconoce porque repite `messageId` para el mismo
+      `botId`. El gateway no deduplica. Cada mensaje caduca a las 24 horas de publicarse: el broker lo descarta
+      si nadie lo ha consumido.
     messages:
       - $ref: '#/channels/llm/messages/sobreMensaje'
     bindings:
       amqp:
         deliveryMode: 2
         mandatory: true
+        expiration: 86400000
         bindingVersion: 0.3.0
 components:
   securitySchemes:
@@ -74,16 +82,27 @@ components:
     SobreMensaje:
       type: object
       description: >-
-        Sobre del gateway. Es el único formato que lleva el bot de destino, porque el webhook de Meta no lo
-        incluye: el `bot_id` solo existe en la URL del webhook.
-      required: [_uuid, jwe_body, createdAt, status, statusDate]
+        Sobre del gateway, versión 1. Es el único formato que lleva el bot de destino, porque el webhook de Meta
+        no lo incluye: el `bot_id` solo existe en la URL del webhook.
+      required: [schemaVersion, _uuid, messageId, jwe_body, createdAt, status, statusDate]
       additionalProperties: false
       properties:
+        schemaVersion:
+          const: 1
+          description: >-
+            Versión del sobre. Un cambio que el consumidor no pueda ignorar la sube; el consumidor rechaza las
+            que no conoce.
         _uuid:
           $ref: '#/components/schemas/UuidExtendido'
           description: >-
-            Identificador del sobre, distinto en cada mensaje. No sirve para deduplicar una reentrega de Meta:
-            para eso está el identificador del mensaje de Meta (`id` en WhatsApp, `mid` en Messenger).
+            Identificador del sobre, distinto en cada publicación. Si Meta entrega dos veces el mismo mensaje,
+            cada entrega lleva un `_uuid` distinto: no sirve para deduplicar.
+        messageId:
+          type: string
+          minLength: 1
+          description: >-
+            Identificador que Meta dio al mensaje: `id` (wamid) en WhatsApp y `mid` en Messenger. Es el mismo
+            en cada reentrega. Junto con `jwe_body.botId` es la clave de deduplicación del consumidor.
         createdAt:
           $ref: '#/components/schemas/FechaExtendida'
           description: Momento en que el gateway creó el sobre.
@@ -98,8 +117,8 @@ components:
     Cuerpo:
       type: object
       description: >-
-        Pese a su nombre, hoy viaja como objeto JSON sin cifrar: el cifrado JWE existe en el código y está
-        desactivado.
+        Pese a su nombre, viaja como objeto JSON sin cifrar. Pasará a ser un JWE cifrado para el motor en la
+        segunda fase de ADR-0011, con otra versión del sobre.
       required: [botId, type, contact, message]
       additionalProperties: false
       properties:
@@ -135,34 +154,44 @@ components:
           description: Identificador del contacto en Messenger (PSID).
     MensajeWhatsApp:
       type: object
-      description: El objeto `value` del cambio de WhatsApp Cloud API.
+      description: >-
+        El objeto `value` del cambio de WhatsApp Cloud API, reducido a un solo mensaje y a quien lo envía.
       required: [messaging_product, metadata, contacts, messages]
+      additionalProperties: false
       properties:
         messaging_product:
           type: string
         metadata:
-          type: array
-          description: >-
-            DEFECTO CONOCIDO: llega como lista de pares [clave, valor] y no como objeto. Contiene
-            display_phone_number y phone_number_id, que el motor necesita para responder.
-          items:
-            type: array
-            minItems: 2
-            maxItems: 2
+          type: object
+          description: Número del bot que recibió el mensaje, tal como lo envía Meta.
+          required: [phone_number_id]
+          properties:
+            display_phone_number:
+              type: string
+              description: Número del bot, como se muestra.
+            phone_number_id:
+              type: string
+              minLength: 1
+              description: Identificador del número en Meta. Es desde donde el motor envía la respuesta.
         contacts:
           type: array
+          description: El contacto que envió el mensaje, tal como lo envía Meta. Vacío si Meta no lo incluyó.
+          maxItems: 1
           items:
             type: object
         messages:
           type: array
-          description: Mensajes tal como los envía Meta. El identificador de cada uno es `id` (wamid).
+          description: El mensaje tal como lo envía Meta. Su `id` es el `messageId` del sobre.
           minItems: 1
+          maxItems: 1
           items:
             type: object
-            required: [id, from, type]
+            required: [id, from]
     EventoMessenger:
       type: object
-      description: Un elemento de `entry[].messaging[]` de la Messenger Platform.
+      description: >-
+        Un elemento de `entry[].messaging[]` de la Messenger Platform, tal como lo envía Meta. Solo mensajes de
+        una persona: nunca un eco.
       required: [sender, message]
       properties:
         sender:
@@ -174,7 +203,7 @@ components:
           type: integer
         message:
           type: object
-          description: El identificador del mensaje es `mid`.
+          description: Su `mid` es el `messageId` del sobre.
           required: [mid]
     UuidExtendido:
       type: object
