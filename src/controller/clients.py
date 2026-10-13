@@ -11,8 +11,8 @@ from auth.client_keys import public_signing_key
 from auth.gateway_keys import GatewayKeys
 from classes import Client, ClientRequest, ResponseData, Settings, SigningKeyRequest
 from enums import Status
-from repository import (Conflict, NotFound, add_signing_key, delete_client, get_client, list_clients,
-                        register_client, remove_signing_key)
+from repository import (Conflict, NotFound, RegisterUnavailable, add_signing_key, delete_client, get_client,
+                        list_clients, register_client, remove_signing_key)
 
 __all__ = ["ctr_register_client", "ctr_list_clients", "ctr_get_client", "ctr_add_signing_key",
            "ctr_remove_signing_key", "ctr_gateway_keys", "ctr_delete_client"]
@@ -112,6 +112,11 @@ async def ctr_delete_client(client_id) -> ResponseData:
         raise _not_found() from None
     except Conflict as e:
         raise _conflict(e) from None
+    except RegisterUnavailable as e:
+        # A deletion that could not be written down in the register of erasures is not made.
+        log.error(f"The register of erasures is unavailable, nothing was deleted: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="HTTP_503_SERVICE_UNAVAILABLE") from None
     # A warning, so that it is kept at the level production logs at: a deletion cannot be undone.
     log.warning(f"Client deleted: {client.uuid} with {deleted}")
     return ResponseData(data={"uuid": str(client.uuid), "deleted": deleted})

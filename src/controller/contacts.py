@@ -16,7 +16,7 @@ from classes import Contact, ContactSearchRequest, Settings
 from crypto.fields import NotEncrypted
 from crypto.key_service import KeyServiceUnavailable
 from enums import Status
-from repository import NotFound, TenantRepository
+from repository import NotFound, RegisterUnavailable, TenantRepository
 
 from .answers import answer
 
@@ -27,6 +27,7 @@ settings = Settings()
 log = logging.getLogger(settings.environment)
 
 CONTACT_NOT_FOUND = "This contact was not found"
+UNAVAILABLE = "SERVICE UNAVAILABLE"
 CHATBOT_NOT_FOUND = "This chatbot was not found"
 
 
@@ -55,12 +56,18 @@ def _read(found_nothing: str, read) -> JSONResponse:
         return answer(status.HTTP_404_NOT_FOUND, found_nothing)
     except KeyServiceUnavailable as e:
         log.error(f"Key service unavailable: {e}")
-        return answer(status.HTTP_503_SERVICE_UNAVAILABLE, "SERVICE UNAVAILABLE")
+        return answer(status.HTTP_503_SERVICE_UNAVAILABLE, UNAVAILABLE)
     except NotEncrypted:
         # A number from before numbers were encrypted. It is not handed over as it is stored, and an answer
         # without it would pass for everything there is.
         log.error("A contact holds a number that is not encrypted: run the encryption migration")
         return answer(status.HTTP_500_INTERNAL_SERVER_ERROR, "INTERNAL SERVER ERROR")
+
+
+def _not_written_down(error: RegisterUnavailable) -> JSONResponse:
+    """A deletion that could not be written down in the register of erasures is not made."""
+    log.error(f"The register of erasures is unavailable, nothing was deleted: {error}")
+    return answer(status.HTTP_503_SERVICE_UNAVAILABLE, UNAVAILABLE)
 
 
 async def ctr_list_contacts(repo: TenantRepository, bot_id: str, offset: int, limit: int) -> JSONResponse:
@@ -86,6 +93,8 @@ async def ctr_delete_contact(repo: TenantRepository, bot_id: str, contact_id: st
         deleted = repo.delete_contact(bot_id, contact_id)
     except NotFound:
         return answer(status.HTTP_404_NOT_FOUND, CONTACT_NOT_FOUND)
+    except RegisterUnavailable as e:
+        return _not_written_down(e)
     # A warning, so that it is kept at the level production logs at: a deletion cannot be undone.
     log.warning(f"Client {repo.client_id} deleted contact {UUID(contact_id)} of chatbot {UUID(bot_id)}: "
                 f"{deleted} stored")
@@ -97,5 +106,7 @@ async def ctr_delete_chatbot(repo: TenantRepository, bot_id: str) -> JSONRespons
         deleted = repo.delete_bot(bot_id)
     except NotFound:
         return answer(status.HTTP_404_NOT_FOUND, CHATBOT_NOT_FOUND)
+    except RegisterUnavailable as e:
+        return _not_written_down(e)
     log.warning(f"Client {repo.client_id} deleted chatbot {UUID(bot_id)}: {deleted}")
     return answer(status.HTTP_200_OK, data={"uuid": str(UUID(bot_id)), "deleted": deleted})

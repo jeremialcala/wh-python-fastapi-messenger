@@ -12,6 +12,7 @@ from classes import Intent, Action, ApiCall, ActionParameter, IntentRequest
 from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
 from enums import Status
 from repository import TenantRepository, NotFound
+from utils import describe
 from .events import ctr_notify_action
 
 settings = Settings()
@@ -50,7 +51,7 @@ def _build_actions(request: IntentRequest) -> list:
 
 
 async def ctr_create_intent(repo: TenantRepository, request: IntentRequest, bot_id: str, eventId: str = None) -> Response:
-    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
 
@@ -81,17 +82,17 @@ async def ctr_create_intent(repo: TenantRepository, request: IntentRequest, bot_
                             data=_intent.intent_info())
 
     except NotFound as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_id} was not found",
                             data=None)
 
     except OperationError as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_400_BAD_REQUEST,
                             message=f"This intent already exists {request.name}", data=None)
 
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
 
@@ -115,7 +116,7 @@ async def ctr_create_intent(repo: TenantRepository, request: IntentRequest, bot_
 
 
 async def ctr_get_intents(repo: TenantRepository, bot_id: str, eventId: str = None) -> Response:
-    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
 
@@ -139,12 +140,12 @@ async def ctr_get_intents(repo: TenantRepository, bot_id: str, eventId: str = No
                             data=_intents)
 
     except NotFound as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_id} was not found",
                             data=None)
 
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
 
@@ -168,7 +169,7 @@ async def ctr_get_intents(repo: TenantRepository, bot_id: str, eventId: str = No
 
 
 async def ctr_get_intent(repo: TenantRepository, bot_id: str, intent_id: str, eventId: str = None) -> Response:
-    log.info(f"Starting: {currentframe().f_code.co_name} for this intent {intent_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
 
@@ -192,12 +193,12 @@ async def ctr_get_intent(repo: TenantRepository, bot_id: str, intent_id: str, ev
                             data=_intent.intent_info())
 
     except (ValueError, IndexError, NotFound) as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND,
                             message=f"This intent {intent_id} was not found", data=None)
 
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
 
@@ -222,7 +223,7 @@ async def ctr_get_intent(repo: TenantRepository, bot_id: str, intent_id: str, ev
 
 async def ctr_update_intent(repo: TenantRepository, request: IntentRequest, bot_id: str, intent_id: str,
                             eventId: str = None) -> Response:
-    log.info(f"Starting: {currentframe().f_code.co_name} for this intent {intent_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
 
@@ -252,12 +253,12 @@ async def ctr_update_intent(repo: TenantRepository, request: IntentRequest, bot_
                             data=_intent.intent_info())
 
     except (ValueError, IndexError, NotFound) as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND,
                             message=f"This intent {intent_id} was not found", data=None)
 
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
 
@@ -281,7 +282,7 @@ async def ctr_update_intent(repo: TenantRepository, request: IntentRequest, bot_
 
 
 async def ctr_delete_intent(repo: TenantRepository, bot_id: str, intent_id: str, eventId: str = None) -> Response:
-    log.info(f"Starting: {currentframe().f_code.co_name} for this intent {intent_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
 
@@ -307,12 +308,12 @@ async def ctr_delete_intent(repo: TenantRepository, bot_id: str, intent_id: str,
                             data=None)
 
     except (ValueError, IndexError, NotFound) as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND,
                             message=f"This intent {intent_id} was not found", data=None)
 
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
 
@@ -340,7 +341,7 @@ async def ctr_get_bot_tools(repo: TenantRepository, bot_id: str, eventId: str = 
     Aggregate every active action of every active intent of the bot into a flat
     list of LLM tool definitions. This is the bridge consumed by the worker.
     """
-    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
 
@@ -366,12 +367,12 @@ async def ctr_get_bot_tools(repo: TenantRepository, bot_id: str, eventId: str = 
                             data=_tools)
 
     except NotFound as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_id} was not found",
                             data=None)
 
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
 

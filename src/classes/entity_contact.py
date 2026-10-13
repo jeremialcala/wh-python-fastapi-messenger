@@ -37,7 +37,6 @@ class Contact(Document):
 
     @staticmethod
     async def generate_contact_from_fb(botId: str, fb_info: ProfileInfo):
-        log.info(f"Creating a new contact from this profile: {fb_info.json()}")
         return Contact(
             _uuid=uuid4(),
             botId=botId,

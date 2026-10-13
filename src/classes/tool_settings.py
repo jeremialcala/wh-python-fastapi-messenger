@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     andvari_secret_id_file: str = Field(min_length=1)
     # The CA that signed the key service's certificate. Without it, the system's are used.
     andvari_ca_file: str | None = None
+    # Where the register of erasures is kept: a directory that outlives the container and is not the database.
+    # Nothing is deleted while it cannot be written.
+    erasures_dir: str = Field(default="erasures", min_length=1)
     # Meta App Secret used to verify webhook signatures; a bot's own appSecret overrides it.
     facebook_app_secret: str | None = None
 
