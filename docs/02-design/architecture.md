@@ -209,8 +209,9 @@ stateDiagram-v2
     Respondido --> [*]
     Fallido --> [*]
 ```
-*Eje comportamiento · fase 02 · Gate 1. Hasta `Encolado` es responsabilidad del gateway y está construido. `Duplicado`
-y `Caducado` son del contrato de la cola (ADR-0011) y no existen todavía. De `EnProceso` en adelante es del motor.*
+*Eje comportamiento · fase 02 · Gate 1. Hasta `Encolado` es responsabilidad del gateway y está construido. `Caducado`
+lo aplica el broker, con la caducidad que el gateway pone en cada mensaje. `Duplicado` es del motor y no existe todavía
+(ADR-0011). De `EnProceso` en adelante es del motor.*
 
 ## Modelo de datos y dominio
 
@@ -332,7 +333,8 @@ función, no como puerto.*
 | Cola `llm` | [`contracts/asyncapi.yaml`](contracts/asyncapi.yaml) | Escrito a mano. Una prueba de contrato valida contra él el mensaje que el código publica de verdad |
 
 Los dos describen lo que hay **hoy**. El OpenAPI no declara esquemas de seguridad porque la aplicación no los
-declara. El AsyncAPI incluye los defectos conocidos del mensaje; la versión objetivo está en ADR-0011.
+declara. El AsyncAPI describe el sobre versión 1 de ADR-0011, que es lo que el gateway publica: un sobre por cada
+mensaje, con el identificador de Meta y una caducidad de 24 horas.
 
 Autenticación por superficie:
 
@@ -366,7 +368,7 @@ Lo que hay que construir para que el código cumpla este diseño, en el orden qu
 | 1 | Entidad cliente, `clientId` en cada documento y capa de repositorio. **Hecho** | RF01, RS01 | ADR-0012 |
 | 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key`. **Hecho**, con el alta de clientes; falta el cliente de servicio del motor | RS02 | ADR-0005, ADR-0009 |
 | 3 | Clave de datos por cliente, cifrado de campos e índice ciego; migrar lo que está en claro. **Hecho**; la migración se ejecuta a mano | RS05, RS06 | ADR-0010 |
-| 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad | RF12, RNF04, RNF05 | ADR-0011 |
+| 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad. **Hecho** del lado del gateway; el motor tiene su parte | RF12, RNF04, RNF05 | ADR-0011 |
 | 5 | Endpoints para cargar credenciales de Meta (**hecho**), y para exportar y borrar contactos y bots | RF06, RF08, RF09, RF10 | — |
 | 6 | Logs sin datos personales, errores sin detalles, esquema estricto de la notificación | RS07, RS11, RS15 | — |
 | 7 | Retirar el envío por WhatsApp (**hecho**) y la mención a `/answers`, que ya no son del gateway | — | ADR-0002 |

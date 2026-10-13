@@ -63,6 +63,19 @@ resto de criterios cumplidos.
 - Los datos anteriores se cifran con `python -m migrations.encrypt_client_data --apply`.
 - Cómo funciona y cómo se opera: [`cifrado-de-datos.md`](../../docs/03-implementation/cifrado-de-datos.md).
 
+### Hecho: sobre versión 1 de la cola (ADR-0011)
+
+- El gateway publica el sobre versión 1: `schemaVersion`, `messageId` con el identificador de Meta, `metadata`
+  como objeto, la fecha real de creación y una caducidad de 24 horas en cada mensaje.
+- Un sobre por cada mensaje de la notificación. Antes no salían todos, y el eco de Messenger no se filtraba
+  (H7 y H8 del threat model).
+- El contrato es [`asyncapi.yaml`](../../docs/02-design/contracts/asyncapi.yaml), y las pruebas validan contra
+  él lo que el código publica. Rompiendo el cambio de dieciséis maneras, fallan en las dieciséis.
+- La publicación se prueba contra un RabbitMQ real de la misma versión que Hermod, también en el pipeline: el
+  broker conserva el sobre, lo descarta al caducar, y la cola la pueden declarar los dos servicios.
+- Pasados al parser del motor tal como está hoy, los sobres de WhatsApp se leen; los de Messenger se rechazan y
+  el bot no se conserva, que es la parte de ADR-0011 que toca en su repositorio.
+
 ### Pendiente que deja el primer análisis estático
 
 - 28 hallazgos medios de `py/log-injection` en `app.py` y los controladores: valores de la petición escritos en el
@@ -73,7 +86,7 @@ resto de criterios cumplidos.
 
 - Los siete trabajos de la sección "Brecha entre lo construido y el diseño" de
   [`architecture.md`](../../docs/02-design/architecture.md), en el orden que marca el threat model.
-- Los hallazgos H2 a H6 de [`threat-model.md`](../../docs/02-design/threat-model.md). H1, los valores por defecto
-  que se calculaban al importar, está corregido.
+- Los hallazgos abiertos de [`threat-model.md`](../../docs/02-design/threat-model.md): H3, H5 y H6, y los que salieron
+  al construir el sobre, H9 y H10. H1, H2, H4, H7 y H8 están corregidos.
 - Si cambia la API o el mensaje de la cola, los contratos de `docs/02-design/contracts/` cambian con ellos: las
   pruebas de `tests/contract` lo exigen.

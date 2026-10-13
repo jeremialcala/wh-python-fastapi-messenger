@@ -59,7 +59,8 @@ Niveles: Público < Interno < Confidencial < Restringido.
 ## Decidido al aprobar el Gate 0 (2026-10-12)
 
 - **Retención.** Máximos de la plataforma que cada cliente puede acortar: 24 horas para un mensaje en la cola y
-  12 meses sin actividad para un contacto. Ninguno está implementado todavía (RNF05).
+  12 meses sin actividad para un contacto. El de la cola lo aplica el broker: cada mensaje se publica con una
+  caducidad de 24 horas. El de los contactos no está implementado todavía (RNF05).
 - **Alcance de "los números".** El cifrado con la clave del cliente cubre el número del contacto y el número del
   bot (RS05).
 

@@ -35,8 +35,19 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   `docs/03-implementation/cifrado-de-datos.md`.
 - `python -m migrations.assign_operator_client`: asigna al cliente del operador los documentos anteriores a la
   existencia de clientes. Sin `--apply` solo informa.
+- Sobre versión 1 de la cola `llm` (ADR-0011): cada sobre lleva `schemaVersion` y, en `messageId`, el
+  identificador que Meta dio al mensaje, que es la clave con la que el motor de respuestas deduplica.
+- Caducidad de 24 horas en cada mensaje publicado: el broker descarta el que nadie ha consumido.
+- Pruebas de integración de la publicación contra un RabbitMQ real, también en el pipeline.
 
 ### Cambiado
+- **Incompatible para el consumidor de la cola:** el gateway publica un sobre por cada mensaje de la notificación,
+  y en WhatsApp el contenido lleva solo ese mensaje y a quien lo envió. Los acuses de entrega y de lectura, los ecos
+  de lo que envía la página y las pulsaciones de botones de Messenger se aceptan con `200` y no se publican.
+- Un mensaje de WhatsApp sin el número al que iba dirigido (`metadata.phone_number_id`) no se publica: el motor no
+  tendría desde dónde responder. Antes salía con un número de ejemplo.
+- El procesamiento de la notificación ya no escribe en el log el contenido de los mensajes. La identificación del
+  contacto sigue registrando su número o su identificador.
 - Los chatbots guardados antes de este cambio responden `404`, también en el webhook, hasta que se ejecute la
   migración que les asigna cliente.
 - El gate de análisis estático bloquea por hallazgos altos o críticos fuera del código de pruebas. Los de
@@ -62,6 +73,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - El envío de mensajes por WhatsApp desde el gateway, que no se usaba: responder es cosa del motor (ADR-0002).
 
 ### Corregido
+- `metadata` de WhatsApp salía hacia la cola como una lista de pares y no como un objeto, y el motor no podía leer
+  el número desde el que responder.
+- De una notificación con varios mensajes no salían todos: con varias entradas, o con varios eventos de Messenger,
+  solo se publicaba lo último, y los demás se perdían con un `200`.
+- El filtro que debía descartar el eco de lo que envía la propia página en Messenger no descartaba nada: el eco
+  seguía el camino de un mensaje más.
+- La fecha del sobre dependía de la zona horaria de la máquina: fuera de UTC salía desplazada.
 - Un fallo al guardar un contacto se tragaba dentro de un `finally` con `return`, y el mensaje se perdía con un
   `200`. Ahora la caída del servicio de claves llega hasta Meta como `503`.
 - Un intent se podía leer, cambiar o desactivar a través de cualquier chatbot: la ruta no comprobaba que fuera

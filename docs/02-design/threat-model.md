@@ -54,7 +54,7 @@ líneas discontinuas son flujos del diseño que hoy no existen.*
 | T4 | Flujo 3 | I, E | La gestión o la documentación de la API quedan alcanzables desde internet | El túnel publica solo `/chat/<uuid>`; el contenedor escucha en loopback | Pendiente: sin desplegar | RS09, ADR-0008 |
 | T5 | Flujo 2/3, 9 | S | Fuerza bruta contra el token de verificación o las credenciales de gestión | Comparación en tiempo constante del token de verificación; para la gestión no hay secreto que adivinar, sino una firma `ES256`; límite de tasa en el borde | Parcial: falta el límite de tasa | RS02, RS04, RS10 |
 | T6 | Gateway | I | Los logs contienen números, nombres y contenido de mensajes | Sin datos personales en ningún nivel de log | Parcial: el interceptor ya no registra query strings ni cabeceras; `messages.py` y `facebook.py` sí registran datos por debajo de `production` | RS07 |
-| T7 | Flujo 2/3, 6 | T | Una notificación legítima se entrega o se reenvía dos veces y se procesa dos veces | Identificador de Meta en el sobre y deduplicación en el motor durante 24 horas | Pendiente | RNF04, ADR-0011 |
+| T7 | Flujo 2/3, 6 | T | Una notificación legítima se entrega o se reenvía dos veces y se procesa dos veces | Identificador de Meta en el sobre y deduplicación en el motor durante 24 horas | Parcial: el gateway publica el identificador de Meta en `messageId`; el motor no deduplica todavía | RNF04, ADR-0011 |
 | T8 | Flujo 9 | S | Alguien fabrica un token de gestión, o captura uno válido y lo reenvía | JWT firmado por el cliente dentro de un JWE; caducidad de 60 segundos y un solo uso | Construido | RS02, ADR-0005, ADR-0009 |
 | T9 | Flujo 2/3 | D | Una ráfaga de notificaciones agota el worker o llena la cola | Límite de tasa en el borde; tope de memoria y CPU del contenedor; caducidad de los mensajes | Parcial: solo el tope del contenedor | RS10, RNF03, RNF05 |
 | T10 | Flujo 14 | E, T | Un usuario final escribe instrucciones para que el LLM invoque herramientas del cliente | Guardrails de entrada y salida del LLM tratada como no confiable, en el motor | Parcial: según la documentación del motor; no verificado aquí | RS16 |
@@ -130,16 +130,20 @@ quadrantChart
 
 ## Hallazgos del diseño
 
-Defectos que salieron al contrastar el código con el diseño. Los cuatro primeros se comprobaron ejecutándolo.
+Defectos que salieron al contrastar el código con el diseño. H1 a H4 y H7 a H9 se comprobaron ejecutándolo; H10, solo en el sobre de la cola.
 
 | ID | Hallazgo | Impacto | Estado |
 |---|---|---|---|
 | H1 | **Los valores por defecto se calculan una vez, al importar.** Los campos de las entidades usan `default=uuid4()` y `default=datetime.now()`, con paréntesis: el valor queda fijado al arrancar. Hay 28 campos así | `createdAt` y `statusDate` de todos los documentos guardan la hora de arranque del proceso, no la de creación. El `_uuid` de los mensajes de la cola es el mismo en todos. Los demás identificadores se salvan porque el código los asigna de forma explícita | **Corregido** en la base del Gate 2: los valores por defecto se calculan por objeto, con pruebas que lo exigen |
-| H2 | **`metadata` de WhatsApp sale mal serializado** hacia la cola: una lista de pares en vez de un objeto | El motor no puede leer `phone_number_id`, que necesita para responder | Abierto; ADR-0011 |
+| H2 | **`metadata` de WhatsApp sale mal serializado** hacia la cola: una lista de pares en vez de un objeto | El motor no puede leer `phone_number_id`, que necesita para responder | **Corregido**: `metadata` viaja como objeto, y el contrato rechaza la lista |
 | H3 | **El motor rechaza los mensajes de Messenger** que publica el gateway y **descarta el `botId`** | Messenger no funciona de extremo a extremo; el motor no puede pedir la configuración del bot | Abierto; ADR-0011, en el repositorio del motor |
 | H4 | **`GET /chat/{bot_id}/info` devuelve los tokens de Meta** | Quien se autentique como dueño del bot los lee; el aislamiento impide que los lea otro cliente | **Corregido**: `/info` ya no devuelve los tokens de Meta, solo cuáles están cargados |
 | H5 | **El contrato OpenAPI no declara ningún esquema de seguridad**: la autenticación se hace en dependencias que OpenAPI no ve | Quien lea el contrato no sabe que hace falta credencial; las herramientas de análisis tampoco | Abierto |
 | H6 | **Los valores por defecto y los ejemplos de los DTO son aleatorios**, generados con Faker al importar | La documentación de la API cambia en cada arranque. El contrato versionado los omite por eso | Abierto |
+| H7 | **De una notificación con varios mensajes no salían todos.** Con varias entradas, o con varios eventos de Messenger, solo se publicaba lo último. Varios mensajes de WhatsApp en un mismo cambio viajaban juntos en un solo sobre, del que el motor lee el primero | Los demás se perdían con un `200`, sin rastro. Meta puede agrupar varios mensajes en una notificación | **Corregido**: un sobre por cada mensaje de la notificación |
+| H8 | **El filtro del eco de Messenger no filtraba nada**: buscaba `is_echo` en un objeto que nunca lo contiene | El eco de lo que envía la propia página seguía el camino de un mensaje de una persona: con una Graph API simulada que devuelve un perfil, se publica y su remitente queda guardado como contacto. No está comprobado qué responde Meta al pedirle el perfil de una página. Con el motor respondiendo, el bot se contestaría a sí mismo | **Corregido**: el eco no se publica ni crea contacto |
+| H9 | **Un fallo al procesar que no sea del broker ni del servicio de claves acaba en `200`**: la base de datos caída al buscar el contacto, o la Graph API sin responder para un contacto nuevo de Messenger | Meta da el mensaje por entregado y no lo reenvía: se pierde. Contradice ADR-0006. En una notificación con varios mensajes se pierden ese y los siguientes | Abierto: falta decidir qué fallos piden reintento a Meta |
+| H10 | **Las fechas de los documentos se guardan en hora local sin zona**, y MongoDB las toma por UTC | En una máquina que no esté en UTC quedan desplazadas tantas horas como su desfase. La imagen corre en UTC, así que en el despliegue no ocurre | Abierto en las entidades guardadas; **corregido** en el sobre de la cola |
 
 ## Controles y trazabilidad
 

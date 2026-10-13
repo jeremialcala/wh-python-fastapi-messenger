@@ -54,7 +54,7 @@ Gestiona el ciclo de vida completo de un chatbot (registro, verificación y conf
 
 - **Webhook de entrada**: Meta envía el reto de verificación (`GET`) y las notificaciones de mensajes (`POST`) a `/chat/{bot_id}`.
 - **Resolución de contactos**: cada remitente se busca o se crea como `Contact`; los de Messenger se enriquecen con su perfil de la API Graph.
-- **Publicación**: el cuerpo normalizado del mensaje se publica en RabbitMQ para que un consumidor externo genere la respuesta.
+- **Publicación**: cada mensaje que una persona envía se publica en RabbitMQ en un sobre propio, con el bot de destino y el identificador que Meta le dio, para que el motor de respuestas genere la respuesta. El contrato es [`docs/02-design/contracts/asyncapi.yaml`](docs/02-design/contracts/asyncapi.yaml).
 - **Registro de eventos**: una petición puede generar un `Event` y varias `EventAction` con el método, el paso, el estado y el tiempo transcurrido.
 
 ---
@@ -172,7 +172,7 @@ Campos de `ChatbotRequest`: `name`, `role`, `description`, `tone`.
 | Método | Ruta | Descripción |
 |---|---|---|
 | `GET`  | `/chat/{bot_id}` | **Verificación del webhook de Meta.** Valida `hub.mode=subscribe` y compara `hub.verify_token` con el `verifyToken` del bot; después devuelve `hub.challenge` como texto plano. Cualquier otra cosa es un `403`. |
-| `POST` | `/chat/{bot_id}` | **Mensajes entrantes.** Exige un `X-Hub-Signature-256` válido (`403` si no). Recibe un `FacebookRequest` y despacha payloads de Messenger (`object=page`) o de WhatsApp (`object=whatsapp_business_account`). Responde `200` cuando RabbitMQ ha confirmado el mensaje y `503` si el broker no está disponible, para que Meta reintente. |
+| `POST` | `/chat/{bot_id}` | **Mensajes entrantes.** Exige un `X-Hub-Signature-256` válido (`403` si no). Recibe un `FacebookRequest` y despacha payloads de Messenger (`object=page`) o de WhatsApp (`object=whatsapp_business_account`). Publica un sobre por cada mensaje de la notificación; los acuses de entrega y de lectura, los ecos de lo que envía la página y las pulsaciones de botones se aceptan y no se publican. Responde `200` cuando RabbitMQ ha confirmado todos los mensajes y `503` si el broker no está disponible, para que Meta reintente. |
 | `POST` | `/chat/{bot_id}/phones` | Registra un número de WhatsApp (`ChatbotPhoneRequest`: `environment`, `phoneNumber`, `phoneId`). |
 | `GET`  | `/chat/{bot_id}/phones?environment=` | Lista los números del bot; con `environment` devuelve el más reciente de ese entorno. |
 | `GET`  | `/chat/{bot_id}/info` | Devuelve la información guardada del bot (`chatbot_info()`), incluidos sus tokens. |
@@ -216,7 +216,7 @@ Todas las entidades son `Document` de mongoengine y se conectan a la base config
 | `Jwk` | `entity_jwk.py` | `kid`, `kty`, `n`, `e`, `use`, `x5t` | Metadatos del JWK público. `create_key_for_event()` genera un par RSA, escribe el PEM en `certs/`, guarda el JWK público y lo enlaza con `EventJwk`. |
 | `EventJwk` | `entity_event_jwk.py` | `eventId`, `jwkId` | Tabla de unión entre un evento y su clave de cifrado. |
 | `Credentials` | `entity_credentials.py` | `uuid`, `_header`, `_claims`, `_key`, `jwt` | Credencial simétrica (HS256) con la que se firman los tokens de verificación de los bots. |
-| `QueueMessage` | `entity_amqp_message.py` | `_uuid`, `eventId`, `endpoint`, `operation`, `jwe_body`, `status` | El mensaje que se publica en RabbitMQ. `set_jwe_body()` cifra el cuerpo con el JWK del evento como JWE compacto. |
+| `QueueMessage` | `entity_amqp_message.py` | `schemaVersion`, `_uuid`, `messageId`, `eventId`, `endpoint`, `operation`, `jwe_body`, `status` | El sobre que se publica en RabbitMQ, versión 1. `messageId` es el identificador que Meta dio al mensaje. `set_jwe_body()` cifra el cuerpo con el JWK del evento como JWE compacto. |
 
 ---
 
@@ -358,9 +358,9 @@ Se configura en [src/logging_config.yaml](src/logging_config.yaml) y lo aplica a
 | `POST /chat/{bot_id}` (notificaciones) | `X-Hub-Signature-256`: HMAC-SHA256 del cuerpo crudo con el App Secret de Meta como clave. `403` si no coincide. |
 
 - **Qué App Secret se usa** — el `appSecret` del propio chatbot si su documento lo tiene; si no, `FACEBOOK_APP_SECRET`. Sin ninguno de los dos, se rechaza toda notificación. Igual que los tokens de página y de WhatsApp, `appSecret` se escribe directamente en el documento del chatbot; ningún endpoint lo devuelve.
-- **Entrega** — una notificación recibe su `200` solo después de que RabbitMQ confirme la publicación. Meta reenvía ante un `503`, así que el consumidor de la cola `llm` debe tolerar duplicados (deduplicar por el id del mensaje).
+- **Entrega** — una notificación recibe su `200` solo después de que RabbitMQ confirme la publicación. Meta reenvía ante un `503`, así que el consumidor de la cola `llm` debe tolerar duplicados: cada sobre lleva en `messageId` el identificador de Meta, que se repite en cada reentrega. Un mensaje que nadie consume caduca en la cola a las 24 horas.
 - **Logs** — el interceptor no registra query strings ni cabeceras, y la clave que firma el `verifyToken` de un bot ya no se escribe en el log.
-- **Pendiente** — `/docs`, `/redoc` y `/openapi.json` se sirven sin clave y no hay límite de tasa: publica solo `/chat/{bot_id}` en el borde y deja todo lo demás en la red privada. `src/controller/messages.py` sigue registrando el contenido de los mensajes entrantes a nivel `INFO`, y el mensaje viaja a la cola sin cifrar.
+- **Pendiente** — `/docs`, `/redoc` y `/openapi.json` se sirven sin clave y no hay límite de tasa: publica solo `/chat/{bot_id}` en el borde y deja todo lo demás en la red privada. `src/controller/facebook.py` sigue registrando el número o el identificador del contacto a nivel `INFO`, y el mensaje viaja a la cola sin cifrar.
 
 Para firmar a mano una notificación de prueba:
 
