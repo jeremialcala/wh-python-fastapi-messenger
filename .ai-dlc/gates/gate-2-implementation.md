@@ -97,6 +97,22 @@ resto de criterios cumplidos.
 - De paso se corrige H12: la respuesta a una petición mal formada repetía lo enviado, credenciales incluidas.
 - Cómo funciona y hasta dónde llega: [`exportar-y-borrar.md`](../../docs/03-implementation/exportar-y-borrar.md).
 
+### Hecho: logs sin datos personales, errores sin detalles y registro de supresiones (RS07, RS15, ADR-0014)
+
+- Nada de lo que envía quien llama, ni de lo que Meta envía sobre una persona, se escribe en el log, en
+  ningún nivel. Cada petición deja una línea con la ruta tal como está declarada; de un fallo se escribe su
+  tipo y su línea, nunca su texto.
+- Se corrige H13: el log de accesos del servidor escribía cada petición con su query string, y con ella el
+  token de verificación del webhook, también en `production`. Se vio ejecutando el servicio como lo hace la
+  imagen.
+- Un fallo inesperado responde `500` sin su texto: las pruebas lo fuerzan en cada ruta de gestión.
+- Cada borrado se apunta antes de hacerse en un registro de supresiones que vive fuera de la base, y
+  `python -m migrations.replay_erasures` lo repite después de restaurar un respaldo. Si el registro no se
+  puede escribir, no se borra nada.
+- Las pruebas borran por la API, devuelven la base a una copia anterior y repiten los borrados.
+  Rompiendo el cambio de 40 maneras, fallan en las 40.
+- Queda del sexto trabajo de la brecha el esquema estricto de la notificación y el límite de tamaño (RS11).
+
 ### Pendiente que deja el primer análisis estático
 
 - 28 hallazgos medios de `py/log-injection` en `app.py` y los controladores: valores de la petición escritos en el

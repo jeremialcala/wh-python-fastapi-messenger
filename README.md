@@ -252,6 +252,7 @@ Los ajustes los carga `src/classes/tool_settings.py` (`pydantic-settings`) desde
 | `GATEWAY_AUDIENCE` | Lo que los clientes ponen en el `aud` de sus tokens: la URL pública del despliegue. |
 | `ANDVARI_ADDR`, `ANDVARI_ROLE_ID` | Dirección del servicio de claves (OpenBao) y rol con el que entra el gateway. Fuera de desarrollo la dirección tiene que ser `https`. |
 | `ANDVARI_SECRET_ID_FILE`, `ANDVARI_CA_FILE` | Rutas del fichero con la credencial de ese rol y de la autoridad que firmó el certificado del servicio de claves. |
+| `ERASURES_DIR` | Directorio del registro de supresiones: cada borrado se apunta ahí antes de hacerse. Tiene que sobrevivir al contenedor, estar en los respaldos y no ser la base de datos. Si no se puede escribir, no se borra nada. Por defecto, `erasures`. |
 | `FACEBOOK_APP_SECRET` | App Secret de Meta con el que se verifican las firmas del webhook. Solo es opcional si cada chatbot lleva su propio `appSecret`. |
 | `CLIENT_ID`, `NATIONAL_ID_URL` | Identificadores de cliente varios. |
 | `DB_NAME`, `DB_HOST`, `DB_USERNAME`, `DB_PASSWORD` | Conexión a MongoDB (admite host SRV de Atlas). |
@@ -326,6 +327,7 @@ Preparación única en el servidor:
 - `/srv/apps/bots-gateway/docker-compose.yml`, copiado de [deploy/docker-compose.yml](deploy/docker-compose.yml), y junto a él un `.env` con las claves de [config.env.example](config.env.example).
 - El par de claves del gateway en `keys/gateway-keys.json` y la primera clave del operador registrada: los tres pasos de la puesta en marcha de [autenticacion.md](docs/03-implementation/autenticacion.md).
 - La red Docker externa `andvari`, la credencial del gateway en `keys/andvari-secret-id` y las dos migraciones de datos: la puesta en marcha de [cifrado-de-datos.md](docs/03-implementation/cifrado-de-datos.md).
+- El directorio `erasures/`, con dueño `10001` e incluido en los respaldos del servidor: es el registro de supresiones de [exportar-y-borrar.md](docs/03-implementation/exportar-y-borrar.md). Sin él, borrar responde `503`.
 - La red Docker externa `hermod` y un usuario de RabbitMQ para el gateway (`QMS_SERVER=hermod`).
 - El paquete de GHCR en **Public**, porque el receptor hace pull anónimo.
 - Una entrada en el `apps.yml` del receptor y el webhook `workflow_run` de este repositorio:
@@ -373,8 +375,9 @@ Se configura en [src/logging_config.yaml](src/logging_config.yaml) y lo aplica a
 
 - **Qué App Secret se usa** — el `appSecret` del propio chatbot si su documento lo tiene; si no, `FACEBOOK_APP_SECRET`. Sin ninguno de los dos, se rechaza toda notificación. Igual que los tokens de página y de WhatsApp, `appSecret` se carga con `PUT /chat/{bot_id}/credentials`; ningún endpoint lo devuelve.
 - **Entrega** — una notificación recibe su `200` solo después de que RabbitMQ confirme la publicación. Meta reenvía ante un `503`, así que el consumidor de la cola `llm` debe tolerar duplicados: cada sobre lleva en `messageId` el identificador de Meta, que se repite en cada reentrega. Un mensaje que nadie consume caduca en la cola a las 24 horas.
-- **Logs** — el interceptor no registra query strings ni cabeceras, y la clave que firma el `verifyToken` de un bot ya no se escribe en el log.
-- **Pendiente** — `/docs`, `/redoc` y `/openapi.json` se sirven sin clave y no hay límite de tasa: publica solo `/chat/{bot_id}` en el borde y deja todo lo demás en la red privada. `src/controller/facebook.py` sigue registrando el número o el identificador del contacto a nivel `INFO`, y el mensaje viaja a la cola sin cifrar.
+- **Logs** — no se escribe nada de lo que envía quien llama, ni de lo que Meta envía sobre una persona: ni números, ni nombres, ni mensajes, ni tokens. Cada petición deja una línea con su método, la ruta tal como está declarada y los identificadores bien formados de su dirección; de un fallo se escribe su tipo y su línea, nunca su texto. El log de accesos de Uvicorn, que escribe la query string, está apagado.
+- **Errores** — un fallo inesperado responde `500` sin su texto, y un `422` dice dónde está el error sin repetir lo enviado.
+- **Pendiente** — `/docs`, `/redoc` y `/openapi.json` se sirven sin clave y no hay límite de tasa: publica solo `/chat/{bot_id}` en el borde y deja todo lo demás en la red privada. El mensaje viaja a la cola sin cifrar.
 
 Para firmar a mano una notificación de prueba:
 
