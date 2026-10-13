@@ -11,7 +11,7 @@ from mongoengine.errors import NotUniqueError
 from classes import Client
 from enums import Role, Status
 
-from . import data_keys
+from . import data_keys, erasures
 from .errors import Conflict, NotFound
 from .tenant import TenantRepository, as_uuid
 from .tokens import forget_tokens
@@ -98,13 +98,22 @@ def delete_client(client_id) -> dict:
     if client.role == Role.OPERATOR.value:
         # Without the operator nobody registers a client or lets one back in.
         raise Conflict("operator")
-    Client.objects(uuid=client.uuid).update_one(set__signingKeys=[], set__status=Status.DIS.value,
-                                                set__statusDate=datetime.now())
-    deleted = TenantRepository(client.uuid).delete_all()
-    forget_tokens(client.uuid)
-    client.delete()
+    erasures.record(erasures.CLIENT, client.uuid)
+    return erase_client(client.uuid)
+
+
+def erase_client(client_id: UUID) -> dict:
+    """
+        Deletes a client without writing it down in the register of erasures: for delete_client, which writes
+        it down first, and for making again the deletions the register holds.
+    """
+    Client.objects(uuid=client_id).update_one(set__signingKeys=[], set__status=Status.DIS.value,
+                                              set__statusDate=datetime.now())
+    deleted = TenantRepository(client_id).erase_all()
+    forget_tokens(client_id)
+    Client.objects(uuid=client_id).delete()
     # The open key of this process. Any other process drops its own within data_keys.OPEN_FOR seconds.
-    data_keys.forget(client.uuid)
+    data_keys.forget(client_id)
     return deleted
 
 

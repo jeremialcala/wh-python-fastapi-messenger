@@ -628,7 +628,7 @@ def test_a_chatbot_is_not_left_behind_for_a_client_whose_deletion_is_under_way(l
 
     def halfway():
         Client.objects(uuid=leaving.client_id).update_one(set__signingKeys=[], set__status=Status.DIS.value)
-        repo.delete_all()
+        repo.erase_all()
 
     deleted_meanwhile(monkeypatch, ChatBot, halfway)
 
@@ -651,7 +651,7 @@ def test_a_chatbot_whose_client_is_gone_is_not_served(http, leaving, people, que
 def test_the_repository_of_another_client_deletes_nothing_of_this_one(caller, stranger, people):
     before = counts()
 
-    assert TenantRepository(stranger.client_id).delete_all() == {
+    assert TenantRepository(stranger.client_id).erase_all() == {
         "chatbots": 0, "contacts": 0, "phones": 0, "rules": 0, "intents": 0}
     assert counts() == before == counts(clientId=caller.client_id)
 

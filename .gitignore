@@ -112,6 +112,8 @@ venv.bak/
 .aws/
 .certs/
 certs/
+# The register of erasures of a local run
+erasures/
 images/
 prototypes/
 config.env

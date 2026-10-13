@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from inspect import currentframe
-from uuid import uuid4
+from uuid import UUID, uuid4
 from classes import (Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport,
                      RulesRequest, BotResponse, IntentRequest, ChatBot, ClientRequest, SigningKeyRequest,
                      BotCredentialsRequest, ContactSearchRequest)
@@ -34,8 +34,8 @@ from auth.tokens import InvalidToken
 from crypto.fields import NotEncrypted
 from crypto.key_service import KeyServiceUnavailable, OpenBaoKeyService
 from enums import Role
-from repository import TenantRepository, BotSecrets, NotFound, find_webhook_bot, data_keys
-from utils import configure_logging, is_valid_signature, secrets_match
+from repository import TenantRepository, BotSecrets, NotFound, find_webhook_bot, data_keys, erasures
+from utils import configure_logging, describe, is_valid_signature, secrets_match
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -50,6 +50,9 @@ if not settings.andvari_addr.startswith("https://") and settings.environment != 
     raise ValueError("ANDVARI_ADDR must be an https address")
 data_keys.configure(OpenBaoKeyService(settings.andvari_addr, settings.andvari_role_id,
                                       settings.andvari_secret_id_file, settings.andvari_ca_file))
+
+# Every deletion is written down here before it is made. Like the key service, it is only reached when needed.
+erasures.configure(settings.erasures_dir)
 
 bearer = HTTPBearer(auto_error=False, bearerFormat="JWE",
                     description="A JWT signed by the client (ES256), inside a JWE encrypted to the gateway "
@@ -152,10 +155,28 @@ async def invalid_request(_request: Request, error: RequestValidationError):
     return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": detail})
 
 
+# The method of a request as the log names it: one of these, never the text that was sent.
+METHODS = {method: method for method in ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")}
+
+
+def request_line(request: Request) -> str:
+    """
+        A request as it goes to the log: the route it matched, as it is declared, and the identifiers in its
+        address that are well formed. Never the address as it was sent, nor its query string: they carry
+        verification tokens, and whatever a caller wants to plant in the log.
+    """
+    identifiers = []
+    for value in request.scope.get("path_params", {}).values():
+        try:
+            identifiers.append(str(UUID(value)))
+        except (ValueError, TypeError, AttributeError):
+            continue
+    route = getattr(request.scope.get("route"), "path", "no route")
+    return " ".join([METHODS.get(request.method, "OTHER"), route, *identifiers])
+
+
 @app.middleware("http")
 async def interceptor(request: Request, call_next):
-    log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"This is a new request {request.client}")
     s_time = time.time()
     body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message="INTERNAL SERVER ERROR", data=None)
 
@@ -174,19 +195,18 @@ async def interceptor(request: Request, call_next):
     )
 
     try:
-        # Query strings, headers and bodies stay out of the log: they carry verify tokens, API keys and signatures.
-        log.info(request.url.path)
         # asyncio.ensure_future(ctr_create_event(event))
 
         request.state.event_id = None
 
         response = await call_next(request)
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
     finally:
         process_time = "{:f}".format(time.time() - s_time)
         response.headers[PROCESSING_TIME] = str(process_time)
-        log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code} time: {process_time}")
+        # The one line a request leaves, written once it is known which route it was.
+        log.info(f"{request_line(request)} code:{response.status_code} time: {process_time}")
     return response
 
 
@@ -203,9 +223,7 @@ async def health():
 async def create_chatbot(chatbot: ChatbotRequest, request: Request,
                          repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"this is the start of a new chatbot name: {chatbot.name}")
     try:
-        log.info(request.state.__dict__)
         response = await ctr_create_chatbot(repo, request=chatbot, eventId=request.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
@@ -225,7 +243,6 @@ async def delete_chatbot(bot_id: str, repo: TenantRepository = Depends(get_repos
 @app.get(path="/chat/{bot_id}", tags=["Chat"])
 async def verify(request: Request, bot_id, _bot: ChatBot = Depends(get_webhook_bot)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"this is a chatbot verification request: {bot_id}")
 
     """
         Here is the validation that Facebook uses to confirm your webhook!
@@ -234,7 +251,7 @@ async def verify(request: Request, bot_id, _bot: ChatBot = Depends(get_webhook_b
     challenge = request.query_params.get(HUB_CHALLENGE)
     if (request.query_params.get(HUB_MODE) != SUBSCRIBE or not challenge
             or not secrets_match(webhook_secrets(_bot).verify_token, request.query_params.get(HUB_VERIFY_TOKEN))):
-        log.warning(f"Rejected webhook verification for chatbot {bot_id}")
+        log.warning(f"Rejected webhook verification for chatbot {_bot.uuid}")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
 
     log.info(f"Ending: {currentframe().f_code.co_name}")
@@ -244,7 +261,6 @@ async def verify(request: Request, bot_id, _bot: ChatBot = Depends(get_webhook_b
 @app.post(path="/chat/{bot_id}", tags=["Chat"])
 async def message_processor(fb_request: FacebookRequest, bot_id, _bot: ChatBot = Depends(get_signed_webhook_bot)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"this is a new message for this chatbot: {bot_id}")
     try:
         await ctr_process_messages(req=fb_request, _bot=_bot)
     except (BrokerUnavailable, KeyServiceUnavailable):
@@ -258,21 +274,20 @@ async def message_processor(fb_request: FacebookRequest, bot_id, _bot: ChatBot =
 @app.post(path="/chat/{bot_id}/phones", tags=["Chat"])
 async def add_whatsapp_phone(bot_id: str, chatbot: ChatbotPhoneRequest, request: Request,
                              repo: TenantRepository = Depends(get_repository)):
-    log.info(f"Starting: {currentframe().f_code.co_name} or this chatbot: {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
         response = await ctr_add_phone_chatbot(repo, bot_uuid=bot_id, req=chatbot, eventId=request.state.event_id)
 
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         raise Exception(e.args)
 
 
 @app.get(path="/chat/{bot_id}/phones", tags=["Chat"])
 async def get_chatbot_phones(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"Starting get_chatbot_phones for this chatbot: {bot_id}")
     try:
         response = await ctr_get_chatbot_phones(repo, bot_uuid=bot_id,
                                                 environment=req.query_params.get("environment"))
@@ -286,7 +301,6 @@ async def get_chatbot_phones(bot_id, req: Request, repo: TenantRepository = Depe
 @app.get(path="/chat/{bot_id}/info", tags=["Chat"])
 async def get_chatbot_info(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"Starting get_chatbot_phones for this chatbot: {bot_id}")
     try:
         response = await ctr_get_chatbot_from_uuid(repo, bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
@@ -339,7 +353,7 @@ async def search_contacts(search: ContactSearchRequest, repo: TenantRepository =
 
 @app.get(path="/chat/{bot_id}/rules", tags=["Chat"])
 async def get_chatbot_rules(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
-    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
 
     try:
         response = await ctr_get_chatbot_rules_from_uuid(repo, bot_id, eventId=req.state.event_id)
@@ -352,7 +366,7 @@ async def get_chatbot_rules(bot_id, req: Request, repo: TenantRepository = Depen
 @app.post(path="/chat/{bot_id}/rules", tags=["Chat"])
 async def add_chatbot_rule(bot_id, req: Request, rules: RulesRequest,
                            repo: TenantRepository = Depends(get_repository)):
-    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
         response = await ctr_create_chatbot_rules(repo, request=rules, bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
@@ -364,7 +378,7 @@ async def add_chatbot_rule(bot_id, req: Request, rules: RulesRequest,
 @app.post(path="/chat/{bot_id}/intents", tags=["Intents"])
 async def add_chatbot_intent(bot_id, req: Request, intent: IntentRequest,
                              repo: TenantRepository = Depends(get_repository)):
-    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
         response = await ctr_create_intent(repo, request=intent, bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
@@ -375,7 +389,7 @@ async def add_chatbot_intent(bot_id, req: Request, intent: IntentRequest,
 
 @app.get(path="/chat/{bot_id}/intents", tags=["Intents"])
 async def list_chatbot_intents(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
-    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
         response = await ctr_get_intents(repo, bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
@@ -386,7 +400,7 @@ async def list_chatbot_intents(bot_id, req: Request, repo: TenantRepository = De
 
 @app.get(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"])
 async def get_chatbot_intent(bot_id, intent_id, req: Request, repo: TenantRepository = Depends(get_repository)):
-    log.info(f"Starting: {currentframe().f_code.co_name} for this intent: {intent_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
         response = await ctr_get_intent(repo, bot_id=bot_id, intent_id=intent_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
@@ -398,7 +412,7 @@ async def get_chatbot_intent(bot_id, intent_id, req: Request, repo: TenantReposi
 @app.put(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"])
 async def update_chatbot_intent(bot_id, intent_id, req: Request, intent: IntentRequest,
                                 repo: TenantRepository = Depends(get_repository)):
-    log.info(f"Starting: {currentframe().f_code.co_name} for this intent: {intent_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
         response = await ctr_update_intent(repo, request=intent, bot_id=bot_id, intent_id=intent_id,
                                            eventId=req.state.event_id)
@@ -410,7 +424,7 @@ async def update_chatbot_intent(bot_id, intent_id, req: Request, intent: IntentR
 
 @app.delete(path="/chat/{bot_id}/intents/{intent_id}", tags=["Intents"])
 async def delete_chatbot_intent(bot_id, intent_id, req: Request, repo: TenantRepository = Depends(get_repository)):
-    log.info(f"Starting: {currentframe().f_code.co_name} for this intent: {intent_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
         response = await ctr_delete_intent(repo, bot_id=bot_id, intent_id=intent_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
@@ -421,7 +435,7 @@ async def delete_chatbot_intent(bot_id, intent_id, req: Request, repo: TenantRep
 
 @app.get(path="/chat/{bot_id}/tools", tags=["Intents"])
 async def get_chatbot_tools(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
-    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot: {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
         response = await ctr_get_bot_tools(repo, bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")

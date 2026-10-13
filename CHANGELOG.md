@@ -47,6 +47,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   intents; `DELETE /clients/{client_id}`, solo para el operador, borra a un cliente con todo lo suyo, su clave de
   datos envuelta incluida. Los respaldos anteriores a una baja siguen siendo legibles.
 - Guía `docs/03-implementation/exportar-y-borrar.md`.
+- Registro de supresiones (ADR-0014): cada borrado de un contacto, de un bot o de un cliente se apunta, antes de
+  hacerse, en ficheros fuera de la base de datos (`ERASURES_DIR`), con identificadores y fechas y sin datos
+  personales. `python -m migrations.replay_erasures` repite los borrados después de restaurar un respaldo; sin
+  `--apply` solo informa.
 - ADR-0014, aceptado: en los respaldos la supresión se cumple por caducidad, y los respaldos de la base se
   conservan 365 días como máximo. Corrige el apartado de borrado de ADR-0010, que contaba con que destruir la
   clave de datos de un cliente alcanzara a los respaldos.
@@ -71,6 +75,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - Sin el servicio de claves, el webhook y lo que toca datos cifrados responden `503`.
 - La respuesta `422` a una petición mal formada dice dónde está el error y por qué (`type`, `loc` y `msg`), y ya no
   trae `input` ni `ctx`.
+- **Incompatible para el despliegue:** borrar un contacto, un bot o un cliente responde `503` mientras el registro de
+  supresiones no se pueda escribir. En el servidor hay que crear el directorio `erasures/`, con dueño `10001`, e
+  incluirlo en los respaldos.
+- Cada petición deja una sola línea en el log: el método, la ruta tal como está declarada, los identificadores bien
+  formados de su dirección, el código y el tiempo. Ya no se escribe la dirección tal como llegó ni la de quien llama.
+- De un fallo se escribe en el log su tipo y la línea de la que salió, no su texto.
+- La imagen arranca Uvicorn sin su log de accesos.
 - **Incompatible:** la cabecera `X-API-Key` y el ajuste `ADMIN_API_KEY` desaparecen. Todo lo que no es el webhook
   ni `/health` pide el token nuevo, y el servicio no arranca sin `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE`.
 - El operador es un cliente más en las rutas de los chatbots: solo alcanza los suyos.
@@ -113,6 +124,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   para ficción. Siguen en la historia de git y en las imágenes ya publicadas.
 - La respuesta a una petición mal formada repetía lo enviado: una credencial de Meta rechazada por su formato volvía
   en el `422`. Ya no devuelve el valor.
+- El log de accesos de Uvicorn escribía cada petición con su query string, también en `production`: el token de
+  verificación que Meta envía al comprobar el webhook quedaba en el log del contenedor. Está apagado.
+- Los logs ya no llevan números, nombres, identificadores de Messenger, contenido de mensajes, reglas ni credenciales,
+  en ningún nivel, ni el texto de las excepciones, que los repetía. Tampoco lo que escribirían el driver de la
+  base y el cliente HTTP.
+- Dos respuestas de error devolvían el texto de la excepción. Un fallo inesperado responde ahora `500` sin él.
 
 ## [0.2.0] - 2026-10-12
 

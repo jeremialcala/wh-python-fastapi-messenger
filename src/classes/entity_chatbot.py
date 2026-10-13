@@ -52,7 +52,6 @@ class ChatBot(Document):
 
     def generate_verification_token(self):
         log.info(f"Executing: {currentframe().f_code.co_name}")
-        log.info(self.name)
         _cred = Credentials()
         _cred.set_claims(claim=self.name)
         _cred.set_jwt()

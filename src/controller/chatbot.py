@@ -13,6 +13,7 @@ from classes import Settings, ResponseData, ChatbotPhoneRequest
 from constants import APPLICATION_JSON, CONTENT_TYPE, CONTENT_LENGTH
 from crypto.key_service import KeyServiceUnavailable
 from repository import TenantRepository, NotFound
+from utils import describe
 from .events import ctr_notify_action
 from enums import Status
 settings = Settings()
@@ -24,7 +25,6 @@ B_SEN, E_SEN = "<s>", "</s>"
 
 async def ctr_create_chatbot(repo: TenantRepository, request: ChatbotRequest, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"We are creating this chatbot {request.name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
 
@@ -58,12 +58,12 @@ async def ctr_create_chatbot(repo: TenantRepository, request: ChatbotRequest, ev
                             data=None)
 
     except OperationError as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message=f"This chatbot already exists {request.name}",
                             data=None)
 
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
 
@@ -88,7 +88,6 @@ async def ctr_create_chatbot(repo: TenantRepository, request: ChatbotRequest, ev
 
 async def ctr_get_chatbot_from_uuid(repo: TenantRepository, _uuid: str, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"We are looking for this chatbot {_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 
     _action = uuid4()
@@ -117,11 +116,11 @@ async def ctr_get_chatbot_from_uuid(repo: TenantRepository, _uuid: str, eventId:
         body = ResponseData(code=status.HTTP_503_SERVICE_UNAVAILABLE, message="SERVICE UNAVAILABLE",
                             data=None)
     except (ValueError, NotFound) as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {_uuid} was not found",
                             data=None)
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
     finally:
@@ -145,7 +144,6 @@ async def ctr_get_chatbot_from_uuid(repo: TenantRepository, _uuid: str, eventId:
 
 async def ctr_add_phone_chatbot(repo: TenantRepository, bot_uuid, req: ChatbotPhoneRequest, eventId: str = None):
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"Adding whatsapp data to this chatbot: {bot_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
 
     _action = uuid4()
@@ -163,7 +161,6 @@ async def ctr_add_phone_chatbot(repo: TenantRepository, bot_uuid, req: ChatbotPh
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
     try:
-        log.debug(req.json())
         _chatbot_phone = await ChatbotPhone().generate_chatbot_phone_from_request(req=req)
         _chatbot_phone.uuid = uuid4()
         _chatbot_phone.status = Status.ACT.value
@@ -175,13 +172,13 @@ async def ctr_add_phone_chatbot(repo: TenantRepository, bot_uuid, req: ChatbotPh
         body = ResponseData(code=status.HTTP_503_SERVICE_UNAVAILABLE, message="SERVICE UNAVAILABLE",
                             data=None)
     except NotFound as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_uuid} was not found",
                             data=None)
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
-                            data=e.__dict__)
+                            data=None)
     finally:
 
         if eventId is not None:
@@ -235,13 +232,13 @@ async def ctr_get_chatbot_phones(repo: TenantRepository, bot_uuid: str, environm
         body = ResponseData(code=status.HTTP_503_SERVICE_UNAVAILABLE, message="SERVICE UNAVAILABLE",
                             data=None)
     except (ValueError, NotFound) as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"RECORD NOT FOUND")
 
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
-                            data=e.__str__())
+                            data=None)
     finally:
         if eventId is not None:
             ensure_future(ctr_notify_action(
@@ -264,7 +261,6 @@ async def ctr_get_chatbot_phones(repo: TenantRepository, bot_uuid: str, environm
 
 async def ctr_get_chatbot_rules_from_uuid(repo: TenantRepository, _uuid: str, eventId: str = None) -> Response:
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"We are looking for this chatbot {_uuid}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     rules_size = 0
     _action = uuid4()
@@ -297,14 +293,13 @@ async def ctr_get_chatbot_rules_from_uuid(repo: TenantRepository, _uuid: str, ev
             rules += f"{rule.rule} "
         rules += f" {E_SYS}"
         body.data = rules
-        log.info(body.json())
 
     except (ValueError, NotFound) as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {_uuid} was not found",
                             data=None)
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
     finally:
@@ -326,7 +321,7 @@ async def ctr_get_chatbot_rules_from_uuid(repo: TenantRepository, _uuid: str, ev
 
 
 async def ctr_create_chatbot_rules(repo: TenantRepository, request: RulesRequest, bot_id: str, eventId: str = None) -> Response:
-    log.info(f"Starting: {currentframe().f_code.co_name} for this chatbot {bot_id}")
+    log.info(f"Starting: {currentframe().f_code.co_name}")
 
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
     _action = uuid4()
@@ -346,23 +341,22 @@ async def ctr_create_chatbot_rules(repo: TenantRepository, request: RulesRequest
     )
 
     try:
-        [log.info(rule) for rule in request.rules]
         repo.add_rules(bot_id, request.rules)
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
                             data=None)
 
     except NotFound as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_404_NOT_FOUND, message=f"This chatbot {bot_id} was not found",
                             data=None)
 
     except OperationError as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message=f"This chatbot already exists {request.name}",
                             data=None)
 
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
         body = ResponseData(code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"INTERNAL SERVER ERROR",
                             data=None)
 

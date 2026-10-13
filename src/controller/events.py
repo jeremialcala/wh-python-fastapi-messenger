@@ -9,6 +9,7 @@ from datetime import datetime
 from classes import EventTransport, Event, EventAction, Jwk
 from classes import Settings
 from enums import Status
+from utils import describe
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -29,7 +30,7 @@ async def ctr_create_event(event: EventTransport):
         asyncio.ensure_future(Jwk().create_key_for_event(event.uuid))
         log.info(f"Ending: {currentframe().f_code.co_name}")
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
 
 
 async def ctr_notify_action(_uuid: UUID, event_id: UUID, operation: str = "", method: str = "", step: int = 1,
@@ -52,7 +53,6 @@ async def ctr_notify_action(_uuid: UUID, event_id: UUID, operation: str = "", me
             case Status.ACT.value:
                 _action = EventAction(uuid=_uuid, eventId=event_id, operation=operation, method=method, step=step,
                                       description=description, status=status)
-                log.debug(_action.to_json())
                 _action.save(force_insert=True)
 
             case _:
@@ -64,4 +64,4 @@ async def ctr_notify_action(_uuid: UUID, event_id: UUID, operation: str = "", me
 
         log.info(f"Ending: {currentframe().f_code.co_name}")
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))

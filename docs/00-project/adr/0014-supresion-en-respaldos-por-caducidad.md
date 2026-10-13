@@ -73,8 +73,8 @@ Sobre los respaldos de Atlas, consultado el 2026-10-13 en su documentación:
   - **Sumado a los 12 meses sin actividad de un contacto, sus datos pueden existir hasta 24 meses** después de
     su último mensaje: 12 en la base y 12 más en respaldos.
   - **Restaurar un respaldo devuelve lo borrado.** Para repetir los borrados hace falta un registro de qué se
-    borró y cuándo, que dure al menos 365 días. Hoy solo queda una línea en el log del contenedor, que Docker
-    rota. Ese registro no está construido.
+    borró y cuándo, que dure al menos 365 días. Al aceptar esta decisión solo quedaba una línea en el log del
+    contenedor, que Docker rota; el registro se construyó después.
   - **La retención hay que configurarla y comprobarla en Atlas.** No consta el plan del clúster. Si no es `M10`
     o superior, los 365 días no se pueden configurar: en un clúster Flex la retención real serían 8 días, y en
     uno gratuito no habría respaldo alguno.
@@ -93,5 +93,7 @@ Sobre los respaldos de Atlas, consultado el 2026-10-13 en su documentación:
 
 - **Configurar y comprobar la política de respaldo en Atlas**, y con ella el plan y la región del clúster, que
   siguen sin constar en la [clasificación de datos](../data-classification.md).
-- **El registro de supresiones**, para repetirlas tras una restauración.
-- **El procedimiento de restauración**, que debe incluir ese paso.
+- ~~El registro de supresiones y el paso que las repite tras una restauración.~~ Construidos: ver
+  [exportar-y-borrar.md](../../03-implementation/exportar-y-borrar.md). Falta incluir el directorio del registro
+  en los respaldos del servidor.
+- **El procedimiento completo de restauración** de la base, del que ese paso es una parte.

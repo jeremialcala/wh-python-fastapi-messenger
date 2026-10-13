@@ -3,6 +3,8 @@ config.env
 *.env
 .env*
 certs/
+erasures/
+**/erasures/
 *.pem
 gateway-keys*.json
 keys/

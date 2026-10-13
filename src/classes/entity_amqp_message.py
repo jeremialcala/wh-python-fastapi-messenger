@@ -67,5 +67,5 @@ class QueueMessage(Document):
             self.jwe_body = _jwe_tk.serialize(compact=True)
             log.info(f"Ending: {currentframe().f_code.co_name}")
         except Exception as e:
-            log.error(e.__str__())
+            log.error(type(e).__name__)
 

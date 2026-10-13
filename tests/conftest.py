@@ -25,6 +25,8 @@ os.environ.update({
     "ANDVARI_ADDR": "http://127.0.0.1:1",
     "ANDVARI_ROLE_ID": "test-role-id",
     "ANDVARI_SECRET_ID_FILE": ANDVARI_SECRET_ID_FILE,
+    # Each test gets its own register of erasures further down. This one only has to be there for the settings.
+    "ERASURES_DIR": os.path.join(os.path.dirname(GATEWAY_KEYS_FILE), "erasures"),
     "FACEBOOK_APP_SECRET": "test-app-secret",
 
     "CLIENT_ID": "test",
@@ -168,6 +170,16 @@ def key_service():
     service = FakeKeyService()
     data_keys.configure(service)
     return service
+
+
+@pytest.fixture(autouse=True)
+def register_of_erasures(tmp_path):
+    """Each test gets its own, empty register of erasures. Returns the directory it is kept in."""
+    from repository import erasures
+
+    directory = tmp_path / "erasures"
+    erasures.configure(directory)
+    return directory
 
 
 class Caller:

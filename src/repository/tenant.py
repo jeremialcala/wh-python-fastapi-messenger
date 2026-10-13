@@ -14,6 +14,7 @@ from classes import ChatBot, ChatbotPhone, Client, Contact, Intent, Rule
 from crypto.fields import ClientCipher
 from enums import Status
 
+from . import erasures
 from .data_keys import cipher_for
 from .errors import NotFound
 
@@ -111,24 +112,49 @@ class TenantRepository:
 
     def delete_bot(self, bot_id) -> dict:
         """
-            Deletes a chatbot and everything stored for it, and says how many of each. The chatbot goes first:
-            from then on the webhook does not find it and nothing more is stored for it. What a call that failed
+            Deletes a chatbot and everything stored for it, and says how many of each. What a call that failed
             halfway left behind is deleted by calling again, so it is only not found when nothing of it is left.
         """
         bot_uuid = as_uuid(bot_id)
-        deleted = {"chatbots": self._own(ChatBot, uuid=bot_uuid).delete()}
-        for name, document, field in OF_A_BOT:
-            deleted[name] = self._own(document, **{field: bot_uuid}).delete()
+        if not self.stored_for_bot(bot_uuid):
+            raise NotFound(bot_id)
+        erasures.record(erasures.CHATBOT, self.client_id, bot_id=bot_uuid)
+        deleted = self.erase_bot(bot_uuid)
         if not any(deleted.values()):
+            # Somebody else deleted it in the meantime.
             raise NotFound(bot_id)
         return deleted
 
-    def delete_all(self) -> dict:
-        """Deletes every chatbot of the client and everything stored for them. Chatbots first, as in delete_bot."""
+    def stored_for_bot(self, bot_uuid: UUID) -> int:
+        """How many documents there are of a chatbot, itself included."""
+        return self._own(ChatBot, uuid=bot_uuid).count() + sum(
+            self._own(document, **{field: bot_uuid}).count() for _, document, field in OF_A_BOT)
+
+    def stored(self) -> int:
+        """How many documents there are of the client, its chatbots included."""
+        return self._own(ChatBot).count() + sum(self._own(document).count() for _, document, _ in OF_A_BOT)
+
+    # The erase_ methods delete without writing it down in the register of erasures. They are for the delete_
+    # methods, which write it down first, and for making again the deletions the register holds.
+
+    def erase_bot(self, bot_uuid: UUID) -> dict:
+        """
+            The chatbot goes first: from then on the webhook does not find it and nothing more is stored for it.
+        """
+        deleted = {"chatbots": self._own(ChatBot, uuid=bot_uuid).delete()}
+        for name, document, field in OF_A_BOT:
+            deleted[name] = self._own(document, **{field: bot_uuid}).delete()
+        return deleted
+
+    def erase_all(self) -> dict:
+        """Every chatbot of the client and everything stored for them. Chatbots first, as in erase_bot."""
         deleted = {"chatbots": self._own(ChatBot).delete()}
         for name, document, _ in OF_A_BOT:
             deleted[name] = self._own(document).delete()
         return deleted
+
+    def erase_contacts(self, bot_uuid: UUID, contacts: list) -> int:
+        return self._own(Contact, botId=bot_uuid, _uuid__in=list(contacts)).delete()
 
     def _add_to_bot(self, bot_id, document, field: str, seal=None):
         bot_uuid = self.get_bot(bot_id).uuid
@@ -253,4 +279,6 @@ class TenantRepository:
             same |= Q(waIdIndex=contact.waIdIndex)
         if contact.fbId:
             same |= Q(fbId=contact.fbId)
-        return self._own(Contact, botId=contact.botId).filter(same).delete()
+        copies = [copy._uuid for copy in self._own(Contact, botId=contact.botId).filter(same)]
+        erasures.record(erasures.CONTACT, self.client_id, bot_id=contact.botId, contacts=copies)
+        return self.erase_contacts(contact.botId, copies)

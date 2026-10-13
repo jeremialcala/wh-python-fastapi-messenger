@@ -103,7 +103,7 @@ Borrar aquí quita los datos de la base en uso. No llega a:
 |---|---|---|
 | Mensajes en la cola `llm` | 24 horas como máximo: cada mensaje se publica con esa caducidad | Construido |
 | El motor de respuestas y su LLM | Lo que el motor guarde. No tiene todavía forma de recibir un borrado, y no está revisado qué conserva | Abierto, en su repositorio |
-| Logs del gateway | La rotación de Docker. Por debajo de `production` contienen números y nombres | Abierto (RS07) |
+| Logs del gateway escritos antes de que dejaran de llevar datos personales | La rotación de Docker: 3 ficheros de 10 MB | Los nuevos ya no los llevan (RS07) |
 | Respaldos de la base | 365 días como máximo desde el borrado: es la retención de los respaldos (ADR-0014) | Decidido; sin configurar ni comprobar en Atlas |
 | Meta | Sus propios términos con el cliente | Fuera del servicio |
 
@@ -122,15 +122,49 @@ obligaciones:
 - **Decírselo al cliente.** Una supresión no es completa hasta pasado ese plazo, y es él quien responde ante quien
   pidió el borrado.
 - **Si se restaura un respaldo, repetir los borrados** hechos después de su fecha. Lo restaurado trae de vuelta lo
-  que se había borrado.
+  que se había borrado. Para eso está el registro de supresiones, más abajo.
 - **Configurar y comprobar la retención en Atlas.** Solo se puede en un clúster `M10` o superior, y el plan del
   clúster no consta.
 
+## El registro de supresiones
+
+Cada borrado se apunta **antes de hacerse** en un registro que vive fuera de la base de datos: una restauración
+se llevaría atrás un registro guardado en ella, junto con todo lo demás.
+
+- **Dónde.** En el directorio de `ERASURES_DIR`, un fichero por mes (`erasures-AAAA-MM.jsonl`), legible solo por
+  la cuenta del servicio. En el servidor es `erasures/`, junto al `docker-compose.yml`.
+- **Qué guarda.** Una línea por borrado, con la fecha en UTC, el tipo (`contact`, `chatbot` o `client`) y los
+  identificadores que puso el servicio: el del cliente, el del bot y los de los contactos. Ningún nombre,
+  número, identificador de Messenger ni clave.
+- **Si no se puede escribir, no se borra.** El borrado responde `503` y no toca nada; lo demás sigue
+  funcionando. Un directorio sin montar o sin permisos se nota en el primer borrado.
+- **Cuánto dura.** 14 meses: los 365 días de un respaldo y un margen. Lo más antiguo se elimina solo, un fichero
+  cada vez.
+- **Tiene que estar en los respaldos del servidor.** Si se pierde a la vez que hay que restaurar la base, no
+  hay forma de saber qué borrados repetir.
+
+Con varios procesos escribiendo a la vez no se pierde ninguna línea en Linux, que es donde corre el servicio. En
+Windows sí puede perderse alguna si hay más de un proceso: en local, un solo worker.
+
+### Después de restaurar un respaldo
+
+Lo restaurado trae de vuelta cada contacto, bot y cliente borrado después de la fecha del respaldo, y un cliente
+dado de baja vuelve a poder entrar. Antes de devolver el servicio al tráfico:
+
+```bash
+python -m migrations.replay_erasures            # informa de lo que ha vuelto, sin borrar
+python -m migrations.replay_erasures --apply    # lo borra otra vez
+```
+
+Recorre el registro entero, del borrado más antiguo al más reciente. Lo que no ha vuelto lo deja como está, así
+que ejecutarlo dos veces, o sobre una base sin restaurar, no cambia nada. Cada borrado nombra el documento que
+se borró, no a la persona: quien fue borrado y volvió a escribir antes del respaldo conserva su contacto nuevo.
+
 ## Rastro
 
-Cada borrado deja una línea en el log, a nivel de aviso para que se conserve también en `production`: quién
-borró, qué identificador y cuánto. No lleva nombres, números ni identificadores de Messenger. No es todavía la
-auditoría por cliente que pide RS14.
+Además del registro, cada borrado deja una línea en el log, a nivel de aviso para que se conserve también en
+`production`: quién borró, qué identificador y cuánto. No lleva nombres, números ni identificadores de
+Messenger. No es todavía la auditoría por cliente que pide RS14.
 
 ## Lo que no hace todavía
 
@@ -138,6 +172,5 @@ auditoría por cliente que pide RS14.
   [clasificación de datos](../00-project/data-classification.md) no se aplica: el contacto no guarda cuándo
   escribió por última vez.
 - **Avisar al motor de respuestas** de que un contacto, un bot o un cliente se han borrado.
-- **Guardar un registro de supresiones** que dure lo que los respaldos, para poder repetirlas tras una
-  restauración. Hoy solo queda la línea del log, que Docker rota.
+- **Repetir los borrados por sí solo.** Tras una restauración hay que ejecutar el comando: nada lo detecta.
 - **Destruir la clave de un cliente de forma que alcance a los respaldos.** Descartado en ADR-0014.

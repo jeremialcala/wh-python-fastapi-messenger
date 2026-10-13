@@ -7,6 +7,7 @@ from uuid import uuid4, UUID
 from classes import ChatBot
 from classes import Settings, FacebookRequest, MessageBody, QueueMessage
 from enums import Status
+from utils import describe
 from .events import ctr_notify_action
 from crypto.key_service import KeyServiceUnavailable
 from .amqp_broker import send_message_to_queue, BrokerUnavailable
@@ -36,7 +37,6 @@ async def _contact(message: IncomingMessage, channel: str, _bot: ChatBot, eventI
 
 async def ctr_process_messages(req: FacebookRequest, _bot: ChatBot, eventId: str = None):
     log.info(f"Starting: {currentframe().f_code.co_name}")
-    log.info(f"Message received we have a: {req.object}")
     try:
         _action = uuid4()
         if eventId is not None:
@@ -81,4 +81,4 @@ async def ctr_process_messages(req: FacebookRequest, _bot: ChatBot, eventId: str
     except (BrokerUnavailable, KeyServiceUnavailable):
         raise
     except Exception as e:
-        log.error(e.__str__())
+        log.error(describe(e))
