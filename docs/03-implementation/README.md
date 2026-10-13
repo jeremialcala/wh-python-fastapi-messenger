@@ -11,3 +11,5 @@ de al menos el 80 %, dual review y ningún secreto en el código.
 
 - [autenticacion.md](autenticacion.md): cómo llama un cliente al servicio y cómo lo opera el operador.
 - [cifrado-de-datos.md](cifrado-de-datos.md): qué se cifra, con qué claves y cómo se opera.
+- [exportar-y-borrar.md](exportar-y-borrar.md): cómo se atiende a quien pide sus datos, y qué borra la baja de un bot o
+  de un cliente.

@@ -17,10 +17,10 @@ marca qué existe y qué falta. La lista completa de diferencias está en
 
 | Contexto | Responsabilidad | Entidades núcleo | Estado |
 |---|---|---|---|
-| Clientes y acceso | Registrar clientes, autenticar cada petición y decidir qué puede ver cada uno | Cliente, clave pública de firma, clave de datos | Construido: registro de clientes, token firmado y cifrado, aislamiento por cliente y clave de datos |
+| Clientes y acceso | Registrar clientes, autenticar cada petición y decidir qué puede ver cada uno | Cliente, clave pública de firma, clave de datos | Construido: registro y baja de clientes, token firmado y cifrado, aislamiento por cliente y clave de datos |
 | Gestión de bots | Alta y configuración de un bot: persona, reglas, números y credenciales de Meta | `ChatBot`, `ChatbotPhone`, `Rule` | Construido, sin dueño por bot |
 | Mensajería entrante | Verificar a Meta, normalizar la notificación y publicarla con confirmación | `FacebookRequest`, `MessageBody`, `QueueMessage` | Construido |
-| Contactos | Identificar o crear a quien escribe; exportar y borrar sus datos | `Contact` | Construido, con el número cifrado; sin exportar ni borrar |
+| Contactos | Identificar o crear a quien escribe; exportar y borrar sus datos | `Contact` | Construido, con el número cifrado; se listan, se buscan, se exportan y se borran |
 | Intents y herramientas | Lo que un bot sabe hacer, expuesto al motor como herramientas | `Intent`, `Action`, `ApiCall` | Construido |
 | Trazabilidad | Registrar cada petición y sus pasos | `Event`, `EventAction`, `Jwk` | Construido y desactivado |
 
@@ -369,7 +369,7 @@ Lo que hay que construir para que el código cumpla este diseño, en el orden qu
 | 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key`. **Hecho**, con el alta de clientes; falta el cliente de servicio del motor | RS02 | ADR-0005, ADR-0009 |
 | 3 | Clave de datos por cliente, cifrado de campos e índice ciego; migrar lo que está en claro. **Hecho**; la migración se ejecuta a mano | RS05, RS06 | ADR-0010 |
 | 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad. **Hecho** del lado del gateway; el motor tiene su parte | RF12, RNF04, RNF05 | ADR-0011 |
-| 5 | Endpoints para cargar credenciales de Meta (**hecho**), y para exportar y borrar contactos y bots | RF06, RF08, RF09, RF10 | — |
+| 5 | Endpoints para cargar credenciales de Meta, y para exportar y borrar contactos, bots y clientes. **Hecho**; el borrado no alcanza a los respaldos (H11 del threat model) | RF06, RF08, RF09, RF10 | — |
 | 6 | Logs sin datos personales, errores sin detalles, esquema estricto de la notificación | RS07, RS11, RS15 | — |
 | 7 | Retirar el envío por WhatsApp (**hecho**) y la mención a `/answers`, que ya no son del gateway | — | ADR-0002 |
 

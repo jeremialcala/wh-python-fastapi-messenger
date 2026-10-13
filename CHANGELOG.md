@@ -39,6 +39,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   identificador que Meta dio al mensaje, que es la clave con la que el motor de respuestas deduplica.
 - Caducidad de 24 horas en cada mensaje publicado: el broker descarta el que nadie ha consumido.
 - Pruebas de integración de la publicación contra un RabbitMQ real, también en el pipeline.
+- Contactos de un bot (RF08): `GET /chat/{bot_id}/contacts` los lista por páginas, y `POST /contacts/search` encuentra
+  a una persona, por número o por identificador de Messenger, en todos los bots del cliente.
+- Exportar y borrar un contacto (RF09; GDPR, arts. 15, 17 y 20): `GET` y
+  `DELETE /chat/{bot_id}/contacts/{contact_id}`.
+- Baja de un bot y de un cliente (RF10): `DELETE /bot/{bot_id}` borra un bot con sus contactos, números, reglas e
+  intents; `DELETE /clients/{client_id}`, solo para el operador, borra a un cliente con todo lo suyo, su clave de
+  datos envuelta incluida. Los respaldos anteriores a una baja siguen siendo legibles.
+- Guía `docs/03-implementation/exportar-y-borrar.md`.
 
 ### Cambiado
 - **Incompatible para el consumidor de la cola:** el gateway publica un sobre por cada mensaje de la notificación,
@@ -58,6 +66,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   `GET /chat/{bot_id}/phones` necesita el servicio de claves para devolver los números.
 - Un bot con secretos en claro responde `404` en el webhook hasta que se ejecute la migración de cifrado.
 - Sin el servicio de claves, el webhook y lo que toca datos cifrados responden `503`.
+- La respuesta `422` a una petición mal formada dice dónde está el error y por qué (`type`, `loc` y `msg`), y ya no
+  trae `input` ni `ctx`.
 - **Incompatible:** la cabecera `X-API-Key` y el ajuste `ADMIN_API_KEY` desaparecen. Todo lo que no es el webhook
   ni `/health` pide el token nuevo, y el servicio no arranca sin `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE`.
 - El operador es un cliente más en las rutas de los chatbots: solo alcanza los suyos.
@@ -98,6 +108,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - Los valores de ejemplo de los modelos del webhook llevaban números de teléfono reales, uno de ellos también
   codificado dentro de un identificador de mensaje de WhatsApp. Se sustituyen por números del rango reservado
   para ficción. Siguen en la historia de git y en las imágenes ya publicadas.
+- La respuesta a una petición mal formada repetía lo enviado: una credencial de Meta rechazada por su formato volvía
+  en el `422`. Ya no devuelve el valor.
 
 ## [0.2.0] - 2026-10-12
 

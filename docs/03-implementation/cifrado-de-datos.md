@@ -56,8 +56,8 @@ minutos que una clave ya abierta sigue en memoria:
 | Qué | Respuesta |
 |---|---|
 | Webhook de Meta | `503`. Meta reintenta: no se pierde el mensaje ni se da por buena una firma sin comprobar |
-| Leer o escribir algo cifrado (crear un bot, `/info`, números, credenciales) | `503` |
-| Lo que no toca nada cifrado (reglas, intents, registro de clientes) | Funciona |
+| Leer o escribir algo cifrado (crear un bot, `/info`, números, credenciales, contactos) | `503` |
+| Lo que no toca nada cifrado (reglas, intents, registro de clientes, borrar contactos, bots y clientes) | Funciona |
 
 ## Puesta en marcha
 
@@ -88,7 +88,9 @@ de recuperación tiene que estar a buen recaudo.
 
 ## Lo que no hace todavía
 
-- **Borrar la clave de datos de un cliente** para dejar ilegible todo lo suyo (la baja de un cliente, RF10).
+- **Dejar ilegible en los respaldos lo de un cliente dado de baja.** La baja borra su clave de datos envuelta junto con
+  sus datos, pero un respaldo anterior la contiene y Andvari la sigue abriendo: ver
+  [exportar-y-borrar.md](exportar-y-borrar.md).
 - **Rotar la clave de datos de un cliente.** Rotar la clave maestra en Andvari sí es posible: lo ya envuelto se
   sigue abriendo.
 - **El motor de respuestas no obtiene los tokens.** Están cifrados y fuera de la API, pero el cliente de servicio

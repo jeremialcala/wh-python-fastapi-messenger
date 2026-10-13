@@ -164,6 +164,7 @@ Solo son públicas las dos rutas del webhook (`GET` y `POST /chat/{bot_id}`) y `
 | Método | Ruta | Cuerpo | Descripción |
 |---|---|---|---|
 | `POST` | `/bot` | `ChatbotRequest` | Crea un chatbot. Genera un `uuid` y un `verifyToken` firmado (JWT). Devuelve `BotResponse`. |
+| `DELETE` | `/bot/{bot_id}` | — | Borra un chatbot con todo lo guardado para él: contactos, números, reglas e intents. No se puede deshacer. |
 
 Campos de `ChatbotRequest`: `name`, `role`, `description`, `tone`.
 
@@ -175,9 +176,22 @@ Campos de `ChatbotRequest`: `name`, `role`, `description`, `tone`.
 | `POST` | `/chat/{bot_id}` | **Mensajes entrantes.** Exige un `X-Hub-Signature-256` válido (`403` si no). Recibe un `FacebookRequest` y despacha payloads de Messenger (`object=page`) o de WhatsApp (`object=whatsapp_business_account`). Publica un sobre por cada mensaje de la notificación; los acuses de entrega y de lectura, los ecos de lo que envía la página y las pulsaciones de botones se aceptan y no se publican. Responde `200` cuando RabbitMQ ha confirmado todos los mensajes y `503` si el broker no está disponible, para que Meta reintente. |
 | `POST` | `/chat/{bot_id}/phones` | Registra un número de WhatsApp (`ChatbotPhoneRequest`: `environment`, `phoneNumber`, `phoneId`). |
 | `GET`  | `/chat/{bot_id}/phones?environment=` | Lista los números del bot; con `environment` devuelve el más reciente de ese entorno. |
-| `GET`  | `/chat/{bot_id}/info` | Devuelve la información guardada del bot (`chatbot_info()`), incluidos sus tokens. |
+| `GET`  | `/chat/{bot_id}/info` | Devuelve la información guardada del bot (`chatbot_info()`) y su token de verificación. De las credenciales de Meta solo dice cuáles están cargadas. |
+| `PUT`  | `/chat/{bot_id}/credentials` | Carga o rota las credenciales de Meta del bot (`BotCredentialsRequest`: `facebookToken`, `whatsappToken`, `appSecret`). No las devuelve. |
 | `GET`  | `/chat/{bot_id}/rules` | Construye y devuelve el system prompt del LLM a partir de la persona del bot y sus reglas. |
 | `POST` | `/chat/{bot_id}/rules` | Añade una o varias reglas al bot (`RulesRequest.rules: list[str]`). |
+
+### Contactos — etiqueta `Contacts`
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET`  | `/chat/{bot_id}/contacts?offset=&limit=` | Lista los contactos del bot, por páginas, con todo lo guardado de cada uno. |
+| `POST` | `/contacts/search` | Encuentra a una persona en todos los bots del cliente (`ContactSearchRequest`: `waId` o `fbId`). |
+| `GET`  | `/chat/{bot_id}/contacts/{contact_id}` | Exporta lo guardado de un contacto. |
+| `DELETE` | `/chat/{bot_id}/contacts/{contact_id}` | Borra un contacto. No se puede deshacer. |
+
+Cómo se atiende con ellos a quien pide sus datos, y qué no alcanza el borrado, está en
+[docs/03-implementation/exportar-y-borrar.md](docs/03-implementation/exportar-y-borrar.md).
 
 ### Intents — etiqueta `Intents`
 
@@ -352,12 +366,12 @@ Se configura en [src/logging_config.yaml](src/logging_config.yaml) y lo aplica a
 |---|---|
 | Todo lo que no es el webhook ni `/health` | Token en `Authorization: Bearer`: un JWT firmado por el cliente (`ES256`) dentro de un JWE cifrado para el gateway (`RSA-OAEP-256`, `A256CBC-HS512`). Dura 60 segundos como máximo y vale una vez. `401` si no es válido, sin decir por qué. |
 | Rutas de un cliente (`/bot`, `/chat/{bot_id}/...`) | El token dice quién es; solo alcanza lo suyo. Lo ajeno responde `404`, igual que lo inexistente. |
-| Registro de clientes (`/clients`) | Solo el operador. `403` para cualquier otro cliente. |
+| Registro de clientes (`/clients`) | Solo el operador, que también da de baja a un cliente con `DELETE /clients/{client_id}`. `403` para cualquier otro cliente. |
 | Datos en reposo | Números de teléfono, tokens de Meta, App Secret y token de verificación, cifrados con una clave por cliente (AES-256-GCM). La clave maestra no sale del servicio de claves. Ver [cifrado-de-datos.md](docs/03-implementation/cifrado-de-datos.md). |
 | `GET /chat/{bot_id}` (verificación) | `hub.verify_token` comparado en tiempo constante con el `verifyToken` del bot. `403` si no coincide. |
 | `POST /chat/{bot_id}` (notificaciones) | `X-Hub-Signature-256`: HMAC-SHA256 del cuerpo crudo con el App Secret de Meta como clave. `403` si no coincide. |
 
-- **Qué App Secret se usa** — el `appSecret` del propio chatbot si su documento lo tiene; si no, `FACEBOOK_APP_SECRET`. Sin ninguno de los dos, se rechaza toda notificación. Igual que los tokens de página y de WhatsApp, `appSecret` se escribe directamente en el documento del chatbot; ningún endpoint lo devuelve.
+- **Qué App Secret se usa** — el `appSecret` del propio chatbot si su documento lo tiene; si no, `FACEBOOK_APP_SECRET`. Sin ninguno de los dos, se rechaza toda notificación. Igual que los tokens de página y de WhatsApp, `appSecret` se carga con `PUT /chat/{bot_id}/credentials`; ningún endpoint lo devuelve.
 - **Entrega** — una notificación recibe su `200` solo después de que RabbitMQ confirme la publicación. Meta reenvía ante un `503`, así que el consumidor de la cola `llm` debe tolerar duplicados: cada sobre lleva en `messageId` el identificador de Meta, que se repite en cada reentrega. Un mensaje que nadie consume caduca en la cola a las 24 horas.
 - **Logs** — el interceptor no registra query strings ni cabeceras, y la clave que firma el `verifyToken` de un bot ya no se escribe en el log.
 - **Pendiente** — `/docs`, `/redoc` y `/openapi.json` se sirven sin clave y no hay límite de tasa: publica solo `/chat/{bot_id}` en el borde y deja todo lo demás en la red privada. `src/controller/facebook.py` sigue registrando el número o el identificador del contacto a nivel `INFO`, y el mensaje viaja a la cola sin cifrar.
