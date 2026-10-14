@@ -10,7 +10,7 @@
 asyncapi: 3.0.0
 info:
   title: Gateway BaaS de mensajería
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Mensajes que el gateway publica para el motor de respuestas (ms-python-metamsghandler). Un sobre por cada
     mensaje que una persona envía al bot: firma de la notificación verificada, contacto identificado y bot de
@@ -119,13 +119,19 @@ components:
       description: >-
         Pese a su nombre, viaja como objeto JSON sin cifrar. Pasará a ser un JWE cifrado para el motor en la
         segunda fase de ADR-0011, con otra versión del sobre.
-      required: [botId, type, contact, message]
+      required: [botId, clientId, type, contact, message]
       additionalProperties: false
       properties:
         botId:
           type: string
           format: uuid
           description: Bot al que iba dirigido el mensaje. Es la llave con la que el motor pide la configuración (ADR-0003).
+        clientId:
+          type: string
+          format: uuid
+          description: >-
+            Cliente dueño del bot. Le dice al motor con cuál de sus credenciales pedir la configuración: tiene
+            una por cliente (ADR-0016).
         type:
           type: string
           enum: [whatsapp_business_account, page]

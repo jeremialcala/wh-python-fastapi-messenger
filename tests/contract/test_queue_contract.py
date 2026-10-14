@@ -23,6 +23,7 @@ ASYNCAPI = yaml.safe_load((ROOT / "docs" / "02-design" / "contracts" / "asyncapi
 ENVELOPE = Draft202012Validator({"$ref": "#/components/schemas/SobreMensaje", "components": ASYNCAPI["components"]})
 
 BOT_ID = "11111111-1111-4111-8111-111111111111"
+CLIENT_ID = "22222222-2222-4222-8222-222222222222"
 PAYLOADS = {
     "whatsapp": {"object": "whatsapp_business_account", "entry": [{"id": "1", "changes": [{"field": "messages", "value": {
         "messaging_product": "whatsapp",
@@ -53,7 +54,7 @@ def published(monkeypatch):
 
     def run(payload):
         captured.clear()
-        asyncio.run(messages.ctr_process_messages(req=FacebookRequest(**payload), _bot=SimpleNamespace(uuid=BOT_ID)))
+        asyncio.run(messages.ctr_process_messages(req=FacebookRequest(**payload), _bot=SimpleNamespace(uuid=BOT_ID, clientId=CLIENT_ID)))
         (only,) = captured
         return dict(only)
 
@@ -71,6 +72,12 @@ def test_published_message_matches_the_contract(published, channel):
 @pytest.mark.parametrize("channel", sorted(PAYLOADS))
 def test_published_message_carries_the_target_bot(published, channel):
     assert published(PAYLOADS[channel])["body"]["jwe_body"]["botId"] == BOT_ID
+
+
+@pytest.mark.parametrize("channel", sorted(PAYLOADS))
+def test_published_message_says_whose_bot_it_is(published, channel):
+    """The response engine holds one credential per client: this is how it knows which one to use."""
+    assert published(PAYLOADS[channel])["body"]["jwe_body"]["clientId"] == CLIENT_ID
 
 
 @pytest.mark.parametrize("channel", sorted(PAYLOADS))
@@ -113,6 +120,13 @@ def invalid(published, change) -> bool:
 def test_contract_rejects_a_message_without_the_target_bot(published):
     def change(body):
         del body["jwe_body"]["botId"]
+
+    assert invalid(published, change)
+
+
+def test_contract_rejects_a_message_that_does_not_say_whose_bot_it_is(published):
+    def change(body):
+        del body["jwe_body"]["clientId"]
 
     assert invalid(published, change)
 

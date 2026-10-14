@@ -366,7 +366,7 @@ Lo que hay que construir para que el código cumpla este diseño, en el orden qu
 | Orden | Trabajo | Cubre | ADR |
 |---|---|---|---|
 | 1 | Entidad cliente, `clientId` en cada documento y capa de repositorio. **Hecho** | RF01, RS01 | ADR-0012 |
-| 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key`. **Hecho**, con el alta de clientes; falta el cliente de servicio del motor | RS02 | ADR-0005, ADR-0009 |
+| 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key`. **Hecho**, con el alta de clientes y la credencial del motor, una por cliente | RS02, RS06 | ADR-0005, ADR-0009, ADR-0016 |
 | 3 | Clave de datos por cliente, cifrado de campos e índice ciego; migrar lo que está en claro. **Hecho**; la migración se ejecuta a mano | RS05, RS06 | ADR-0010 |
 | 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad. **Hecho** del lado del gateway; el motor tiene su parte | RF12, RNF04, RNF05 | ADR-0011 |
 | 5 | Endpoints para cargar credenciales de Meta, y para exportar y borrar contactos, bots y clientes. **Hecho**; en los respaldos la supresión se cumple por caducidad, a los 365 días como mucho | RF06, RF08, RF09, RF10 | ADR-0014 |

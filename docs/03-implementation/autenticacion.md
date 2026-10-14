@@ -116,6 +116,40 @@ del gateway. Solo se acepta una clave pública P-256; una privada se rechaza y n
 El operador registra clientes, pero no entra en sus datos: en las rutas de los chatbots es un cliente más y solo
 alcanza los suyos.
 
+### Dar paso al motor de respuestas
+
+El motor no tiene una credencial para todo: tiene una clave por cliente, y con ella solo alcanza los bots de ese
+cliente ([ADR-0016](../00-project/adr/0016-credencial-del-motor-por-cliente.md)). Para cada cliente al que vaya a
+servir:
+
+1. El motor crea una clave para ese cliente, igual que un cliente crea la suya, y se queda la parte privada.
+2. El operador registra la parte pública bajo el cliente:
+
+   ```
+   POST /clients/{client_id}/service-keys
+   {"signingKey": {"kty": "EC", "crv": "P-256", "x": "...", "y": "..."}}
+   ```
+
+3. El motor firma sus tokens con esa clave y pone como emisor el identificador del cliente. El formato es el
+   mismo de cualquier cliente. Qué cliente es lo dice cada mensaje de la cola, en `clientId`.
+
+Con esa clave el motor alcanza cuatro rutas, y cualquier otra le responde `403`:
+
+| Ruta | Qué obtiene |
+|---|---|
+| `GET /chat/{bot_id}/rules` | El system prompt del bot |
+| `GET /chat/{bot_id}/tools` | Sus herramientas |
+| `GET /chat/{bot_id}/tokens` | Los tokens de Meta con los que envía la respuesta |
+| `GET /gateway/keys` | Las claves públicas del gateway, para seguir su rotación |
+
+- **Los tokens solo los recibe el motor.** El cliente no los recupera con su propia clave, ni el operador con la
+  suya. No incluyen el App Secret ni el token de verificación.
+- **Cada entrega de tokens deja una línea en el log**, también en `production`: el bot, el cliente y la clave.
+- **Admite dos claves por cliente**, para rotar sin corte: se registra la nueva, el motor pasa a usarla y se borra
+  la antigua con `DELETE /clients/{client_id}/service-keys/{kid}`. Borrarla le quita el acceso en el acto.
+- **El cliente ve qué claves del motor alcanzan sus bots**: `GET /keys` las lista en `serviceKeys`.
+- **Una clave es del cliente o del motor, nunca de los dos.** Registrar la misma en las dos listas responde `409`.
+
 ### Rotar el par del gateway
 
 1. `python -m ops.gateway_key generate <fichero>` añade un par nuevo; el anterior sigue valiendo.
@@ -125,8 +159,8 @@ alcanza los suyos.
 
 ## Lo que no hace todavía
 
-- **El motor de respuestas no tiene acceso.** El cliente de servicio de solo lectura que prevé ADR-0009 no está
-  construido.
+- **El motor de respuestas no lo usa todavía.** El gateway ya le da paso con una clave por cliente; pedir la
+  configuración y los tokens es trabajo de su repositorio.
 - **No hay límite de tasa.** Los intentos fallidos se registran, pero nada los frena; es RS10, en el borde.
 - **Un cliente no se puede desactivar por la API.** Revocar sus claves lo deja fuera; el estado del cliente solo se
   cambia en la base.

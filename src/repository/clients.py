@@ -61,15 +61,35 @@ def list_clients() -> list:
     return list(Client.objects.order_by("createdAt"))
 
 
-def add_signing_key(client_id, signing_key: dict) -> Client:
+def _add_key(client_id, keys: str, key: dict) -> Client:
+    """
+        Adds a public key to one of the two lists of a client. A key is in one list at most: which list it is in
+        is what says whether whoever signs with it is the client or the response engine.
+    """
     client = get_client(client_id)
-    if any(key.get("kid") == signing_key["kid"] for key in client.signingKeys):
+    if any(known.get("kid") == key["kid"] for known in [*client.signingKeys, *client.serviceKeys]):
         raise Conflict("key already registered")
-    if len(client.signingKeys) >= MAX_SIGNING_KEYS:
+    if len(getattr(client, keys)) >= MAX_SIGNING_KEYS:
         raise Conflict("too many keys")
-    client.signingKeys.append(signing_key)
+    getattr(client, keys).append(key)
     client.save()
     return client
+
+
+def _remove_key(client_id, keys: str, kid: str, keep_one: bool) -> Client:
+    client = get_client(client_id)
+    remaining = [key for key in getattr(client, keys) if key.get("kid") != kid]
+    if len(remaining) == len(getattr(client, keys)):
+        raise NotFound(kid)
+    if keep_one and not remaining:
+        raise Conflict("last key")
+    setattr(client, keys, remaining)
+    client.save()
+    return client
+
+
+def add_signing_key(client_id, signing_key: dict) -> Client:
+    return _add_key(client_id, "signingKeys", signing_key)
 
 
 def remove_signing_key(client_id, kid: str, keep_one: bool = False) -> Client:
@@ -77,15 +97,20 @@ def remove_signing_key(client_id, kid: str, keep_one: bool = False) -> Client:
         Revoking a key is deleting it. `keep_one` is for a client acting on itself: without it, it could leave
         itself with no way back in.
     """
-    client = get_client(client_id)
-    remaining = [key for key in client.signingKeys if key.get("kid") != kid]
-    if len(remaining) == len(client.signingKeys):
-        raise NotFound(kid)
-    if keep_one and not remaining:
-        raise Conflict("last key")
-    client.signingKeys = remaining
-    client.save()
-    return client
+    return _remove_key(client_id, "signingKeys", kid, keep_one)
+
+
+def add_service_key(client_id, service_key: dict) -> Client:
+    """
+        Lets the response engine act for a client: it registers the public key the engine signs with for it. Two
+        at most, as with the client's own, so that the engine rotates without a gap.
+    """
+    return _add_key(client_id, "serviceKeys", service_key)
+
+
+def remove_service_key(client_id, kid: str) -> Client:
+    """Revoking the engine's key for a client is deleting it: it stops reaching that client's chatbots at once."""
+    return _remove_key(client_id, "serviceKeys", kid, keep_one=False)
 
 
 def delete_client(client_id) -> dict:
@@ -107,8 +132,8 @@ def erase_client(client_id: UUID) -> dict:
         Deletes a client without writing it down in the register of erasures: for delete_client, which writes
         it down first, and for making again the deletions the register holds.
     """
-    Client.objects(uuid=client_id).update_one(set__signingKeys=[], set__status=Status.DIS.value,
-                                              set__statusDate=datetime.now())
+    Client.objects(uuid=client_id).update_one(set__signingKeys=[], set__serviceKeys=[],
+                                              set__status=Status.DIS.value, set__statusDate=datetime.now())
     deleted = TenantRepository(client_id).erase_all()
     forget_tokens(client_id)
     Client.objects(uuid=client_id).delete()
@@ -118,11 +143,16 @@ def erase_client(client_id: UUID) -> dict:
 
 
 def find_signer(client_id: UUID, kid: str) -> tuple | None:
-    """The active client and the public key it registered under that kid, or None."""
+    """
+        The active client, the public key registered for it under that kid, and what whoever signs with it is:
+        the client itself, with the role of its entry, or the response engine acting for it. None if there is
+        no such key.
+    """
     client = Client.objects(uuid=client_id, status=Status.ACT.value).first()
     if client is None:
         return None
-    for key in client.signingKeys:
-        if key.get("kid") == kid:
-            return client, dict(key)
+    for keys, role in ((client.signingKeys, Role(client.role)), (client.serviceKeys, Role.SERVICE)):
+        for key in keys:
+            if key.get("kid") == kid:
+                return client, dict(key), role
     return None

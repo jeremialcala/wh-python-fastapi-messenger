@@ -34,12 +34,12 @@ def test_the_description_names_no_route_the_application_does_not_serve():
     def shape(path: str) -> str:
         return re.sub(r"\{[^}]*\}", "{}", path)
 
-    served = [shape(route.path) for route in app_module.app.routes]
-    named = re.findall(r"^\* (/[^:\s]*):", DESCRIPTION, flags=re.MULTILINE)
+    served = {shape(route.path) for route in app_module.app.routes}
+    named = re.findall(r"(?<![\w}])(/[a-z][\w{}/-]*)", DESCRIPTION)
 
-    assert named == ["/bot", "/chat", "/chat/{BOT-ID}/phones"]
+    assert len(named) > 20
     for path in named:
-        assert any(route.startswith(shape(path)) for route in served), path
+        assert shape(path) in served, path
     assert "answers" not in app_module.app.openapi()["info"]["description"]
 
 

@@ -26,7 +26,8 @@ from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_proce
                         ctr_register_client, ctr_list_clients, ctr_get_client, ctr_add_signing_key,
                         ctr_remove_signing_key, ctr_gateway_keys, ctr_set_bot_credentials, ctr_list_contacts,
                         ctr_search_contacts, ctr_export_contact, ctr_delete_contact, ctr_delete_chatbot,
-                        ctr_delete_client, RETRY_LATER)
+                        ctr_delete_client, RETRY_LATER, ctr_get_bot_tokens, ctr_add_service_key,
+                        ctr_remove_service_key)
 from controller.incoming import NotUnderstood, read_notification
 
 from auth.gateway_keys import GatewayKeys
@@ -61,17 +62,42 @@ bearer = HTTPBearer(auto_error=False, bearerFormat="JWE",
                                 "(RSA-OAEP-256, A256CBC-HS512). It lasts 60 seconds at most and is valid once.")
 
 
-async def get_principal(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> Principal:
+# Everything the response engine may call with the key it holds for a client. A route that is not here is
+# closed to it, and so is any route added later until it is written down here.
+SERVICE_ROUTES = {
+    ("GET", "/gateway/keys"),
+    ("GET", "/chat/{bot_id}/rules"),
+    ("GET", "/chat/{bot_id}/tools"),
+    ("GET", "/chat/{bot_id}/tokens"),
+}
+
+
+async def get_principal(request: Request,
+                        credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> Principal:
     """
         Everything but the two Meta webhook routes and the health check depends on this. The answer to a token
         that is not accepted is always the same 401: the reason only goes to the log.
     """
     try:
-        return authenticate(credentials.credentials if credentials else None, GATEWAY_KEYS, settings.gateway_audience)
+        principal = authenticate(credentials.credentials if credentials else None, GATEWAY_KEYS,
+                                 settings.gateway_audience)
     except InvalidToken as e:
         log.warning(f"Rejected a request: {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="HTTP_401_UNAUTHORIZED",
                             headers={"WWW-Authenticate": "Bearer"}) from None
+    route = (METHODS.get(request.method), getattr(request.scope.get("route"), "path", None))
+    if principal.role is Role.SERVICE and route not in SERVICE_ROUTES:
+        log.warning(f"The response engine was denied a route with its key for client {principal.client_id}")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
+    return principal
+
+
+async def require_service(principal: Principal = Depends(get_principal)) -> Principal:
+    """What only the response engine gets. A client does not get it with its own key, nor does the operator."""
+    if principal.role is not Role.SERVICE:
+        log.warning(f"Client {principal.client_id} was denied a route of the response engine")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
+    return principal
 
 
 async def get_repository(principal: Principal = Depends(get_principal)) -> TenantRepository:
@@ -390,6 +416,15 @@ async def search_contacts(search: ContactSearchRequest, repo: TenantRepository =
     return await ctr_search_contacts(repo, search)
 
 
+@app.get(path="/chat/{bot_id}/tokens", tags=["Chat"], response_model=ResponseData)
+async def get_chatbot_tokens(bot_id: str, engine: Principal = Depends(require_service)):
+    """
+        The Meta tokens of a chatbot, for the response engine to send its answers with. Only the engine gets
+        them, with the key it holds for the client that owns the chatbot, and every time it does is logged.
+    """
+    return await ctr_get_bot_tokens(TenantRepository(engine.client_id), bot_id, engine)
+
+
 @app.get(path="/chat/{bot_id}/rules", tags=["Chat"])
 async def get_chatbot_rules(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
@@ -535,6 +570,21 @@ async def delete_client(client_id: str, _operator: Principal = Depends(require_o
 @app.post(path="/clients/{client_id}/keys", tags=["Clients"], response_model=ResponseData)
 async def add_client_key(client_id: str, key: SigningKeyRequest, _operator: Principal = Depends(require_operator)):
     return await ctr_add_signing_key(client_id, key)
+
+
+@app.post(path="/clients/{client_id}/service-keys", tags=["Clients"], response_model=ResponseData)
+async def add_service_key(client_id: str, key: SigningKeyRequest, _operator: Principal = Depends(require_operator)):
+    """
+        The operator lets the response engine act for a client: it registers the public key the engine signs
+        with for that client. With it the engine reaches the chatbots of that client and of nobody else.
+    """
+    return await ctr_add_service_key(client_id, key)
+
+
+@app.delete(path="/clients/{client_id}/service-keys/{kid}", tags=["Clients"], response_model=ResponseData)
+async def remove_service_key(client_id: str, kid: str, _operator: Principal = Depends(require_operator)):
+    """Takes the response engine's key for a client away: it stops reaching that client's chatbots at once."""
+    return await ctr_remove_service_key(client_id, kid)
 
 
 @app.delete(path="/clients/{client_id}/keys/{kid}", tags=["Clients"], response_model=ResponseData)

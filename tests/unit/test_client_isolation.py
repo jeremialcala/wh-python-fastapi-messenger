@@ -28,9 +28,11 @@ BOT = {"name": "Mine", "role": "Sales Assistant", "description": "A test chatbot
 PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/health")}
 ROUTES = sorted((method, route.path) for route in app_module.app.routes if isinstance(route, APIRoute)
                 for method in route.methods)
-BOT_ROUTES = [route for route in ROUTES if route not in PUBLIC and "{bot_id}" in route[1]]
+# What only the response engine gets, with the key it holds for a client: test_service_credential covers it.
+ENGINE_ONLY = {("GET", "/chat/{bot_id}/tokens")}
+BOT_ROUTES = [route for route in ROUTES if route not in PUBLIC | ENGINE_ONLY and "{bot_id}" in route[1]]
 # What is not about one chatbot: creating one, and the registry of clients and keys.
-OTHER_ROUTES = [route for route in ROUTES if route not in PUBLIC and route not in BOT_ROUTES]
+OTHER_ROUTES = [route for route in ROUTES if route not in PUBLIC | ENGINE_ONLY and route not in BOT_ROUTES]
 
 
 @pytest.fixture
@@ -66,12 +68,15 @@ def call(http: TestClient, caller, method: str, path: str, bot_id, intent_id, co
 
 
 def test_every_route_of_a_chatbot_is_covered():
-    assert len(BOT_ROUTES) == 16
-    # The search of contacts and the deletion of a client have their own tests in test_export_and_delete.
+    assert len(BOT_ROUTES) == 16 and ENGINE_ONLY <= set(ROUTES)
+    # The search of contacts and the deletion of a client have their own tests in test_export_and_delete, and
+    # the keys of the response engine in test_service_credential.
     assert OTHER_ROUTES == [
-        ("DELETE", "/clients/{client_id}"), ("DELETE", "/clients/{client_id}/keys/{kid}"), ("DELETE", "/keys/{kid}"),
+        ("DELETE", "/clients/{client_id}"), ("DELETE", "/clients/{client_id}/keys/{kid}"),
+        ("DELETE", "/clients/{client_id}/service-keys/{kid}"), ("DELETE", "/keys/{kid}"),
         ("GET", "/clients"), ("GET", "/gateway/keys"), ("GET", "/keys"), ("POST", "/bot"), ("POST", "/clients"),
-        ("POST", "/clients/{client_id}/keys"), ("POST", "/contacts/search"), ("POST", "/keys"),
+        ("POST", "/clients/{client_id}/keys"), ("POST", "/clients/{client_id}/service-keys"),
+        ("POST", "/contacts/search"), ("POST", "/keys"),
     ]
 
 

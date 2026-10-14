@@ -305,8 +305,9 @@ def test_a_method_that_is_not_one_of_the_usual_is_not_written_as_sent(http, logg
 
 LEAK = "failure-text-marker 12025550143 EAAG-token-in-the-failure"
 PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/health")}
-# It answers from what the service holds in memory: there is nothing in it to fail.
-NOTHING_TO_FAIL = {("GET", "/gateway/keys")}
+# It answers from what the service holds in memory: there is nothing in it to fail. And the tokens are only
+# for the response engine: the operator, who makes these calls, is turned away before anything can fail.
+NOTHING_TO_FAIL = {("GET", "/gateway/keys"), ("GET", "/chat/{bot_id}/tokens")}
 ROUTES = sorted({(method, route.path) for route in app_module.app.routes if isinstance(route, APIRoute)
                  for method in route.methods} - PUBLIC - NOTHING_TO_FAIL)
 BODIES = {
@@ -320,6 +321,7 @@ BODIES = {
     ("POST", "/keys"): {"signingKey": public_part(new_signing_key())},
     ("POST", "/clients"): {"name": "globex", "signingKey": public_part(new_signing_key())},
     ("POST", "/clients/{client_id}/keys"): {"signingKey": public_part(new_signing_key())},
+    ("POST", "/clients/{client_id}/service-keys"): {"signingKey": public_part(new_signing_key())},
 }
 
 
@@ -352,7 +354,7 @@ def everything_fails(monkeypatch):
         for name in ("_own", "add_bot", "delete_bot", "delete_contact", "find_contacts"):
             monkeypatch.setattr(TenantRepository, name, fails)
         for name in ("register_client", "list_clients", "get_client", "add_signing_key", "remove_signing_key",
-                     "delete_client"):
+                     "delete_client", "add_service_key", "remove_service_key"):
             monkeypatch.setattr(clients_controller, name, fails)
 
     return now

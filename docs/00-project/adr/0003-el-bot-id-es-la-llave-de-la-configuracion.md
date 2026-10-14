@@ -58,3 +58,7 @@ gateway.
 Resuelto en [ADR-0004](0004-firma-en-el-webhook-jwe-en-el-resto.md): el motor se autentica ante el gateway con
 JWE, como cualquier otro cliente registrado, y la firma del webhook no viaja con el mensaje. Queda por diseñar el
 formato del token y el alcance de solo lectura del motor.
+
+Resueltos los dos: el formato en [ADR-0009](0009-parametros-del-token-de-autenticacion.md) y el alcance en
+[ADR-0016](0016-credencial-del-motor-por-cliente.md), con una clave del motor por cliente. Además del `bot_id`, el
+mensaje lleva el cliente dueño del bot, para que el motor sepa cuál de sus claves usar.

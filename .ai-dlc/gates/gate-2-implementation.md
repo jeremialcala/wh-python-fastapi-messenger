@@ -12,7 +12,7 @@
 |---|---|---|
 | SAST sin hallazgos críticos o altos | Gate activo | Workflow `Seguridad`, trabajo `sast`: CodeQL sobre todo el código, también en los pull requests, y el build se rompe con cualquier hallazgo de seguridad alto o crítico (`security-severity` ≥ 7,0) fuera del código de pruebas; los de `tests/` se informan como aviso y no bloquean (decisión del 2026-10-12). Primer análisis completo: 92 resultados; uno alto, que era un falso positivo por el nombre de una constante y ya no aparece; 28 medios de `py/log-injection`, abiertos; y 63 de calidad |
 | Dependencias verificadas (SCA) | Gate activo | `requirements.lock` y `requirements-dev.lock` con hashes; trabajo `dependencias` con `pip-audit` sobre el lock. Al añadirlo: 14 vulnerabilidades conocidas con las dependencias anteriores, todas de Starlette 0.36.3, y ninguna con las nuevas |
-| Cobertura ≥ 80 % por ramas | Gate activo: 86 % | El CI rompe el build por debajo del 80 %. Era del 61 % antes de las pruebas de aislamiento, que pasan por los controladores y el repositorio de verdad, contra una base en memoria |
+| Cobertura ≥ 80 % por ramas | Gate activo: 91 % | El CI rompe el build por debajo del 80 %. Era del 61 % antes de las pruebas de aislamiento, que pasan por los controladores y el repositorio de verdad, contra una base en memoria |
 | Dual review | Pendiente | — |
 | Sin secretos en el código | Gate activo | Trabajo `secretos`: gitleaks sobre la historia completa. Al añadirlo: 56 commits, ningún hallazgo |
 
@@ -132,8 +132,19 @@ resto de criterios cumplidos.
 - Retirados el envío de mensajes por WhatsApp, que no se usaba, y la mención al endpoint `/answers` en la
   descripción de la API, que nunca existió. Una prueba de contrato falla si la descripción vuelve a nombrar
   una ruta que la aplicación no sirve.
-- Con esto están hechos los siete trabajos de la brecha, salvo el cliente de servicio del motor, que es lo
-  que queda del segundo.
+- Lo que quedaba del segundo trabajo, el cliente de servicio del motor, está más abajo.
+
+### Hecho: credencial del motor de respuestas, una por cliente (RS06, ADR-0016)
+
+- El operador registra bajo cada cliente la clave pública con la que el motor actúa por él. Con ella el motor
+  alcanza las reglas, las herramientas y los tokens de Meta de los bots de ese cliente, y nada más: cualquier
+  otra ruta le responde `403`, y una ruta nueva nace cerrada para él.
+- Los tokens de Meta solo se entregan al motor, y cada entrega deja una línea en el log.
+- El sobre de la cola lleva el cliente dueño del bot, para que el motor sepa cuál de sus claves usar. El
+  contrato pasa a la versión 1.1.0.
+- Las pruebas recorren todas las rutas con la clave del motor, y con la clave de un cliente contra los bots de
+  otro. Rompiendo el cambio de 24 maneras, fallan en las 24.
+- Con esto están hechos los siete trabajos de la brecha. Queda la revisión dual.
 
 ### Pendiente que deja el primer análisis estático
 
@@ -145,9 +156,9 @@ resto de criterios cumplidos.
 
 - Los siete trabajos de la sección "Brecha entre lo construido y el diseño" de
   [`architecture.md`](../../docs/02-design/architecture.md), en el orden que marca el threat model.
-- Los hallazgos abiertos de [`threat-model.md`](../../docs/02-design/threat-model.md): H3, H5 y H6; el que salió
+- Los hallazgos abiertos de [`threat-model.md`](../../docs/02-design/threat-model.md): H3 y H6; el que salió
   al construir el sobre y sigue abierto, H10; y lo que deja pendiente H11, aceptado con ADR-0014: configurar y comprobar en Atlas la retención de 365 días, y el
-  registro de supresiones. H1, H2, H4, H7, H8, H9, H12 y H13
+  registro de supresiones. H1, H2, H4, H5, H7, H8, H9, H12 y H13
   están corregidos.
 - Si cambia la API o el mensaje de la cola, los contratos de `docs/02-design/contracts/` cambian con ellos: las
   pruebas de `tests/contract` lo exigen.

@@ -51,6 +51,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   hacerse, en ficheros fuera de la base de datos (`ERASURES_DIR`), con identificadores y fechas y sin datos
   personales. `python -m migrations.replay_erasures` repite los borrados después de restaurar un respaldo; sin
   `--apply` solo informa.
+- ADR-0016, aceptado: el motor de respuestas tiene una credencial por cliente.
+- Credencial del motor de respuestas (RS06): el operador registra bajo cada cliente la clave pública con la que el
+  motor actúa por él, en `POST` y `DELETE /clients/{client_id}/service-keys`. Con ella el motor alcanza las reglas,
+  las herramientas y los tokens de los bots de ese cliente, y ninguna otra ruta.
+- `GET /chat/{bot_id}/tokens`: los tokens de Meta de un bot, solo para el motor. Cada entrega deja una línea en el
+  log.
+- El sobre de la cola lleva `clientId`, el cliente dueño del bot. El contrato AsyncAPI pasa a la versión 1.1.0;
+  `schemaVersion` sigue en 1.
+- `GET /keys` y `GET /clients` listan en `serviceKeys` las claves del motor que alcanzan los bots de cada cliente.
 - ADR-0015, aceptado: a Meta solo se le pide reintento, con un `503`, cuando falta algo que el servicio necesita.
 - Límite de tamaño: ninguna petición puede pasar de 3 MiB, que es lo más que envía Meta. Por encima responde `413`,
   antes de comprobar firma o token.
