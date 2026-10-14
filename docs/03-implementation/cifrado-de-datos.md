@@ -42,9 +42,12 @@ que no está en claro es lo guardado, no lo que está en tránsito.
 
 ## Lo que cambia en la API
 
-- **Las credenciales de Meta entran y no salen.** Se cargan y se rotan con `PUT /chat/{bot_id}/credentials`
-  (`facebookToken`, `whatsappToken`, `appSecret`; solo cambian las que se envían). La respuesta dice cuáles están
-  cargadas, nunca su valor. Ya no se pueden escribir a mano en la base.
+- **Las credenciales de Meta entran y no vuelven a quien las cargó.** Se cargan y se rotan con
+  `PUT /chat/{bot_id}/credentials` (`facebookToken`, `whatsappToken`, `appSecret`; solo cambian las que se envían).
+  La respuesta dice cuáles están cargadas, nunca su valor. Ya no se pueden escribir a mano en la base.
+- **Los tokens solo se entregan al motor de respuestas**, que envía con ellos: `GET /chat/{bot_id}/tokens`, con la
+  clave que tiene para el cliente dueño del bot. Cada entrega queda en el log. Ver
+  [autenticacion.md](autenticacion.md).
 - `GET /chat/{bot_id}/info` deja de devolver los tokens de Meta. Devuelve el token de verificación, que el cliente
   necesita para pegarlo en Meta, y qué credenciales están cargadas.
 
@@ -94,6 +97,6 @@ de recuperación tiene que estar a buen recaudo.
   ([ADR-0014](../00-project/adr/0014-supresion-en-respaldos-por-caducidad.md)).
 - **Rotar la clave de datos de un cliente.** Rotar la clave maestra en Andvari sí es posible: lo ya envuelto se
   sigue abriendo.
-- **El motor de respuestas no obtiene los tokens.** Están cifrados y fuera de la API, pero el cliente de servicio
-  que se los entregaría no está construido.
+- **El motor de respuestas no pide todavía los tokens.** El gateway ya se los entrega con una clave por cliente;
+  usarla es trabajo de su repositorio.
 - **El cuerpo del mensaje en la cola va en claro**, número incluido. Su cifrado es una segunda fase de ADR-0011.

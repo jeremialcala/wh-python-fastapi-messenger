@@ -52,6 +52,9 @@ un `jti` ya visto. Los `jti` vistos se guardan hasta su caducidad en una colecci
 es. El motor de respuestas es un cliente de servicio con alcance de solo lectura sobre la configuración de los
 bots.
 
+> **Precisado el 2026-10-13 por [ADR-0016](0016-credencial-del-motor-por-cliente.md):** el motor no tiene una
+> credencial para todos los bots, sino una clave por cliente, que solo alcanza los bots de ese cliente.
+
 **Claves.** Un cliente puede tener dos claves públicas activas a la vez, para rotar sin corte. Revocar una es
 borrarla del registro. El gateway rota su par con el mismo solapamiento, y los clientes lo distinguen por `kid`.
 
