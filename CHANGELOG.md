@@ -107,6 +107,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Eliminado
 - El envío de mensajes por WhatsApp desde el gateway, que no se usaba: responder es cosa del motor (ADR-0002).
+- La mención al endpoint `/answers` en la descripción de la API. Nunca existió, y entregar la respuesta es cosa del
+  motor (ADR-0002).
 
 ### Corregido
 - `metadata` de WhatsApp salía hacia la cola como una lista de pares y no como un objeto, y el motor no podía leer

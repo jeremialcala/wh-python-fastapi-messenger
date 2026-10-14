@@ -127,6 +127,14 @@ resto de criterios cumplidos.
   servicio real y un MongoDB real que se para y se arranca: `503` con la base parada, `200` al volver.
 - Los modelos de gestión siguen sin acotar la longitud de sus campos: RS11 queda en parcial por eso.
 
+### Hecho: lo que ya no es del gateway (ADR-0002)
+
+- Retirados el envío de mensajes por WhatsApp, que no se usaba, y la mención al endpoint `/answers` en la
+  descripción de la API, que nunca existió. Una prueba de contrato falla si la descripción vuelve a nombrar
+  una ruta que la aplicación no sirve.
+- Con esto están hechos los siete trabajos de la brecha, salvo el cliente de servicio del motor, que es lo
+  que queda del segundo.
+
 ### Pendiente que deja el primer análisis estático
 
 - Los 28 hallazgos medios de `py/log-injection` en `app.py` y los controladores, valores de la petición escritos

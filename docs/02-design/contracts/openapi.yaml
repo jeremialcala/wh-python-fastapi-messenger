@@ -329,9 +329,7 @@ info:
     \ @POST: using the param bot_id={BOT-ID} (required) will process a message send from Facebook to be processed\
     \ by this instance\n\n* /chat/{BOT-ID}/phones: This operation manage the Whatsapp Phone Numbers\n    * @POST:\
     \ Add a whatsapp phone number to your bot.\n    * @GET: This operation Obtains all Phones associated to this\
-    \ bot. With the param ?phone.id={phone_id} will give you a specific number.  \n\n* /answers: This webhook will\
-    \ send the process answer to the chat client using the facebook graph api.\n    * @POST: Will send the content\
-    \ of this answer to final user conversation.\n"
+    \ bot. With the param ?phone.id={phone_id} will give you a specific number.  \n"
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html

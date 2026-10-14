@@ -371,7 +371,7 @@ Lo que hay que construir para que el código cumpla este diseño, en el orden qu
 | 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad. **Hecho** del lado del gateway; el motor tiene su parte | RF12, RNF04, RNF05 | ADR-0011 |
 | 5 | Endpoints para cargar credenciales de Meta, y para exportar y borrar contactos, bots y clientes. **Hecho**; en los respaldos la supresión se cumple por caducidad, a los 365 días como mucho | RF06, RF08, RF09, RF10 | ADR-0014 |
 | 6 | Logs sin datos personales, errores sin detalles, esquema estricto de la notificación y límite de tamaño. **Hecho**; los modelos de gestión siguen sin acotar | RS07, RS11, RS15 | ADR-0015 |
-| 7 | Retirar el envío por WhatsApp (**hecho**) y la mención a `/answers`, que ya no son del gateway | — | ADR-0002 |
+| 7 | Retirar el envío por WhatsApp y la mención a `/answers`, que ya no son del gateway. **Hecho** | — | ADR-0002 |
 
 Del lado del motor, en su repositorio: aceptar el sobre para Messenger, conservar el `botId`, deduplicar, pedir la
 configuración al gateway y enviar la respuesta (ADR-0002, ADR-0003, ADR-0011).
