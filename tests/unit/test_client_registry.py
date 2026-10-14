@@ -100,7 +100,7 @@ def test_the_operator_lists_the_clients(http, operator, register):
     listed = http.get("/clients", headers=operator.auth).json()["data"]
 
     assert [(client["name"], client["role"]) for client in listed] == [("operator", "operator"), ("acme", "client")]
-    assert all(set(client) == {"uuid", "name", "role", "status", "keys"} for client in listed)
+    assert all(set(client) == {"uuid", "name", "role", "status", "keys", "serviceKeys"} for client in listed)
 
 
 def test_a_name_is_registered_once(http, operator):

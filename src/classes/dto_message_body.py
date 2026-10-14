@@ -16,6 +16,8 @@ log = logging.getLogger(settings.environment)
 
 class MessageBody(BaseModel):
     botId: str
+    # Whose chatbot it is: the response engine picks the credential it holds for that client.
+    clientId: str
     type: str
     contact: dict
     message: dict

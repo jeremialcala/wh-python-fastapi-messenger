@@ -50,6 +50,7 @@ async def _contact(message: IncomingMessage, channel: str, _bot: ChatBot, eventI
 async def _queue(message: IncomingMessage, channel: str, _bot: ChatBot, eventId: str = None) -> None:
     body = MessageBody(
         botId=str(_bot.uuid),
+        clientId=str(_bot.clientId),
         type=channel,
         contact=await _contact(message, channel, _bot, eventId),
         message=message.content

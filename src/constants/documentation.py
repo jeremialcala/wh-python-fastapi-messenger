@@ -7,23 +7,49 @@ SUMMARY = "Controls the Facebook Messenger Lifecycle"
 TERMS = "https://web-ones.com/terms"
 
 DESCRIPTION = """
-This is a Webhook for Facebook Messenger chatbot, 
-this application manages the chatbot lifecycle for messenger and creates events 
-to respond to and from Facebook. 
+The gateway between Meta (Messenger and WhatsApp) and the response engine of each chatbot. It checks that a
+notification comes from Meta, finds or stores who wrote, and queues each message for the engine. Each client
+manages its own chatbots through it and reaches nothing of anybody else's.
 
-### BOT 
+Every route but the webhook and the health check asks for a token in `Authorization: Bearer`: a JWT signed by the
+caller inside a JWE encrypted to the gateway, valid once and for 60 seconds at most.
 
-* /bot: This endpoint controls the chatbot lifecycle, will have the fallowing operations:
-    * @POST: Create a new chatbot requiring simple data and returning and UUID
-    * @GET: Will obtain the chatbot information using the param _id={BOT-ID}
-    
-* /chat: This webhook controls the chat lifecycle for an specific bot, will have the following operations:
-    * @GET: using the param bot_id={BOT-ID} (required) will do Facebook token verification challenge
-    * @POST: using the param bot_id={BOT-ID} (required) will process a message send from Facebook to be processed by this instance
+### The webhook
 
-* /chat/{BOT-ID}/phones: This operation manage the Whatsapp Phone Numbers
-    * @POST: Add a whatsapp phone number to your bot.
-    * @GET: This operation Obtains all Phones associated to this bot. With the param ?phone.id={phone_id} will give you a specific number.  
+* /chat/{bot_id}: what Meta calls for a chatbot.
+    * @GET: the verification challenge, checked against the verification token of the chatbot.
+    * @POST: a notification, taken only with a valid `X-Hub-Signature-256`. Each message in it is queued.
+
+### A client and its chatbots
+
+* /bot: @POST creates a chatbot.
+* /bot/{bot_id}: @DELETE deletes it with everything stored for it.
+* /chat/{bot_id}/info: @GET what is stored of the chatbot, and which Meta credentials are loaded.
+* /chat/{bot_id}/credentials: @PUT loads or rotates its Meta credentials. They are never returned.
+* /chat/{bot_id}/phones: @POST adds a WhatsApp number, @GET lists them. `?environment=` gives the last one of it.
+* /chat/{bot_id}/rules: @POST adds rules, @GET builds the system prompt from them.
+* /chat/{bot_id}/intents: @POST and @GET; /chat/{bot_id}/intents/{intent_id} takes @GET, @PUT and @DELETE.
+* /chat/{bot_id}/tools: @GET the actions of its intents as tool definitions for the model.
+* /chat/{bot_id}/contacts: @GET who wrote to it, a page at a time; /chat/{bot_id}/contacts/{contact_id} exports
+  one with @GET and deletes it with @DELETE.
+* /contacts/search: @POST finds a person in every chatbot of the client, by number or by Messenger id.
+* /keys: @GET the keys of the caller, @POST adds one to rotate; /keys/{kid} removes one with @DELETE.
+
+### The response engine
+
+* /chat/{bot_id}/tokens: @GET the Meta tokens of a chatbot. Only for the engine, with the key it holds for the
+  client that owns the chatbot. It also reads the rules and the tools of that chatbot, and nothing else.
+
+### The operator
+
+* /clients: @POST registers a client, @GET lists them; /clients/{client_id} takes one off with @DELETE.
+* /clients/{client_id}/keys: the keys a client signs with; /clients/{client_id}/service-keys, the keys the
+  response engine signs with for that client.
+
+### Any caller
+
+* /gateway/keys: @GET the audience and the public keys tokens are encrypted to.
+* /health: @GET liveness, without a token.
 """
 
 TAGS_METADATA = [

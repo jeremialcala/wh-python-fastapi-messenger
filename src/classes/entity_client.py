@@ -29,6 +29,9 @@ class Client(Document):
     role = StringField(required=True, default=Role.CLIENT.value, choices=[role.value for role in Role])
     # The public keys the client signs its tokens with: one normally, two while it rotates. Never a private one.
     signingKeys = ListField(DictField())
+    # The public keys the response engine signs with when it acts for this client. Whoever signs with one of
+    # these is not the client: it reads what it needs to answer for the client's chatbots, and nothing else.
+    serviceKeys = ListField(DictField())
     # Not used yet: the client's data key, wrapped by the master key.
     wrappedDataKey = StringField()
     createdAt = DateTimeField(required=True, default=datetime.now)

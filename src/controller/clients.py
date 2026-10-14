@@ -11,11 +11,12 @@ from auth.client_keys import public_signing_key
 from auth.gateway_keys import GatewayKeys
 from classes import Client, ClientRequest, ResponseData, Settings, SigningKeyRequest
 from enums import Status
-from repository import (Conflict, NotFound, RegisterUnavailable, add_signing_key, delete_client, get_client,
-                        list_clients, register_client, remove_signing_key)
+from repository import (Conflict, NotFound, RegisterUnavailable, add_service_key, add_signing_key, delete_client,
+                        get_client, list_clients, register_client, remove_service_key, remove_signing_key)
 
 __all__ = ["ctr_register_client", "ctr_list_clients", "ctr_get_client", "ctr_add_signing_key",
-           "ctr_remove_signing_key", "ctr_gateway_keys", "ctr_delete_client"]
+           "ctr_remove_signing_key", "ctr_gateway_keys", "ctr_delete_client", "ctr_add_service_key",
+           "ctr_remove_service_key"]
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -36,6 +37,8 @@ def client_info(client: Client) -> dict:
         "role": client.role,
         "status": Status(client.status).name,
         "keys": [key.get("kid") for key in client.signingKeys],
+        # The keys of the response engine for this client. The client sees them too: it is who reads its chatbots.
+        "serviceKeys": [key.get("kid") for key in client.serviceKeys],
     }
 
 
@@ -101,6 +104,28 @@ async def ctr_remove_signing_key(client_id, kid: str, keep_one: bool) -> Respons
     except Conflict as e:
         raise _conflict(e) from None
     log.info(f"Signing key removed from client {client.uuid}")
+    return ResponseData(data=client_info(client))
+
+
+async def ctr_add_service_key(client_id, request: SigningKeyRequest) -> ResponseData:
+    key = _validated(request)
+    try:
+        client = add_service_key(client_id, key)
+    except NotFound:
+        raise _not_found() from None
+    except Conflict as e:
+        raise _conflict(e) from None
+    # A warning, so that it is kept at the level production logs at: it opens a client's chatbots to the engine.
+    log.warning(f"Service key {key['kid']} added to client {client.uuid}")
+    return ResponseData(data=client_info(client))
+
+
+async def ctr_remove_service_key(client_id, kid: str) -> ResponseData:
+    try:
+        client = remove_service_key(client_id, kid)
+    except NotFound:
+        raise _not_found() from None
+    log.warning(f"Service key removed from client {client.uuid}")
     return ResponseData(data=client_info(client))
 
 

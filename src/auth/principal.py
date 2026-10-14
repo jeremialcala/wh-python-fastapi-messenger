@@ -15,6 +15,8 @@ class Principal:
     """Who is calling. What it may do comes from its registry entry, never from the token."""
     client_id: UUID
     role: Role
+    # The registered key the token was signed with.
+    kid: str
 
 
 def authenticate(token: str | None, gateway_keys: GatewayKeys, audience: str) -> Principal:
@@ -27,11 +29,12 @@ def authenticate(token: str | None, gateway_keys: GatewayKeys, audience: str) ->
         found = find_signer(client_id, kid)
         if found is None:
             return None
-        signer["client"], key = found
+        _, key, signer["role"] = found
+        signer["key"] = key
         return key
 
     claims = verify(token, gateway_keys, audience, signing_key, time.time())
     # Last, and only for a token that was valid: a forged one must not be able to burn somebody's jti.
     if not remember_token(claims.client_id, claims.jti, claims.expires_at):
         raise InvalidToken("token already used")
-    return Principal(client_id=claims.client_id, role=Role(signer["client"].role))
+    return Principal(client_id=claims.client_id, role=signer["role"], kid=signer["key"]["kid"])
