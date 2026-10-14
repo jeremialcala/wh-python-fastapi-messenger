@@ -41,7 +41,7 @@ gateway se queda en la entrada: verifica a Meta, identifica al contacto y encola
   - El requisito RS06 cambia: ya no puede ser "ningún endpoint devuelve los tokens". Pasa a ser que la API de
     gestión no los devuelve y que solo el motor los obtiene, con una credencial de servicio propia.
   - En el gateway sobran la función de envío por WhatsApp y la mención a `/answers` en la documentación de OpenAPI.
-    Se retiran en un cambio de código aparte.
+    Se retiran en un cambio de código aparte. Hecho: las dos están retiradas desde el 2026-10-13.
 - Impacto en threat model: el motor entra en el perímetro de las credenciales Restringidas. Comprometer el motor
   expone los tokens de todos los clientes a los que pueda pedírselos, así que el acceso debe ser de mínimo
   privilegio y quedar registrado. Es el escenario de abuso AB15 del PRD.

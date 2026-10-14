@@ -210,8 +210,6 @@ Cómo se atiende con ellos a quien pide sus datos, y qué no alcanza el borrado,
 |---|---|---|
 | `GET` | `/health` | Sonda de vida. Responde sin tocar MongoDB ni RabbitMQ. |
 
-> El endpoint `/answers` aparece descrito en la prosa de OpenAPI pero **todavía no está implementado** en `src/app.py`.
-
 ---
 
 ## Modelo de datos (colecciones de MongoDB)
