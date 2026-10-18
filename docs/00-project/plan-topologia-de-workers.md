@@ -204,7 +204,7 @@ artefactos de los gates 0 y 1 como cambios sobre la línea base 0.3.0, y luego s
 | Paso | Gate | Qué se produce |
 |---|---|---|
 | 0 | Cierre del Gate 2 actual | **Hecho el 2026-10-18**: revisión dual, corte de la 0.3.0 en el CHANGELOG y tag |
-| 1 | Requisitos (Gate 0) | PRD: RNF01 con 250 ms de mediana y menos de un 1 % sobre 1 s para WhatsApp; requisitos de orden por conversación, de traza y del canal de Instagram; escenarios de abuso nuevos (un evento repetido, un evento fuera de orden, datos personales en el bus o en una traza, un servicio que publica en un sujeto ajeno); clasificación de datos con el bus, los spans y el identificador de Instagram |
+| 1 | Requisitos (Gate 0) | **Aprobado el 2026-10-18** (PRD 0.3.0). PRD: RNF01 con 250 ms de mediana y menos de un 1 % sobre 1 s para WhatsApp; requisitos de orden por conversación, de traza y del canal de Instagram; escenarios de abuso nuevos (un evento repetido, un evento fuera de orden, datos personales en el bus o en una traza, un servicio que publica en un sujeto ajeno); clasificación de datos con el bus, los spans y el identificador de Instagram |
 | 2 | Diseño (Gate 1) | ADR-0017 (D6, ya propuesta); ADRs de D1 (NATS JetStream), de su placement en midgard, de D2 (reescribe ADR-0006 y ADR-0015) y de D3 (amplía ADR-0016); ADR-0011 y AsyncAPI 2.0.0; arquitectura con el worker de ingesta y NATS; threat model con los límites de confianza nuevos y T11 |
 | 3 | Implementación (Gate 2) | Los incrementos de abajo, uno por PR a `develop` |
 | 4 | Pruebas (Gate 3) | Medición de latencia contra Atlas y NATS reales en midgard, que es la evidencia de RNF01; corte de la 0.4.0 |

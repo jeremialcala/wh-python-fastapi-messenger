@@ -21,11 +21,12 @@ datos y PRD en `approved`.
 | Datos clasificados | [Clasificación de datos](../../docs/00-project/data-classification.md), con roles GDPR, inventario y retención |
 | Charter y glosario | [Charter](../../docs/00-project/charter.md) con `mindmap`; [glosario](../../docs/00-project/glossary.md) |
 
-## Refactor de la topología de workers (2026-10-18): en revisión
+## Refactor de la topología de workers: aprobado el 2026-10-18
 
 El refactor reabre los requisitos como cambios sobre esta línea base
-([plan](../../docs/00-project/plan-topologia-de-workers.md), paso 1). Las casillas de arriba son las del cierre del
-2026-10-12; las del refactor se marcan cuando se aprueben sus cambios.
+([plan](../../docs/00-project/plan-topologia-de-workers.md), paso 1). **Aprobados el 2026-10-18 por Jeremi
+Alcala**, con las seis casillas cumplidas también para los cambios: PRD 0.3.0, charter, glosario y clasificación de
+datos en `approved`. No se corta versión: el plan reserva la siguiente, la `0.4.0`, para el Gate 3 del refactor.
 
 | Criterio | Evidencia del refactor |
 |---|---|
@@ -36,8 +37,8 @@ El refactor reabre los requisitos como cambios sobre esta línea base
 | Datos clasificados | IGSID, contenido en historial y contexto, trazas y credenciales del bus |
 | Charter y glosario | Instagram y el historial en el alcance; términos nuevos (bus, sujeto, clave de orden, worker de ingesta, IGSID, historial, contexto, traza) |
 
-Por decidir para aprobarlo: la retención del historial, los adjuntos y cómo se conecta Instagram (sección
-"Decisiones" del PRD).
+Decidido al aprobarlo: el historial se guarda 12 meses por mensaje como máximo; de un adjunto, solo su tipo; e
+Instagram se conecta con *Facebook Login* a través de la página del cliente.
 
 ## Qué significa este cierre
 
