@@ -203,7 +203,7 @@ artefactos de los gates 0 y 1 como cambios sobre la línea base 0.3.0, y luego s
 
 | Paso | Gate | Qué se produce |
 |---|---|---|
-| 0 | Cierre del Gate 2 actual | Revisión dual, corte de la 0.3.0 en el CHANGELOG y tag |
+| 0 | Cierre del Gate 2 actual | **Hecho el 2026-10-18**: revisión dual, corte de la 0.3.0 en el CHANGELOG y tag |
 | 1 | Requisitos (Gate 0) | PRD: RNF01 con 250 ms de mediana y menos de un 1 % sobre 1 s para WhatsApp; requisitos de orden por conversación, de traza y del canal de Instagram; escenarios de abuso nuevos (un evento repetido, un evento fuera de orden, datos personales en el bus o en una traza, un servicio que publica en un sujeto ajeno); clasificación de datos con el bus, los spans y el identificador de Instagram |
 | 2 | Diseño (Gate 1) | ADR-0017 (D6, ya propuesta); ADRs de D1 (NATS JetStream), de su placement en midgard, de D2 (reescribe ADR-0006 y ADR-0015) y de D3 (amplía ADR-0016); ADR-0011 y AsyncAPI 2.0.0; arquitectura con el worker de ingesta y NATS; threat model con los límites de confianza nuevos y T11 |
 | 3 | Implementación (Gate 2) | Los incrementos de abajo, uno por PR a `develop` |
@@ -213,6 +213,7 @@ Incrementos del paso 3, en este orden (eje trazabilidad: qué depende de qué):
 
 ```mermaid
 flowchart LR
+    IS["IS Separar el webhook de la API de gestion (RD-05)"] --> I1
     I1["I1 Medir el webhook actual en midgard"] --> I4
     I0["I0 NATS JetStream en midgard (R8)"] --> I2
     I2["I2 Puerto de publicacion sobre NATS (R2)"] --> I3
@@ -225,7 +226,7 @@ flowchart LR
     I8["I8 Canal de Instagram (R7)"]
 ```
 
-I1 se hace primero porque da la cifra contra la que se mide todo lo demás, y se mide con el camino actual, todavía
+IS va antes que nada: es la condición con la que se aceptó RD-05 al cerrar el Gate 2, y tiene que estar antes del primer despliegue. Deja el webhook en su propio contenedor, sin las rutas ni las claves de gestión. I1 va después porque da la cifra contra la que se mide todo lo demás, y se mide con el camino actual, todavía
 sobre Hermod. I0 es un despliegue en midgard, como el de Hermod y Andvari. I6 e I7 no dependen del resto y pueden
 ir en paralelo; Instagram va detrás del worker de ingesta para nacer ya en el camino nuevo. Del lado del motor,
 que es otro repositorio, quedan partirlo en workers, leer de NATS el contrato v2, deduplicar y respetar la clave
