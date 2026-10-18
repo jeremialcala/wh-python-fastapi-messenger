@@ -13,4 +13,4 @@ log = logging.getLogger(settings.environment)
 
 
 class Profile(BaseModel):
-    name: str = Field(default=["Jeremi Alcala"])
+    name: str | None = Field(default=None)

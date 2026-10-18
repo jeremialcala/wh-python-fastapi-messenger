@@ -216,6 +216,43 @@ def test_a_client_only_touches_its_own_keys(http, register):
     assert [key["kid"] for key in get_client(victim.client_id).signingKeys] == [victim.kid]
 
 
+def test_a_key_added_meanwhile_does_not_bring_back_a_revoked_one(http, operator, register, monkeypatch):
+    """Found in the dual review of Gate 2: saving the list as it was read undid a revocation made in between."""
+    import repository.clients as clients
+    from auth.client_keys import public_signing_key
+    from repository import add_signing_key, find_signer
+
+    caller = register("acme")
+    read_before = get_client(caller.client_id)
+    revoked = http.delete(f"/clients/{caller.client_id}/keys/{caller.kid}", headers=operator.auth)
+    # Whatever the change in flight read of the client, it is from before the revocation.
+    monkeypatch.setattr(clients, "get_client", lambda client_id: read_before)
+
+    new = public_signing_key(public_part(new_signing_key()))
+    add_signing_key(caller.client_id, new)
+    monkeypatch.undo()
+
+    assert revoked.status_code == 200
+    assert [key["kid"] for key in get_client(caller.client_id).signingKeys] == [new["kid"]]
+    assert find_signer(caller.client_id, caller.kid) is None
+
+
+def test_a_key_change_does_not_bring_back_a_deleted_client(register, monkeypatch):
+    """The other half of the same finding: saving a client that was deleted in between created it again."""
+    import repository.clients as clients
+    from auth.client_keys import public_signing_key
+    from repository import Conflict, NotFound, add_signing_key
+
+    caller = register("acme")
+    read_before = get_client(caller.client_id)
+    Client.objects(uuid=caller.client_id).delete()
+    monkeypatch.setattr(clients, "get_client", lambda client_id: read_before)
+
+    with pytest.raises((NotFound, Conflict)):
+        add_signing_key(caller.client_id, public_signing_key(public_part(new_signing_key())))
+    assert Client.objects.count() == 0
+
+
 # --- The operator and the keys of a client -----------------------------------------------------------------------
 
 def test_the_operator_lets_a_client_back_in(http, operator, register):

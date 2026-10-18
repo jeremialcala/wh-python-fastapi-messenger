@@ -92,7 +92,9 @@ async def ctr_add_signing_key(client_id, request: SigningKeyRequest) -> Response
         raise _not_found() from None
     except Conflict as e:
         raise _conflict(e) from None
-    log.info(f"Signing key added to client {client.uuid}")
+    # Warnings, so that they are kept at the level production logs at: whoever holds a key of a client can add
+    # another one, and this line is how a key nobody recognises is found later.
+    log.warning(f"Signing key {key['kid']} added to client {client.uuid}")
     return ResponseData(data=client_info(client))
 
 
@@ -103,7 +105,8 @@ async def ctr_remove_signing_key(client_id, kid: str, keep_one: bool) -> Respons
         raise _not_found() from None
     except Conflict as e:
         raise _conflict(e) from None
-    log.info(f"Signing key removed from client {client.uuid}")
+    # The kid is the one that was stored: an unknown one did not get this far.
+    log.warning(f"Signing key {kid} removed from client {client.uuid}")
     return ResponseData(data=client_info(client))
 
 
@@ -125,7 +128,7 @@ async def ctr_remove_service_key(client_id, kid: str) -> ResponseData:
         client = remove_service_key(client_id, kid)
     except NotFound:
         raise _not_found() from None
-    log.warning(f"Service key removed from client {client.uuid}")
+    log.warning(f"Service key {kid} removed from client {client.uuid}")
     return ResponseData(data=client_info(client))
 
 

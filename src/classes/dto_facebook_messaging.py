@@ -17,8 +17,8 @@ log = logging.getLogger(settings.environment)
 
 
 class Messaging(BaseModel):
-    sender: Sender = Field(default=Sender(id="6513749358714062"))
-    recipient: Sender = Field(default=Sender(id="101831186329557"))
+    sender: Sender = Field(default=Sender(id="0000000000000001"))
+    recipient: Sender = Field(default=Sender(id="0000000000000002"))
     timestamp: int = Field(default=1711766575643)
     read: str | None = Field(default=None)
     postback: Postback | None = Field(default=None, examples=[Postback() for _ in range(1)])

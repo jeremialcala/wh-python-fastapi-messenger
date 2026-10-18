@@ -60,7 +60,7 @@ async def ctr_get_contact_from_facebook_id(fb_id: str, _bot: ChatBot, eventId: s
                 description="This process completed the way we needed",
                 status=Status.COM.value
             ))
-        return await Contact.generate_contact_from_fb(_bot.uuid, _profile)
+        return await Contact.generate_contact_from_fb(_bot.uuid, fb_id, _profile)
 
     except KeyServiceUnavailable:
         raise

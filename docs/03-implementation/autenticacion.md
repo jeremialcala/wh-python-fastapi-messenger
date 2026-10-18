@@ -109,7 +109,7 @@ del gateway. Solo se acepta una clave pública P-256; una privada se rechaza y n
 
 | Situación | Qué hacer |
 |---|---|
-| Una clave de un cliente está comprometida | `DELETE /clients/{client_id}/keys/{kid}`. Deja de valer en el acto |
+| Una clave de un cliente está comprometida | Quitar **todas** las claves que el cliente no reconozca, no solo esa: `GET /clients` las lista en `keys` de cada cliente, y cada una se quita con `DELETE /clients/{client_id}/keys/{kid}`, que deja de valer en el acto. Quien tenía la clave pudo añadir otra con ella y quitar la legítima; cada alta y cada baja de una clave deja una línea de aviso en el log con su `kid`. Si el cliente se queda sin ninguna, se le registra la nueva como en la fila siguiente |
 | Un cliente perdió su clave | `POST /clients/{client_id}/keys` con la pública nueva |
 | El operador perdió la suya | Repetir el paso 3 de la puesta en marcha |
 

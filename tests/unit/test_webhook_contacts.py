@@ -84,6 +84,23 @@ def test_a_messenger_contact_is_stored_under_the_client_of_the_chatbot(owner, bo
     queue.assert_awaited_once()
 
 
+@pytest.mark.parametrize("answer", [{"first_name": "Ana"}, {"id": "555", "first_name": "Ana"}, {}],
+                         ids=["no-surname", "another-id", "nothing"])
+def test_what_the_graph_api_leaves_out_stays_empty(owner, bot, queue, monkeypatch, answer):
+    """Found in the dual review of Gate 2: the fields left out were filled with a real person's profile."""
+    get = lambda url, timeout: SimpleNamespace(status_code=200, text="{}", json=lambda: answer)  # noqa: E731
+    monkeypatch.setattr(facebook.requests, "get", get)
+
+    assert notify(bot.uuid, MESSENGER).status_code == 200
+
+    contact = Contact.objects.get()
+    # Who the contact is comes from the message, never from the answer of the Graph API.
+    assert (contact.fbId, contact.firstName, contact.lastName, contact.profilePic) == (
+        "123456789", answer.get("first_name"), None, None)
+    assert queue.await_args.kwargs["message"].jwe_body["contact"] == {
+        "name": answer.get("first_name"), "fbId": "123456789"}
+
+
 @pytest.mark.parametrize("payload", [WHATSAPP, MESSENGER], ids=["whatsapp", "messenger"])
 def test_a_known_contact_is_not_stored_again(bot, queue, graph_api, payload):
     notify(bot.uuid, payload)

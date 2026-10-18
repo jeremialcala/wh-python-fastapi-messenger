@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from classes import ChatBot, ChatbotPhone, Client, Contact, Intent, Rule
-from enums import Role
+from enums import Role, Status
 from migrations import assign_operator_client
 from repository import NotFound, TenantRepository, find_webhook_bot, operator_client
 
@@ -42,6 +42,17 @@ def test_a_repository_cannot_be_built_without_a_client():
     for client_id in (None, "", str(uuid4())):
         with pytest.raises(TypeError):
             TenantRepository(client_id)
+
+
+def test_a_deleted_intent_is_not_found(owner, stored):
+    """Found in the dual review of Gate 2: it was not listed, but it could still be read and changed."""
+    bot, intent, _contact = stored
+    intent.status = Status.DIS.value
+    owner.save_intent(intent)
+
+    assert owner.list_intents(bot.uuid) == []
+    with pytest.raises(NotFound):
+        owner.get_intent(bot.uuid, intent.uuid)
 
 
 def test_everything_stored_carries_the_client(owner, stored):
@@ -133,15 +144,6 @@ def test_the_same_contact_under_two_clients_is_two_contacts(owner, stranger, sto
 def test_an_id_that_cannot_exist_is_not_found(owner, bot_id):
     with pytest.raises(NotFound):
         owner.get_bot(bot_id)
-
-
-def test_a_disabled_intent_is_left_out_of_the_list(owner, stored):
-    bot, intent, _ = stored
-    intent.status = 3
-    owner.save_intent(intent)
-
-    assert owner.list_intents(bot.uuid) == []
-    assert owner.get_intent(bot.uuid, intent.uuid).uuid == intent.uuid
 
 
 # --- The webhook lookup ------------------------------------------------------------------------------------------
