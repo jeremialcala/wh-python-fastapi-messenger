@@ -8,6 +8,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- ADR-0021 y ADR-0022, propuestas para el Gate 1 del refactor. ADR-0021 (D2): el webhook solo comprueba la firma y
+  publica un evento por mensaje, y responde `200` con el acuse de Bifröst; un worker de ingesta identifica al
+  contacto, guarda el historial, deduplica los reintentos de Meta y publica en la partición de la conversación.
+  Propone guardar 24 horas lo que llega de Meta. ADR-0022 (D3): una clave de servicio por cliente y por worker, con
+  sus rutas: solo el notificador alcanza los tokens de Meta.
+- Contrato del bus, versión 2.0.0 (`asyncapi-v2.yaml`, propuesto): los streams `WEBHOOK`, `MENSAJES`, `RESPUESTAS`
+  y `SUPRESIONES`, con `Nats-Msg-Id`, `traceparent` y 16 particiones por conversación. Una prueba de contrato
+  comprueba que cada referencia existe y que cada esquema es un JSON Schema válido.
 - ADR-0019 y ADR-0020, propuestas para el Gate 1 del refactor: NATS JetStream 2.14 como bus de eventos (D1), con
   `sync_interval: always` porque es un solo nodo sin UPS, un usuario por servicio con permisos por sujeto, TLS,
   almacén cifrado en disco y el orden por conversación con 16 particiones; y su despliegue en midgard como

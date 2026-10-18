@@ -7,6 +7,7 @@
 | [OpenAPI de la gestión](contracts/openapi.yaml) | Contrato de la API de gestión tal como está construida | Generado |
 | [OpenAPI del webhook](contracts/openapi-webhook.yaml) | Contrato de lo que llama Meta, el otro servicio (ADR-0018) | Generado |
 | [AsyncAPI](contracts/asyncapi.yaml) | Contrato del mensaje de la cola `llm` tal como se publica hoy | approved (Gate 1, 2026-10-12) |
+| [AsyncAPI 2.0.0](contracts/asyncapi-v2.yaml) | Contrato objetivo del bus de eventos (Bifröst): cuatro streams, sujetos, clave de orden y `traceparent` | proposed (Gate 1 del refactor, 2026-10-18) |
 
 Las decisiones se registran como ADR en [`docs/00-project/adr/`](../00-project/adr/), una decisión por ADR.
 
