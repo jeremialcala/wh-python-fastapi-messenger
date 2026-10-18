@@ -8,10 +8,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
-- Requisitos del refactor (Gate 0, en revisión): PRD 0.3.0 con Instagram (RF13), historial exportable (RF14),
+- Requisitos del refactor, aprobados el 2026-10-18 (Gate 0 del refactor): PRD 0.3.0 con Instagram (RF13), historial exportable (RF14),
   contexto del coordinador (RF15), orden por conversación (RNF08), traza de cada mensaje (RNF09), trazas y bus sin
   datos personales de más (RS19), un usuario por servicio en el bus (RS20), una credencial por worker (RS21) y los
   escenarios de abuso AB17–AB22; DFD del objetivo. Charter, glosario y clasificación de datos al día con el refactor.
+  Decidido al aprobarlo: el historial se guarda 12 meses por mensaje como máximo, de un adjunto solo su tipo, e
+  Instagram se conecta con Facebook Login a través de la página del cliente.
 
 ### Cambiado
 - RNF01 tiene cifra: 250 ms de mediana y menos de un 1 % por encima de 1 s. Es un objetivo propio: la documentación

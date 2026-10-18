@@ -1,6 +1,6 @@
 # Glosario / Lenguaje ubicuo
 
-* **Estado:** review (cambios del refactor, 2026-10-18)
+* **Estado:** approved (Gate 0 del refactor, 2026-10-18)
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 00-project

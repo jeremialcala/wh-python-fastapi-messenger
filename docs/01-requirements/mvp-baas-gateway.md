@@ -1,6 +1,6 @@
 # PRD — MVP del gateway BaaS de mensajería
 
-* **Estado:** review (cambios del refactor sobre la línea base aprobada en el Gate 0)
+* **Estado:** approved (Gate 0 del refactor, 2026-10-18)
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 01-requirements
@@ -183,8 +183,8 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | RF10 | La baja de un bot o de un cliente borra todos sus datos (GDPR, art. 28.3.g) | Parcial: `DELETE /bot/{bot_id}` y `DELETE /clients/{client_id}` borran todo lo guardado en la base. En los respaldos, la supresión se cumple al caducar, a los 365 días como mucho ([ADR-0014](../00-project/adr/0014-supresion-en-respaldos-por-caducidad.md)), y un registro de supresiones permite repetirlas tras una restauración; falta configurar y comprobar esa retención en Atlas | `tests/unit/test_export_and_delete.py` |
 | RF11 | Fusionar a `main` construye la imagen y la despliega, con rollback si la sonda de vida falla | Parcial: construido, sin ejercitar en el servidor | Prueba de despliegue con la sonda rota a propósito |
 | RF12 | Todo mensaje publicado en la cola `llm`, de Messenger o de WhatsApp, lo procesa el motor de respuestas y conserva el bot al que iba dirigido | Parcial: el motor acepta los de WhatsApp, rechaza los de Messenger y descarta el bot | Comprobado el 2026-10-12 pasando al parser del motor los sobres versión 1 que el gateway publica en un RabbitMQ real: lee los de WhatsApp, rechaza los de Messenger y no conserva el bot. El lado del gateway lo fija `tests/contract/test_queue_contract.py` |
-| RF13 | El gateway recibe notificaciones de Instagram (`object=instagram`), firmadas igual que las otras, identifica al contacto por su IGSID y publica cada mensaje como los de los otros dos canales (D4) | Pendiente (I8 del plan) | Pruebas del canal a través del servicio del webhook |
-| RF14 | El historial de cada conversación, mensajes entrantes y respuestas enviadas, se guarda cifrado con la clave del cliente, se exporta con el contacto y se borra con él (D6, [ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)) | Pendiente | — |
+| RF13 | El gateway recibe notificaciones de Instagram (`object=instagram`), firmadas igual que las otras, identifica al contacto por su IGSID y publica cada mensaje como los de los otros dos canales (D4). La cuenta profesional se conecta con *Facebook Login* a través de la página del cliente: el bot usa el mismo token de página que para Messenger | Pendiente (I8 del plan) | Pruebas del canal a través del servicio del webhook |
+| RF14 | El historial de cada conversación, mensajes entrantes y respuestas enviadas, se guarda cifrado con la clave del cliente, se exporta con el contacto y se borra con él. De un adjunto solo se guarda su tipo, nunca la URL de Meta (D6, [ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)) | Pendiente | — |
 | RF15 | El coordinador del motor obtiene del gateway las 10 últimas vueltas de una conversación cuando su contexto no está, y recibe aviso de cada supresión para borrar el contexto que guarda (D6, [ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)) | Pendiente | — |
 
 ## Requisitos no funcionales
@@ -195,7 +195,7 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | RNF02 | Una notificación recibe `200` solo cuando RabbitMQ ha confirmado el mensaje; si no, `503` | Construido. [ADR-0015](../00-project/adr/0015-que-se-responde-a-meta.md) lo amplía: `503` también si no responden la base de datos o el servicio de claves, y `200` con rastro en el log para lo firmado que no se entiende o no se puede procesar |
 | RNF03 | Cada servicio del gateway tiene un tope de memoria y de CPU en el servidor | Construido (topes del compose): el webhook, 384 MB y 1 CPU; la gestión, 256 MB y media CPU ([ADR-0018](../00-project/adr/0018-webhook-y-gestion-por-separado.md)) |
 | RNF04 | Un mensaje entregado dos veces por Meta, o reenviado por un tercero, no se procesa dos veces, durante todo el plazo en que Meta reintenta: 7 días en WhatsApp, 36 horas en Instagram | Parcial: cada sobre lleva el identificador de Meta (`messageId`), el mismo en cada reentrega; nadie deduplica todavía. La ventana de deduplicación de NATS es de minutos y no basta |
-| RNF05 | Cada dato personal tiene un plazo de retención y se borra al vencer, también en cola, bus, logs y respaldos. Máximos de la plataforma, que cada cliente puede acortar: 24 horas para un mensaje en la cola o el bus, 12 meses sin actividad para un contacto, `<TODO: confirmar>` para el historial (se propone 12 meses por mensaje) y 24 horas desde el último mensaje para el contexto del coordinador. Los respaldos de la base se conservan 365 días como mucho, igual para todos los clientes (ADR-0014) | Parcial: un mensaje caduca en la cola a las 24 horas; contactos y logs no se borran por plazo, y la retención de los respaldos está decidida pero sin configurar ni comprobar en Atlas. Un contacto se puede borrar a petición (RF09). Historial y contexto no existen ([ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)) |
+| RNF05 | Cada dato personal tiene un plazo de retención y se borra al vencer, también en cola, bus, logs y respaldos. Máximos de la plataforma, que cada cliente puede acortar: 24 horas para un mensaje en la cola o el bus, 12 meses sin actividad para un contacto, 12 meses por mensaje para el historial y 24 horas desde el último mensaje para el contexto del coordinador. Los respaldos de la base se conservan 365 días como mucho, igual para todos los clientes (ADR-0014) | Parcial: un mensaje caduca en la cola a las 24 horas; contactos y logs no se borran por plazo, y la retención de los respaldos está decidida pero sin configurar ni comprobar en Atlas. Un contacto se puede borrar a petición (RF09). Historial y contexto no existen ([ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)) |
 | RNF06 | El servicio arranca solo tras un apagón del servidor | Pendiente: no hay unidad de arranque para el gateway |
 | RNF07 | Disponibilidad del webhook: sin cifra comprometida mientras el servidor no tenga UPS. Se mide desde el primer despliegue | Sin medir |
 | RNF08 | Los mensajes de una misma conversación (bot y remitente) se procesan en el orden en que llegaron, también con varios consumidores por etapa: cada evento lleva una clave de orden y el bus la respeta | Pendiente (R3 del plan) |
@@ -464,13 +464,13 @@ control construido y una prueba que lo verifica.
 | Plazo del webhook | 250 ms de mediana y menos de un 1 % por encima de 1 s | RNF01 |
 | Webhook y gestión | Dos servicios | [ADR-0018](../00-project/adr/0018-webhook-y-gestion-por-separado.md) |
 
-### Por decidir para cerrar este Gate 0
+### Tomadas al aprobar el Gate 0 del refactor (2026-10-18, Jeremi Alcala)
 
-- **Retención del historial:** se propone 12 meses por mensaje, que cada cliente puede acortar (RNF05).
-- **Adjuntos en el historial:** se propone guardar solo su tipo, no la URL de Meta.
-- **Cómo se conecta Instagram:** con *Instagram Login* (`graph.instagram.com` y token de usuario de Instagram) o con
-  *Facebook Login* a través de una página (`graph.facebook.com` y token de página). Cambia qué token carga el
-  cliente y qué permisos pide la app.
+| Decisión | Resultado | Dónde queda |
+|---|---|---|
+| Retención del historial | 12 meses por mensaje como máximo, que cada cliente puede acortar | RNF05, ADR-0017 |
+| Adjuntos en el historial | Solo su tipo: la URL de Meta caduca y puede llevar datos del contacto | RF14, ADR-0017 |
+| Cómo se conecta Instagram | *Facebook Login* a través de la página del cliente (`graph.facebook.com` y token de página): la misma app y el mismo token que Messenger, sin una credencial nueva | RF13 |
 
 ### Datos por aportar
 
