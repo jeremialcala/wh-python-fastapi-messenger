@@ -6,7 +6,7 @@
     Nothing here touches the database: the caller says how to find a client's key, and remembers the jti.
 """
 import json
-import re
+import string
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
@@ -25,8 +25,8 @@ MAX_LIFETIME = 60   # seconds between iat and exp
 CLOCK_SKEW = 30     # seconds of tolerance on iat and exp
 MAX_TOKEN_SIZE = 8192
 MAX_JTI_SIZE = 128
-# A JWS in compact form: header, payload and signature, base64url each.
-COMPACT = re.compile("[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+[.][A-Za-z0-9_-]+")
+# What each part of a JWS in compact form is written with: base64url.
+BASE64URL = frozenset(string.ascii_letters + string.digits + "-_")
 
 
 class InvalidToken(Exception):
@@ -74,7 +74,7 @@ def read_signed(inner: str) -> tuple:
     """
     # Only the compact form: three parts, and the issuer read here is the one the signature covers. The library
     # also takes the JSON form, where the bytes this would read the issuer from are not the ones signed.
-    if COMPACT.fullmatch(inner) is None:
+    if not is_compact(inner):
         raise InvalidToken("malformed JWT")
     signed = jws.JWS()
     signed.allowed_algs = [SIGNATURE]
@@ -87,6 +87,17 @@ def read_signed(inner: str) -> tuple:
     if not isinstance(header, dict) or header.get("alg") != SIGNATURE:
         raise InvalidToken("JWT algorithm not allowed")
     return signed, header, issuer
+
+
+def is_compact(value) -> bool:
+    """
+        A JWS in compact form: header, payload and signature, base64url each. Checked without a regular
+        expression: it also reads what a client sends in a request body, and it takes one pass whatever comes.
+    """
+    if not isinstance(value, str):
+        return False
+    parts = value.split(".")
+    return len(parts) == 3 and all(part and BASE64URL.issuperset(part) for part in parts)
 
 
 def is_a_number(value) -> bool:

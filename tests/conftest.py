@@ -205,6 +205,17 @@ class Caller:
         """A fresh token each time: one is valid for a single request."""
         return {"Authorization": f"Bearer {self.token()}"}
 
+    def adding(self, new_key: dict, **proof_changes) -> dict:
+        """What POST /keys takes to add `new_key` (private): the headers and the body, with the proof it signs."""
+        from uuid import uuid4
+
+        from auth.client import key_proof, public_part
+
+        jti = str(uuid4())
+        proof = key_proof(new_key, self.client_id, GATEWAY_AUDIENCE, jti, **proof_changes)
+        return {"headers": {"Authorization": f"Bearer {self.token(jti=jti)}"},
+                "json": {"signingKey": public_part(new_key), "proof": proof}}
+
 
 @pytest.fixture
 def register():

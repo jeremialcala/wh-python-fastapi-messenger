@@ -12,7 +12,7 @@ from .entity_jwk import Jwk
 from .entity_chatbot_rules import Rule
 from .entity_intent import Intent, Action, ApiCall, ActionParameter
 
-from .dto_client_request import ClientRequest, SigningKeyRequest
+from .dto_client_request import ClientRequest, OwnedKeyRequest, SigningKeyRequest
 from .dto_bot_credentials import BotCredentialsRequest
 from .dto_contact_search import ContactSearchRequest
 from .dto_chatbot import ChatbotRequest

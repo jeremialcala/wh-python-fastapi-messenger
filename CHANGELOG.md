@@ -171,6 +171,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   `Content-Length` cuenta bytes y no caracteres, que no coincidían en cuanto había una tilde.
 
 ### Seguridad
+- **Incompatible para los clientes:** `POST /keys` exige, además del token, la prueba de que quien añade la clave
+  tiene su parte privada: un JWT que firma la clave nueva (`typ: key-proof+jwt`) para el `jti` del token de la misma
+  petición. Sin ella responde `422` `INVALID_KEY_PROOF`. El cliente de referencia la genera con
+  `python -m ops.client add-key`. El operador sigue añadiendo claves sin prueba: es quien deja volver a un cliente que
+  perdió la suya. No frena a quien robó una clave, que puede probar que tiene una propia (RD-04).
 - Un POST al webhook sin nada con forma de firma recibe `403` sin abrir los secretos del bot (RD-09).
 - Un token solo se acepta con el JWT en forma compacta, y el emisor firmado tiene que ser el del token (RD-12).
 - Cada alta de una clave de cliente deja un aviso en el log con su `kid`, y cada baja otro; el procedimiento de

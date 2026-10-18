@@ -413,7 +413,8 @@ def test_a_key_is_the_client_s_or_the_engine_s_never_both(http, operator, acme, 
     """Which list a key is in says who signs with it. In both, it would say two things."""
     as_engine = http.post(f"/clients/{acme.client_id}/service-keys", headers=operator.auth,
                           json={"signingKey": public_part(acme.key)})
-    as_client = http.post("/keys", headers=acme.auth, json={"signingKey": engine.public})
+    # Even holding its private part, which a client never has: without it, the proof alone turns it away.
+    as_client = http.post("/keys", **acme.adding(engine.key))
     again = let_in(http, operator, acme.client_id, engine)
 
     for response in (as_engine, as_client, again):

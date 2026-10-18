@@ -240,6 +240,23 @@ components:
       - description
       title: IntentRequest
       type: object
+    OwnedKeyRequest:
+      additionalProperties: false
+      properties:
+        proof:
+          maxLength: 8192
+          minLength: 1
+          title: Proof
+          type: string
+        signingKey:
+          additionalProperties: true
+          title: Signingkey
+          type: object
+      required:
+      - signingKey
+      - proof
+      title: OwnedKeyRequest
+      type: object
     ResponseData:
       properties:
         code:
@@ -1308,13 +1325,16 @@ paths:
       tags:
       - Clients
     post:
-      description: 'A client registers a second public key to rotate: both work until it removes the old one.'
+      description: 'A client registers a second public key to rotate: both work until it removes the old one. The
+        new key
+
+        signs a proof for the token of this same request, so nobody registers a key they cannot sign with.'
       operationId: add_my_key_keys_post
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SigningKeyRequest'
+              $ref: '#/components/schemas/OwnedKeyRequest'
         required: true
       responses:
         '200':

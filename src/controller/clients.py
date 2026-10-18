@@ -4,18 +4,22 @@
     a client's private key never reaches the gateway.
 """
 import logging
+import time
 
 from fastapi import HTTPException, status
 
 from auth.client_keys import public_signing_key
+from auth.key_proof import verify_key_proof
+from auth.principal import Principal
+from auth.tokens import InvalidToken
 from auth.gateway_keys import GatewayKeys
-from classes import Client, ClientRequest, ResponseData, Settings, SigningKeyRequest
+from classes import Client, ClientRequest, OwnedKeyRequest, ResponseData, Settings, SigningKeyRequest
 from enums import Status
 from repository import (Conflict, NotFound, RegisterUnavailable, add_service_key, add_signing_key, delete_client,
                         get_client, list_clients, register_client, remove_service_key, remove_signing_key)
 
 __all__ = ["ctr_register_client", "ctr_list_clients", "ctr_get_client", "ctr_add_signing_key",
-           "ctr_remove_signing_key", "ctr_gateway_keys", "ctr_delete_client", "ctr_add_service_key",
+           "ctr_add_own_signing_key", "ctr_remove_signing_key", "ctr_gateway_keys", "ctr_delete_client", "ctr_add_service_key",
            "ctr_remove_service_key"]
 
 settings = Settings()
@@ -84,8 +88,26 @@ async def ctr_get_client(client_id) -> ResponseData:
         raise _not_found() from None
 
 
-async def ctr_add_signing_key(client_id, request: SigningKeyRequest) -> ResponseData:
+async def ctr_add_own_signing_key(principal: Principal, request: OwnedKeyRequest) -> ResponseData:
+    """
+        A client adds a key of its own: besides a token signed with a key it has, it proves it holds the new one.
+        The operator adds keys without it (ctr_add_signing_key): it is who lets a client back in.
+    """
     key = _validated(request)
+    try:
+        verify_key_proof(request.proof, key, principal.client_id, settings.gateway_audience, principal.jti,
+                         time.time())
+    except InvalidToken as e:
+        log.warning(f"Rejected a new signing key for client {principal.client_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="INVALID_KEY_PROOF") from None
+    return _add_signing_key(principal.client_id, key)
+
+
+async def ctr_add_signing_key(client_id, request: SigningKeyRequest) -> ResponseData:
+    return _add_signing_key(client_id, _validated(request))
+
+
+def _add_signing_key(client_id, key: dict) -> ResponseData:
     try:
         client = add_signing_key(client_id, key)
     except NotFound:

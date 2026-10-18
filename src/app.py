@@ -14,7 +14,7 @@ from inspect import currentframe
 from uuid import UUID, uuid4
 from classes import (Settings, ChatbotRequest, ResponseData, FacebookRequest, ChatbotPhoneRequest, EventTransport,
                      RulesRequest, BotResponse, IntentRequest, ChatBot, ClientRequest, SigningKeyRequest,
-                     BotCredentialsRequest, ContactSearchRequest)
+                     OwnedKeyRequest, BotCredentialsRequest, ContactSearchRequest)
 from constants import (PROCESSING_TIME, CONTENT_TYPE, APPLICATION_JSON, DESCRIPTION,
                        TAGS_METADATA, TITLE, SUMMARY, TERMS, HUB_MODE, HUB_CHALLENGE, HUB_VERIFY_TOKEN, SUBSCRIBE,
                        CONTACT, HUB_SIGNATURE)
@@ -24,6 +24,7 @@ from controller import (ctr_create_chatbot, ctr_get_chatbot_from_uuid, ctr_proce
                         ctr_create_chatbot_rules, ctr_create_intent, ctr_get_intents, ctr_get_intent,
                         ctr_update_intent, ctr_delete_intent, ctr_get_bot_tools,
                         ctr_register_client, ctr_list_clients, ctr_get_client, ctr_add_signing_key,
+                        ctr_add_own_signing_key,
                         ctr_remove_signing_key, ctr_gateway_keys, ctr_set_bot_credentials, ctr_list_contacts,
                         ctr_search_contacts, ctr_export_contact, ctr_delete_contact, ctr_delete_chatbot,
                         ctr_delete_client, RETRY_LATER, ctr_get_bot_tokens, ctr_add_service_key,
@@ -539,9 +540,12 @@ async def list_my_keys(principal: Principal = Depends(get_principal)):
 
 
 @app.post(path="/keys", tags=["Clients"], response_model=ResponseData)
-async def add_my_key(key: SigningKeyRequest, principal: Principal = Depends(get_principal)):
-    """A client registers a second public key to rotate: both work until it removes the old one."""
-    return await ctr_add_signing_key(principal.client_id, key)
+async def add_my_key(key: OwnedKeyRequest, principal: Principal = Depends(get_principal)):
+    """
+        A client registers a second public key to rotate: both work until it removes the old one. The new key
+        signs a proof for the token of this same request, so nobody registers a key they cannot sign with.
+    """
+    return await ctr_add_own_signing_key(principal, key)
 
 
 @app.delete(path="/keys/{kid}", tags=["Clients"], response_model=ResponseData)
