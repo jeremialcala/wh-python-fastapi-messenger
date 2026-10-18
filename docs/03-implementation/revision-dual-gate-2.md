@@ -70,12 +70,11 @@ Los demás quedan a tu decisión.
 ## La parte humana
 
 La revisión dual pide además la tuya. Decisiones del 2026-10-18: asegurar el repositorio (RD-01, ya aplicado), la firma de la
-clave nueva para añadirla (RD-04) y aceptar RD-14 y RD-19.
+clave nueva para añadirla (RD-04) y aceptar RD-14 y RD-19. RD-16 se corrigió sin esperar el valor de midgard: el gateway no está desplegado allí.
 
 Para cerrar el Gate 2 y cortar la 0.3.0 faltan:
 
 - **RD-05:** decidir si la API de gestión tiene su incremento propio o espera al refactor.
-- **RD-16:** el valor de `ENVIRONMENT` en midgard.
 - La revisión humana del código.
 
 Aparte: tu nombre, tu identificador de Messenger y la URL de tu foto de perfil siguen en la historia del
