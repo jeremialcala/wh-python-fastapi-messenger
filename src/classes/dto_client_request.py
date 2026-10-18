@@ -16,5 +16,11 @@ class SigningKeyRequest(BaseModel):
     signingKey: dict = Field(examples=[PUBLIC_KEY_EXAMPLE])
 
 
+class OwnedKeyRequest(SigningKeyRequest):
+    # A JWT signed by the new key for the token of this same request (auth.client.key_proof): whoever adds a key
+    # proves they hold its private part.
+    proof: str = Field(min_length=1, max_length=8192)
+
+
 class ClientRequest(SigningKeyRequest):
     name: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._-]*$", examples=["acme"])

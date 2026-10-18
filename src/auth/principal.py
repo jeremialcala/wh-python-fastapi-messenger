@@ -17,6 +17,8 @@ class Principal:
     role: Role
     # The registered key the token was signed with.
     kid: str
+    # The token's, used up by this request: what a request that needs a proof binds it to.
+    jti: str
 
 
 def authenticate(token: str | None, gateway_keys: GatewayKeys, audience: str) -> Principal:
@@ -37,4 +39,5 @@ def authenticate(token: str | None, gateway_keys: GatewayKeys, audience: str) ->
     # Last, and only for a token that was valid: a forged one must not be able to burn somebody's jti.
     if not remember_token(claims.client_id, claims.jti, claims.expires_at):
         raise InvalidToken("token already used")
-    return Principal(client_id=claims.client_id, role=signer["role"], kid=signer["key"]["kid"])
+    return Principal(client_id=claims.client_id, role=signer["role"], kid=signer["key"]["kid"],
+                     jti=claims.jti)

@@ -137,7 +137,9 @@ def set_up(http, caller) -> dict:
 def test_nothing_a_caller_or_meta_sends_reaches_the_log(http, caller, operator, logged, queue):
     made = set_up(http, caller)
     bot, intent, contact = made["bot"], made["intent"], made["contact"]
-    key = public_part(new_signing_key())
+    new_key = new_signing_key()
+    key = public_part(new_key)
+    adding = caller.adding(new_key)
     token = caller.token()
 
     answers = [
@@ -155,7 +157,7 @@ def test_nothing_a_caller_or_meta_sends_reaches_the_log(http, caller, operator, 
         http.get(f"/chat/{bot}", params={"hub.mode": "subscribe", "hub.challenge": "challenge-marker",
                                          "hub.verify_token": made["verify"]}),
         http.get("/keys", headers={"Authorization": f"Bearer {token}"}),
-        call(http, caller, "POST", "/keys", {"signingKey": key}),
+        http.post("/keys", **adding),
         call(http, operator, "POST", "/clients", {"name": "client-name-marker", "signingKey": key}),
         call(http, caller, "DELETE", f"/chat/{bot}/intents/{intent}"),
         call(http, caller, "DELETE", f"/chat/{bot}/contacts/{contact}"),
@@ -165,7 +167,8 @@ def test_nothing_a_caller_or_meta_sends_reaches_the_log(http, caller, operator, 
     assert [response.status_code for response in answers] == [200] * len(answers)
     assert len(queue) == 2
     text = logged()
-    for sent in (*SENT, "challenge-marker", made["verify"], token, "client-name-marker", key["x"], key["y"]):
+    for sent in (*SENT, "challenge-marker", made["verify"], token, "client-name-marker", key["x"], key["y"],
+                 adding["json"]["proof"]):
         assert sent not in text
 
 
@@ -318,7 +321,6 @@ BODIES = {
     ("PUT", "/chat/{bot_id}/intents/{intent_id}"): INTENT,
     ("PUT", "/chat/{bot_id}/credentials"): SECRETS,
     ("POST", "/contacts/search"): {"waId": WA_ID},
-    ("POST", "/keys"): {"signingKey": public_part(new_signing_key())},
     ("POST", "/clients"): {"name": "globex", "signingKey": public_part(new_signing_key())},
     ("POST", "/clients/{client_id}/keys"): {"signingKey": public_part(new_signing_key())},
     ("POST", "/clients/{client_id}/service-keys"): {"signingKey": public_part(new_signing_key())},
@@ -365,9 +367,12 @@ def test_the_text_of_a_failure_is_neither_answered_nor_logged(http, operator, lo
     made = set_up(http, operator)
     address = path.format(bot_id=made["bot"], intent_id=made["intent"], contact_id=made["contact"],
                           client_id=operator.client_id, kid=operator.kid)
+    # Adding a key of its own needs a proof for the token of that same request: the body cannot be made ahead.
+    request = (operator.adding(new_signing_key()) if (method, path) == ("POST", "/keys") else
+               {"headers": operator.auth, "json": BODIES.get((method, path))})
     everything_fails()
 
-    response = call(http, operator, method, address, BODIES.get((method, path)))
+    response = http.request(method, address, **request)
 
     assert response.status_code == 500
     assert response.json()["code"] == 500

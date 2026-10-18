@@ -61,9 +61,24 @@ comandos se ejecutan desde `src/` de este repositorio con `jwcrypto` instalado, 
 
 Un cliente puede tener dos claves a la vez, para cambiar sin corte:
 
-1. `POST /keys` con la clave pública nueva.
+1. `POST /keys` con la clave pública nueva y la **prueba de que tiene su parte privada**: un JWT que firma la clave
+   nueva (`typ: key-proof+jwt`, `ES256`), con el mismo `iss` y `aud` que el token y el `jti` del token de esa misma
+   petición. Vale una vez y 60 segundos, como el token. Sin ella, o si no casa, la respuesta es `422`
+   `INVALID_KEY_PROOF` y la clave no se añade.
 2. Empezar a firmar con la nueva.
 3. `DELETE /keys/{kid}` con el `kid` de la antigua.
+
+Con el cliente de referencia, el paso 1 es:
+
+```bash
+python -m ops.client new-key clave-nueva.json
+python -m ops.client add-key mi-clave.json clave-nueva.json <uuid del cliente> <audiencia> gateway-publicas.json > alta.json
+curl -H "Authorization: Bearer $(jq -r .token alta.json)" -H "Content-Type: application/json" \
+     -d "$(jq -c .body alta.json)" https://<gateway>/keys
+```
+
+La prueba impide registrar una clave con la que nadie puede firmar, pero **no frena a quien robó una clave**: se
+hace una propia y prueba que la tiene. Contra eso está la revocación de la tabla de abajo.
 
 No se puede borrar la última clave: el cliente se quedaría fuera. Si pierde su clave, es el operador quien le
 registra otra.
@@ -109,7 +124,7 @@ del gateway. Solo se acepta una clave pública P-256; una privada se rechaza y n
 
 | Situación | Qué hacer |
 |---|---|
-| Una clave de un cliente está comprometida | Quitar **todas** las claves que el cliente no reconozca, no solo esa: `GET /clients` las lista en `keys` de cada cliente, y cada una se quita con `DELETE /clients/{client_id}/keys/{kid}`, que deja de valer en el acto. Quien tenía la clave pudo añadir otra con ella y quitar la legítima; cada alta de una clave deja una línea de aviso en el log con su `kid`, y cada baja otra. Si el cliente se queda sin ninguna, se le registra la nueva como en la fila siguiente |
+| Una clave de un cliente está comprometida | Quitar **todas** las claves que el cliente no reconozca, no solo esa: `GET /clients` las lista en `keys` de cada cliente, y cada una se quita con `DELETE /clients/{client_id}/keys/{kid}`, que deja de valer en el acto. Quien tenía la clave pudo añadir otra suya con ella, con su prueba, y quitar la legítima; cada alta de una clave deja una línea de aviso en el log con su `kid`, y cada baja otra. Si el cliente se queda sin ninguna, se le registra la nueva como en la fila siguiente |
 | Un cliente perdió su clave | `POST /clients/{client_id}/keys` con la pública nueva |
 | El operador perdió la suya | Repetir el paso 3 de la puesta en marcha |
 

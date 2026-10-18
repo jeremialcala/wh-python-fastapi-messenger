@@ -155,7 +155,7 @@ def test_a_client_rotates_its_key_without_a_gap(http, register):
     caller = register("acme")
     new = new_signing_key()
 
-    added = http.post("/keys", headers=caller.auth, json={"signingKey": public_part(new)})
+    added = http.post("/keys", **caller.adding(new))
     with_new = Caller(get_client(caller.client_id), new)
     with_new.kid = new["kid"]
 
@@ -174,8 +174,8 @@ def test_a_client_rotates_its_key_without_a_gap(http, register):
 def test_a_client_has_two_keys_at_most(http, register):
     caller = register("acme")
 
-    second = http.post("/keys", headers=caller.auth, json={"signingKey": public_part(new_signing_key())})
-    third = http.post("/keys", headers=caller.auth, json={"signingKey": public_part(new_signing_key())})
+    second = http.post("/keys", **caller.adding(new_signing_key()))
+    third = http.post("/keys", **caller.adding(new_signing_key()))
 
     assert (second.status_code, third.status_code, third.json()) == (200, 409, {"detail": "TOO_MANY_KEYS"})
     assert len(get_client(caller.client_id).signingKeys) == 2
@@ -184,7 +184,7 @@ def test_a_client_has_two_keys_at_most(http, register):
 def test_a_key_is_registered_once(http, register):
     caller = register("acme")
 
-    again = http.post("/keys", headers=caller.auth, json={"signingKey": public_part(caller.key)})
+    again = http.post("/keys", **caller.adding(caller.key))
 
     assert (again.status_code, again.json()) == (409, {"detail": "KEY_ALREADY_REGISTERED"})
 
@@ -209,7 +209,7 @@ def test_removing_a_key_that_is_not_there_is_not_found(http, register):
 def test_a_client_only_touches_its_own_keys(http, register):
     caller, victim = register("acme"), register("globex")
 
-    http.post("/keys", headers=caller.auth, json={"signingKey": public_part(new_signing_key())})
+    http.post("/keys", **caller.adding(new_signing_key()))
     response = http.delete(f"/keys/{victim.kid}", headers=caller.auth)
 
     assert response.status_code == 404
@@ -385,3 +385,12 @@ def test_the_reference_client_runs_without_the_service_settings(tmp_path):
     token = run("token", str(key_file), str(client_id), GATEWAY_AUDIENCE, str(gateway_file))
 
     assert registered.get("/keys", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+
+    # And adding a second key, with the proof the new one signs.
+    new_key_file = tmp_path / "client-key-2.json"
+    second = json.loads(run("new-key", str(new_key_file)))
+    adding = json.loads(run("add-key", str(key_file), str(new_key_file), str(client_id), GATEWAY_AUDIENCE,
+                            str(gateway_file)))
+    added = registered.post("/keys", headers={"Authorization": f"Bearer {adding['token']}"}, json=adding["body"])
+
+    assert (added.status_code, added.json()["data"]["keys"][-1]) == (200, jwk.JWK(**second).thumbprint())
