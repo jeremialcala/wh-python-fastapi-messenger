@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-18
+
+Cierre del Gate 2 (implementación).
+
 ### Añadido
 - ADR-0017, propuesta: el historial de cada conversación se guarda en el gateway (Atlas, cifrado con la clave del
   cliente, exportable y con supresión) y el contexto del coordinador, las últimas 10 vueltas más un resumen, vive
@@ -269,7 +273,8 @@ Cierre del Gate 0 (requisitos). Primera versión con la estructura AI-DLC.
 Primera versión etiquetada. Los cambios entre esta versión y la adopción de este changelog (2026-10-12) no se
 registraron aquí; están en el historial de git.
 
-[Unreleased]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/jeremialcala/wh-python-fastapi-messenger/releases/tag/v0.0.1

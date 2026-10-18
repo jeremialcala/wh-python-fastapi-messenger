@@ -1,23 +1,38 @@
 # Gate 2 — Implementación (cierre de Fase 03)
 
-- [ ] SAST sin findings críticos/altos
-- [ ] Dependencias verificadas (SCA) — sin deps alucinadas ni vulnerables (A03)
-- [ ] Cobertura ≥ 80% branch
-- [ ] Dual review completado (humano + IA)
-- [ ] Sin secretos en el código
+- [x] SAST sin findings críticos/altos
+- [x] Dependencias verificadas (SCA) — sin deps alucinadas ni vulnerables (A03)
+- [x] Cobertura ≥ 80% branch
+- [x] Dual review completado (humano + IA)
+- [x] Sin secretos en el código
 
-## Estado (2026-10-12): en curso
+**Aprobado el 2026-10-18 por Jeremi Alcala.** Cortada la versión `0.3.0`. Al cerrar se acepta un riesgo: las
+llamadas que bloquean el proceso (RD-05, H14), hasta separar el webhook de la API de gestión, que va antes del
+primer despliegue (ver [Riesgos aceptados al cerrar](#riesgos-aceptados-al-cerrar)).
+
+## Estado al cerrar (2026-10-18)
+
+Comprobado sobre `develop` en `6f91a8d`, el último merge antes de la rama de la versión.
 
 | Criterio | Estado | Evidencia |
 |---|---|---|
-| SAST sin hallazgos críticos o altos | Gate activo | Workflow `Seguridad`, trabajo `sast`: CodeQL sobre todo el código, también en los pull requests, y el build se rompe con cualquier hallazgo de seguridad alto o crítico (`security-severity` ≥ 7,0) fuera del código de pruebas; los de `tests/` se informan como aviso y no bloquean (decisión del 2026-10-12). Primer análisis completo: 92 resultados; uno alto, que era un falso positivo por el nombre de una constante y ya no aparece; 28 medios de `py/log-injection`, abiertos; y 63 de calidad |
-| Dependencias verificadas (SCA) | Gate activo | `requirements.lock` y `requirements-dev.lock` con hashes; trabajo `dependencias` con `pip-audit` sobre el lock. Al añadirlo: 14 vulnerabilidades conocidas con las dependencias anteriores, todas de Starlette 0.36.3, y ninguna con las nuevas |
-| Cobertura ≥ 80 % por ramas | Gate activo: 91 % | El CI rompe el build por debajo del 80 %. Era del 61 % antes de las pruebas de aislamiento, que pasan por los controladores y el repositorio de verdad, contra una base en memoria |
-| Dual review | IA hecha; falta la humana | [Revisión de la IA](../../docs/03-implementation/revision-dual-gate-2.md) del 2026-10-18 sobre `v0.2.0..develop`: ningún hallazgo crítico, uno alto, siete medios y trece bajos; trece corregidos, dos de ellos en parte. Quedan seis decisiones tuyas (RD-01, RD-04, RD-05, RD-14, RD-16 y RD-19) |
-| Sin secretos en el código | Gate activo | Trabajo `secretos`: gitleaks sobre la historia completa. Al añadirlo: 56 commits, ningún hallazgo |
+| SAST sin hallazgos críticos o altos | **Cumplido.** 58 alertas abiertas, todas de calidad, ninguna con severidad de seguridad. Gate activo | Workflow `Seguridad`, trabajo `sast`: CodeQL sobre todo el código, también en los pull requests, y el build se rompe con cualquier hallazgo de seguridad alto o crítico (`security-severity` ≥ 7,0) fuera del código de pruebas; los de `tests/` se informan como aviso y no bloquean (decisión del 2026-10-12). Primer análisis completo: 92 resultados; uno alto, que era un falso positivo por el nombre de una constante y ya no aparece; 28 medios de `py/log-injection`, abiertos; y 63 de calidad |
+| Dependencias verificadas (SCA) | **Cumplido.** `pip-audit` en verde sobre los dos locks. Gate activo | `requirements.lock` y `requirements-dev.lock` con hashes; trabajo `dependencias` con `pip-audit` sobre el lock. Al añadirlo: 14 vulnerabilidades conocidas con las dependencias anteriores, todas de Starlette 0.36.3, y ninguna con las nuevas |
+| Cobertura ≥ 80 % por ramas | **Cumplido: 91,65 %**, con 999 pruebas en el CI. Gate activo | El CI rompe el build por debajo del 80 %. Era del 61 % antes de las pruebas de aislamiento, que pasan por los controladores y el repositorio de verdad, contra una base en memoria |
+| Dual review | **Cumplido.** | [Revisión dual](../../docs/03-implementation/revision-dual-gate-2.md) del 2026-10-18 sobre `v0.2.0..develop`. La de la IA: ningún hallazgo crítico, uno alto, siete medios y trece bajos. La humana: Jeremi decidió los seis que quedaban abiertos y aprobó el cierre. Corregidos RD-01 (reglas del repositorio), RD-04 (firma de la clave nueva) y RD-16 (entornos); aceptados RD-05, RD-14 y RD-19 |
+| Sin secretos en el código | **Cumplido.** gitleaks en verde sobre la historia completa. Gate activo | Trabajo `secretos`: gitleaks sobre la historia completa. Al añadirlo: 56 commits, ningún hallazgo |
 
-"Gate activo" significa que el control existe y rompe el build; la casilla se marca al cerrar el gate, con el
-resto de criterios cumplidos.
+"Gate activo" significa que el control existe y rompe el build. Desde el 2026-10-18 además es obligatorio: las
+reglas `Protect-MAIN` y `Protect-DEVELOP` no dejan fusionar sin los cinco en verde (RD-01).
+
+### Riesgos aceptados al cerrar
+
+| Riesgo | Por qué se acepta | Cuándo se resuelve |
+|---|---|---|
+| RD-05 / H14: las llamadas a MongoDB y a Andvari bloquean el proceso, y una petición de gestión lenta para el webhook | El gateway no está desplegado: todavía no le afecta a nadie | Al separar el webhook de la API de gestión, primer incremento del refactor y antes del primer despliegue ([plan](../../docs/00-project/plan-topologia-de-workers.md)) |
+| RD-14: un valor cifrado se puede mover a otro documento del mismo cliente | Exige acceso de escritura a Atlas | Con un formato de cifrado nuevo y su migración |
+| RD-19: un rechazo permanente de Andvari responde `503` siempre | Se arregla en Andvari, y el log ya distingue «no responde» de «rechaza» | — |
+| H11: la retención de 365 días de los respaldos de Atlas, decidida pero sin configurar ni comprobar | No hay datos de clientes en producción | Antes del primer cliente externo |
 
 ### Hecho en la base
 

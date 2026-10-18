@@ -13,5 +13,5 @@ de al menos el 80 %, dual review y ningún secreto en el código.
 - [cifrado-de-datos.md](cifrado-de-datos.md): qué se cifra, con qué claves y cómo se opera.
 - [exportar-y-borrar.md](exportar-y-borrar.md): cómo se atiende a quien pide sus datos, y qué borra la baja de un bot o
   de un cliente.
-- [revision-dual-gate-2.md](revision-dual-gate-2.md): la parte de la IA de la revisión dual del Gate 2, con cada
-  hallazgo y su estado.
+- [revision-dual-gate-2.md](revision-dual-gate-2.md): la revisión dual del Gate 2, con cada hallazgo, su estado y
+  las decisiones con que se cerró.
