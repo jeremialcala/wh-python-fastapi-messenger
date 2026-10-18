@@ -421,7 +421,17 @@ def test_a_line_that_cannot_be_read_is_counted_and_the_rest_is_used(http, acme, 
     assert Contact.objects(_uuid=ana["uuid"]).count() == 0
 
 
-def test_an_empty_register_is_an_empty_report():
+def test_a_register_that_is_not_there_is_not_an_empty_one(register_of_erasures):
+    """Found in the dual review of Gate 2: replaying from the wrong directory said there was nothing to do."""
+    assert not register_of_erasures.exists()
+
+    with pytest.raises(RegisterUnavailable):
+        replay_erasures.run(apply=True)
+
+
+def test_an_empty_register_is_an_empty_report(register_of_erasures):
+    register_of_erasures.mkdir()
+
     assert replay_erasures.run(apply=True) == {
         "contact": {"recorded": 0, "back": 0, "documents": 0}, "chatbot": {"recorded": 0, "back": 0, "documents": 0},
         "client": {"recorded": 0, "back": 0, "documents": 0}, "unreadable lines": 0}

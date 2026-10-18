@@ -6,6 +6,7 @@
     Nothing here touches the database: the caller says how to find a client's key, and remembers the jti.
 """
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
@@ -24,6 +25,8 @@ MAX_LIFETIME = 60   # seconds between iat and exp
 CLOCK_SKEW = 30     # seconds of tolerance on iat and exp
 MAX_TOKEN_SIZE = 8192
 MAX_JTI_SIZE = 128
+# A JWS in compact form: header, payload and signature, base64url each.
+COMPACT = re.compile("[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+[.][A-Za-z0-9_-]+")
 
 
 class InvalidToken(Exception):
@@ -69,6 +72,10 @@ def read_signed(inner: str) -> tuple:
         Parses the JWT without trusting it yet. The issuer is read before the signature is checked because it
         says which key checks it; nothing else is taken from an unverified token.
     """
+    # Only the compact form: three parts, and the issuer read here is the one the signature covers. The library
+    # also takes the JSON form, where the bytes this would read the issuer from are not the ones signed.
+    if COMPACT.fullmatch(inner) is None:
+        raise InvalidToken("malformed JWT")
     signed = jws.JWS()
     signed.allowed_algs = [SIGNATURE]
     try:
@@ -131,4 +138,13 @@ def verify(raw: str, gateway_keys: GatewayKeys, audience: str,
         claims = json.loads(signed.payload)
     except Exception:
         raise InvalidToken("bad signature") from None
+    if not isinstance(claims, dict) or not _same_client(claims.get("iss"), client_id):
+        raise InvalidToken("bad signature")
     return check_claims(claims, client_id, audience, now)
+
+
+def _same_client(issuer, client_id: UUID) -> bool:
+    try:
+        return UUID(issuer) == client_id
+    except (ValueError, TypeError, AttributeError):
+        return False

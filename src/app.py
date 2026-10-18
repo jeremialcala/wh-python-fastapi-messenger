@@ -38,7 +38,7 @@ from crypto.key_service import KeyServiceUnavailable, OpenBaoKeyService
 from enums import Role
 from repository import (TenantRepository, BotSecrets, NotFound, find_webhook_bot, data_keys, erasures,
                         database_failed)
-from utils import BodySizeLimit, configure_logging, describe, is_valid_signature, secrets_match
+from utils import BodySizeLimit, configure_logging, describe, is_valid_signature, looks_like_signature, secrets_match
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -162,10 +162,16 @@ def webhook_secrets(bot: ChatBot) -> BotSecrets:
 
 async def get_signed_webhook_bot(request: Request, _bot: ChatBot = Depends(get_webhook_bot)) -> ChatBot:
     """
-        Meta signs every notification with the App Secret, over the body exactly as it was sent.
+        Meta signs every notification with the App Secret, over the body exactly as it was sent. A request without
+        anything that could be a signature is turned away before the secrets of the chatbot are opened: otherwise
+        anybody who knows its address makes the gateway ask the key service for its client's key.
     """
+    header = request.headers.get(HUB_SIGNATURE)
+    if not looks_like_signature(header):
+        log.warning(f"Rejected webhook for chatbot {_bot.uuid}: missing or invalid {HUB_SIGNATURE}")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
     secret = webhook_secrets(_bot).app_secret or settings.facebook_app_secret
-    if not is_valid_signature(secret, await request.body(), request.headers.get(HUB_SIGNATURE)):
+    if not is_valid_signature(secret, await request.body(), header):
         log.warning(f"Rejected webhook for chatbot {_bot.uuid}: missing or invalid {HUB_SIGNATURE}")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
     return _bot

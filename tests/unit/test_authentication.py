@@ -46,7 +46,7 @@ def forge(caller, sign_with: dict | None = None, signature: str = "ES256", jws_h
     """A token like the real one, with whatever a test wants changed."""
     now = int(time.time())
     body = {"iss": str(caller.client_id), "aud": GATEWAY_AUDIENCE, "iat": now, "exp": now + 60, "jti": str(uuid4())}
-    body.update(claims)
+    body.update({name: value(now) if callable(value) else value for name, value in claims.items()})
     body = {name: value for name, value in body.items() if value is not None}
     if inner is None:
         key = jwk.JWK(**(sign_with or caller.key))
@@ -212,7 +212,9 @@ def test_a_tampered_token_is_rejected(http, caller):
 
 # --- The claims ------------------------------------------------------------------------------------------------------
 
-NOW = int(time.time())
+def at(offset: int):
+    """A moment relative to when the token is forged, not to when this file was read: a slow run cannot change it."""
+    return lambda now: now + offset
 
 
 @pytest.mark.parametrize("claims", [
@@ -223,12 +225,12 @@ NOW = int(time.time())
     {"iat": None},
     {"iat": "now", "exp": "later"},
     {"iat": True, "exp": True},
-    {"iat": NOW, "exp": NOW + 61},
-    {"iat": NOW, "exp": NOW + 3600},
-    {"iat": NOW, "exp": NOW},
-    {"iat": NOW, "exp": NOW - 10},
-    {"iat": NOW - 120, "exp": NOW - 60},
-    {"iat": NOW + 120, "exp": NOW + 180},
+    {"iat": at(0), "exp": at(61)},
+    {"iat": at(0), "exp": at(3600)},
+    {"iat": at(0), "exp": at(0)},
+    {"iat": at(0), "exp": at(-10)},
+    {"iat": at(-120), "exp": at(-60)},
+    {"iat": at(120), "exp": at(180)},
     {"jti": None},
     {"jti": ""},
     {"jti": 7},
@@ -257,11 +259,36 @@ REASONS = {
     "bad signature": {"sign_with": new_signing_key()},
     "issued for another audience": {"aud": "https://other.test"},
     "no iat or exp": {"exp": None},
-    "lifetime longer than allowed": {"iat": NOW, "exp": NOW + 61},
-    "issued in the future": {"iat": NOW + 120, "exp": NOW + 180},
-    "expired": {"iat": NOW - 120, "exp": NOW - 60},
+    "lifetime longer than allowed": {"iat": at(0), "exp": at(61)},
+    "issued in the future": {"iat": at(120), "exp": at(180)},
+    "expired": {"iat": at(-120), "exp": at(-60)},
     "no jti": {"jti": ""},
 }
+
+
+@pytest.mark.parametrize("extra", [False, True], ids=["as it is", "with an issuer outside the signature"])
+def test_a_jwt_in_json_form_is_malformed(http, caller, register, extra):
+    """
+        Found in the dual review of Gate 2: the JSON form was taken, and the issuer was read from bytes the
+        signature does not cover. With the key of acme, this says it is acme outside and somebody else inside.
+    """
+    now = int(time.time())
+    claims = {"iss": str(uuid4()) if extra else str(caller.client_id), "aud": GATEWAY_AUDIENCE, "iat": now,
+              "exp": now + 60, "jti": str(uuid4())}
+    signed = jws.JWS(json.dumps(claims).encode())
+    signed.add_signature(jwk.JWK(**caller.key), alg="ES256", protected={"alg": "ES256", "kid": caller.kid})
+    inner = json.loads(signed.serialize(compact=False))
+    if extra:
+        issuer = jws.base64url_encode(json.dumps({"iss": str(caller.client_id)}))
+        inner["a"] = f"a.{issuer}.b"
+    token = forge(caller, inner=json.dumps(inner))
+
+    with pytest.raises(tokens.InvalidToken) as rejection:
+        tokens.verify(token, gateway_keys.GatewayKeys.load(GATEWAY_KEYS_FILE), GATEWAY_AUDIENCE,
+                      lambda client_id, kid: (find_signer(client_id, kid) or (None, None))[1], time.time())
+
+    assert str(rejection.value) == "malformed JWT"
+    assert status_of(http, token) == 401
 
 
 @pytest.mark.parametrize("reason", sorted(REASONS))

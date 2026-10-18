@@ -52,6 +52,20 @@ class OpenBaoKeyService:
             # Only the kind of failure: the text of these exceptions can carry the address and more.
             raise KeyServiceUnavailable(type(e).__name__) from None
 
+    @staticmethod
+    def _read(response: requests.Response, *path):
+        """
+            A field of an answer of the key service. An answer without it is the key service failing, not the
+            gateway: it is told apart from any other error so that it ends in a 503 too.
+        """
+        try:
+            value = response.json()
+            for key in path:
+                value = value[key]
+            return value
+        except (ValueError, KeyError, TypeError, IndexError):
+            raise KeyServiceUnavailable("unexpected answer") from None
+
     def _login(self) -> str:
         try:
             # Read every time, so the credential can be rotated without restarting the service.
@@ -62,12 +76,12 @@ class OpenBaoKeyService:
         response = self._post("auth/approle/login", {"role_id": self._role_id, "secret_id": secret_id})
         if response.status_code != 200:
             raise KeyServiceUnavailable(f"login refused: {response.status_code}")
-        auth = response.json()["auth"]
-        self._token = auth["client_token"]
-        self._token_expires = time.monotonic() + auth.get("lease_duration", 0) - RENEW_BEFORE
+        self._token = self._read(response, "auth", "client_token")
+        lease = self._read(response, "auth").get("lease_duration", 0)
+        self._token_expires = time.monotonic() + (lease if isinstance(lease, (int, float)) else 0) - RENEW_BEFORE
         return self._token
 
-    def _call(self, operation: str, body: dict) -> dict:
+    def _call(self, operation: str, body: dict) -> requests.Response:
         token = self._token if self._token and time.monotonic() < self._token_expires else self._login()
         response = self._post(f"{self._mount}/{operation}/{self._key}", body, token)
         if response.status_code == 403:
@@ -75,13 +89,25 @@ class OpenBaoKeyService:
             response = self._post(f"{self._mount}/{operation}/{self._key}", body, self._login())
         if response.status_code != 200:
             raise KeyServiceUnavailable(f"{operation} refused: {response.status_code}")
-        return response.json()["data"]
+        return response
+
+    @classmethod
+    def _key_in(cls, response: requests.Response) -> bytes:
+        try:
+            key = base64.b64decode(cls._read(response, "data", "plaintext"), validate=True)
+        except (ValueError, TypeError):
+            raise KeyServiceUnavailable("unexpected answer") from None
+        if len(key) != KEY_BYTES:
+            raise KeyServiceUnavailable("unexpected answer")
+        return key
 
     def new_data_key(self, client_id: UUID) -> tuple:
         """A new data key for the client: the key itself, to use now, and wrapped, the only form that is stored."""
-        data = self._call("datakey/plaintext", {"context": self._context(client_id), "bits": KEY_BYTES * 8})
-        return base64.b64decode(data["plaintext"]), data["ciphertext"]
+        response = self._call("datakey/plaintext", {"context": self._context(client_id), "bits": KEY_BYTES * 8})
+        wrapped = self._read(response, "data", "ciphertext")
+        if not isinstance(wrapped, str) or not wrapped:
+            raise KeyServiceUnavailable("unexpected answer")
+        return self._key_in(response), wrapped
 
     def unwrap(self, client_id: UUID, wrapped: str) -> bytes:
-        data = self._call("decrypt", {"context": self._context(client_id), "ciphertext": wrapped})
-        return base64.b64decode(data["plaintext"])
+        return self._key_in(self._call("decrypt", {"context": self._context(client_id), "ciphertext": wrapped}))

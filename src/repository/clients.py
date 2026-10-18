@@ -65,26 +65,35 @@ def _add_key(client_id, keys: str, key: dict) -> Client:
     """
         Adds a public key to one of the two lists of a client. A key is in one list at most: which list it is in
         is what says whether whoever signs with it is the client or the response engine.
+
+        The checks go in the update itself, so that two changes at once cannot undo each other: saving the list
+        as it was read would bring back a key that was revoked in between.
     """
+    added = Client.objects(uuid=as_uuid(client_id), __raw__={
+        "signingKeys.kid": {"$ne": key["kid"]},
+        "serviceKeys.kid": {"$ne": key["kid"]},
+        f"{keys}.{MAX_SIGNING_KEYS - 1}": {"$exists": False},
+    }).update_one(__raw__={"$push": {keys: key}})
     client = get_client(client_id)
-    if any(known.get("kid") == key["kid"] for known in [*client.signingKeys, *client.serviceKeys]):
-        raise Conflict("key already registered")
-    if len(getattr(client, keys)) >= MAX_SIGNING_KEYS:
+    if not added:
+        if any(known.get("kid") == key["kid"] for known in [*client.signingKeys, *client.serviceKeys]):
+            raise Conflict("key already registered")
         raise Conflict("too many keys")
-    getattr(client, keys).append(key)
-    client.save()
     return client
 
 
 def _remove_key(client_id, keys: str, kid: str, keep_one: bool) -> Client:
+    condition = {f"{keys}.kid": kid}
+    if keep_one:
+        # Another key has to remain after this one goes.
+        condition[f"{keys}.1"] = {"$exists": True}
+    removed = Client.objects(uuid=as_uuid(client_id), __raw__=condition).update_one(
+        __raw__={"$pull": {keys: {"kid": kid}}})
     client = get_client(client_id)
-    remaining = [key for key in getattr(client, keys) if key.get("kid") != kid]
-    if len(remaining) == len(getattr(client, keys)):
-        raise NotFound(kid)
-    if keep_one and not remaining:
+    if not removed:
+        if not any(known.get("kid") == kid for known in getattr(client, keys)):
+            raise NotFound(kid)
         raise Conflict("last key")
-    setattr(client, keys, remaining)
-    client.save()
     return client
 
 
