@@ -8,6 +8,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- ADR-0019 y ADR-0020, propuestas para el Gate 1 del refactor: NATS JetStream 2.14 como bus de eventos (D1), con
+  `sync_interval: always` porque es un solo nodo sin UPS, un usuario por servicio con permisos por sujeto, TLS,
+  almacén cifrado en disco y el orden por conversación con 16 particiones; y su despliegue en midgard como
+  **Bifröst** (`/srv/infra/bifrost`, contenedor `bifrost-nats`, red Docker `bifrost`), igual que Hermod y Andvari.
 - Requisitos del refactor, aprobados el 2026-10-18 (Gate 0 del refactor): PRD 0.3.0 con Instagram (RF13), historial exportable (RF14),
   contexto del coordinador (RF15), orden por conversación (RNF08), traza de cada mensaje (RNF09), trazas y bus sin
   datos personales de más (RS19), un usuario por servicio en el bus (RS20), una credencial por worker (RS21) y los
