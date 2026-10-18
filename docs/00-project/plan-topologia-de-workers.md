@@ -1,15 +1,15 @@
 # Plan: el gateway dentro de la topología de ocho workers
 
-* **Estado:** review
+* **Estado:** approved
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 00-project
-* **Versión:** 0.1.0
+* **Versión:** 0.2.0
 * **Origen:** «Análisis comparativo exhaustivo: Rust vs. Python para la arquitectura de motores de chatbots asistidos por IA» (documento externo, revisado el 2026-10-18)
 
 Este documento revisa el análisis y planifica qué cambia en este repositorio para encajar en la arquitectura que
-propone. No decide nada: las decisiones están en la sección [Decisiones](#decisiones-que-necesita-el-plan) y cada
-una se convertirá en una ADR cuando se tome.
+propone. Las cinco decisiones se tomaron el 2026-10-18 y están en la sección [Decisiones](#decisiones); cada una
+se escribe como ADR en el diseño (paso 2).
 
 ## Qué propone el análisis
 
@@ -56,8 +56,8 @@ leen de aquí.
   límite de mensajes en vuelo, plazo de confirmación— los cubre también RabbitMQ con intercambios `topic`,
   confirmaciones del consumidor y `prefetch`. Lo que sí distingue a JetStream para este caso es la
   deduplicación al publicar (`Nats-Msg-Id`, con una ventana de 2 minutos por defecto según la
-  [documentación de NATS](https://docs.nats.io/jetstream/model_deep_dive)) y un servidor más ligero. Ninguna de
-  las dos cosas obliga a cambiar: la decisión está abierta (D1).
+  [documentación de NATS](https://docs.nats.io/jetstream/model_deep_dive)) y un servidor más ligero. Se decidió
+  pasar a NATS (D1), sabiendo que la comparación con RabbitMQ no la hace el análisis.
 - **La ventana de deduplicación no cubre los reintentos de Meta.** WhatsApp reintenta durante 7 días (ADR-0015);
   la ventana de JetStream es de minutos y no conviene agrandarla. El consumidor tiene que deduplicar por `botId` y
   `messageId` igual, con NATS o sin él.
@@ -76,8 +76,8 @@ leen de aquí.
   topes de 512 MB y 1 CPU (ADR-0008, RNF03). Un segundo lenguaje duplica la cadena de herramientas y los gates del
   CI (`pip-audit` y `cargo-audit`, dos configuraciones de CodeQL) para una sola persona.
 - **El plazo de 250 ms es de WhatsApp.** El análisis lo extiende a Messenger e Instagram; para Messenger lo
-  documentado es la baja de la suscripción tras una hora de fallos (ADR-0015). Instagram no está en el alcance
-  del gateway (D4).
+  documentado es la baja de la suscripción tras una hora de fallos (ADR-0015). Lo que Meta exige al webhook de
+  Instagram, que entra en el alcance (D4), hay que consultarlo en su documentación en el paso 1.
 - **No trata el carácter multi-cliente ni el GDPR.** El bus llevará datos personales (números, texto de los
   mensajes) entre más servicios; cada worker nuevo es un sitio más que entra en la clasificación de datos y en el
   derecho de supresión.
@@ -101,11 +101,13 @@ publicar por el número de mensajes.
 | # | Cambio | Por qué | Toca |
 |---|---|---|---|
 | R1 | **El webhook responde en cuanto el bus confirma el evento verificado.** Comprobar la firma, leer la notificación, publicar un evento por mensaje y contestar. La identificación del contacto (Graph API, MongoDB, cifrado) pasa a un worker de ingesta de este mismo repositorio, que consume ese evento y publica el sobre que hoy va a la cola `llm` | Plazo de 250 ms; los fallos de la base o de Andvari los absorbe el bus en vez de los reintentos de Meta, que en Messenger acaban dando de baja la página | ADR-0006 y ADR-0015 (se reescriben: `503` solo si el bus no confirma), RNF01, RNF02 |
-| R2 | **Una conexión al broker por proceso, detrás de un puerto de publicación** (`EventPublisher`), con un adaptador por broker | Quitar la conexión por mensaje; poder cambiar de broker sin tocar el dominio (D1) | `controller/amqp_broker.py` |
-| R3 | **Contrato de eventos v2:** nombres jerárquicos (`webhook.meta.whatsapp`, `webhook.meta.messenger`, `gateway.message.identified`), identificador de Meta como identificador del mensaje, clave de orden por conversación y `traceparent` en las cabeceras | Lo piden el bus por sujetos, la deduplicación, el orden y la traza | AsyncAPI 2.0.0 (incompatible con la 1.1.0), ADR-0011 |
+| R2 | **Una conexión a NATS JetStream por proceso, detrás de un puerto de publicación** (`EventPublisher`), que sustituye a RabbitMQ (D1). Se publica con `Nats-Msg-Id` igual al identificador de Meta y se espera el acuse del stream | Quitar la conexión por mensaje; que el dominio no dependa del broker; deduplicar los reintentos cercanos de Meta | `controller/amqp_broker.py` (desaparece), ADR-0006 |
+| R3 | **Contrato de eventos v2:** sujetos jerárquicos (`webhook.meta.whatsapp`, `webhook.meta.messenger`, `webhook.meta.instagram`, `gateway.message.identified`), identificador de Meta como identificador del mensaje, clave de orden por conversación y `traceparent` en las cabeceras | Lo piden el bus por sujetos, la deduplicación, el orden y la traza | AsyncAPI 2.0.0 (incompatible con la 1.1.0), ADR-0011 |
 | R4 | **OpenTelemetry en el gateway**, con la misma regla que los logs: ni números, ni texto de mensajes, ni nada que mande el llamante en los atributos de un span | Seguir un mensaje entre workers (worker 8) sin abrir una vía nueva de fuga | `logging_config`, `utils`, threat model |
 | R5 | **Una credencial por worker, no una por motor.** Cada clave de servicio dice qué rutas alcanza: el notificador, los tokens de Meta; el clasificador y el coordinador, reglas y herramientas | Mínimo privilegio: hoy la clave del motor alcanza las cuatro rutas, y con ocho workers solo uno necesita los tokens | ADR-0016, `SERVICE_ROUTES` |
 | R6 | **Validar los destinos de los intents al registrarlos** (sin red interna, sin esquemas distintos de `https`) | Es la defensa real contra el *confused deputy* del worker de enlace | T11, DTO de intents (H6) |
+| R7 | **Instagram como tercer canal** (D4): leer sus notificaciones, verificarlas con la firma de Meta, identificar al contacto por su identificador de Instagram y guardarlo cifrado como los demás | Decisión de alcance | `controller/incoming.py`, `controller/facebook.py`, entidad de contacto, clasificación de datos, RF del PRD |
+| R8 | **NATS JetStream en midgard**, con TLS, un usuario por servicio con permisos por sujeto y un stream con retención y tamaño acotados. Hermod se retira cuando el motor deje de leer la cola `llm` | Lo exige D1. Los permisos por sujeto son el equivalente en el bus de la credencial por worker (D3) | ADR de placement nueva, ADR-0013 (sus credenciales en Andvari), despliegue |
 
 Lo que **no** cambia: el gateway sigue en Python y FastAPI, sin Rust; sigue siendo el registro y el custodio de
 los datos cifrados por cliente; la autenticación (ADR-0004, ADR-0005) y el borrado (ADR-0014) no se tocan.
@@ -118,7 +120,7 @@ Eje estructura, fase 00-project: dónde queda el gateway cuando el motor se part
 C4Container
     title Gateway en la topologia de ocho workers (objetivo)
 
-    System_Ext(meta, "Meta", "WhatsApp Business y Messenger")
+    System_Ext(meta, "Meta", "WhatsApp Business, Messenger e Instagram")
     ContainerDb_Ext(atlas, "MongoDB Atlas", "MongoDB", "Registro y contactos cifrados por cliente")
     System_Ext(andvari, "Andvari", "OpenBao: claves de cliente")
 
@@ -128,7 +130,7 @@ C4Container
         Container(api, "API de gestion", "Python, FastAPI", "Registro de clientes, bots, reglas e intents")
     }
 
-    ContainerQueue(bus, "Bus de eventos", "RabbitMQ o NATS JetStream (D1)", "Eventos con clave de orden y traceparent")
+    ContainerQueue(bus, "Bus de eventos", "NATS JetStream en midgard", "Eventos con clave de orden y traceparent")
 
     System_Boundary(motor, "Motor (ms-python-metamsghandler)") {
         Container_Ext(workers, "Workers 2 a 6", "Python", "Clasificador, coordinador, enlace, respuesta, evaluador")
@@ -179,15 +181,19 @@ sequenceDiagram
     end
 ```
 
-## Decisiones que necesita el plan
+## Decisiones
 
-| # | Decisión | Mi recomendación | Por qué |
+Tomadas el 2026-10-18 por Jeremi Alcala.
+
+| # | Decisión | Qué se decidió | Lo que arrastra |
 |---|---|---|---|
-| D1 | El bus: seguir con RabbitMQ o pasar a NATS JetStream | **Seguir con RabbitMQ con un intercambio `topic` y nombres jerárquicos, y dejar NATS para cuando el motor se parta**, con el puerto de R2 para que el cambio no toque el dominio | RabbitMQ ya está desplegado y probado con confirmaciones; el análisis no lo compara; la deduplicación de JetStream no evita deduplicar en el consumidor |
-| D2 | Sacar la identificación del contacto del camino del webhook (R1) | **Sí** | Es lo único que pone el plazo de 250 ms a su alcance, y además protege a Messenger de la baja por fallos de la base |
-| D3 | Una credencial por worker (R5) | **Sí, con las rutas en la clave** | Mínimo privilegio; ADR-0016 ya es por cliente y esto lo afina por función |
-| D4 | Instagram entra en el alcance | **No por ahora** | El análisis lo nombra de pasada; no está en el PRD ni en el motor |
-| D5 | Cerrar el Gate 2 antes de empezar | **Sí: revisión dual y corte de la 0.3.0** | El refactor arranca de una línea base cerrada y los cambios se ven contra ella |
+| D1 | El bus | **NATS JetStream**, en lugar de RabbitMQ | Desplegarlo en midgard (R8); el motor pasa a leer de NATS; Hermod se retira al final. La deduplicación en el consumidor sigue haciendo falta |
+| D2 | Sacar la identificación del contacto del webhook | **Sí** (R1) | ADR-0006 y ADR-0015 se reescriben: `503` solo si NATS no acusa el evento |
+| D3 | Una credencial por worker | **Sí** (R5) | ADR-0016 se amplía: cada clave de servicio dice qué rutas alcanza |
+| D4 | Instagram | **Entra en el alcance** (R7) | Requisito nuevo en el PRD, contrato y clasificación de datos; consultar lo que Meta exige a ese webhook |
+| D5 | Cerrar el Gate 2 antes de empezar | **Sí** | Revisión dual y corte de la 0.3.0 antes del paso 1 |
+
+La recomendación de D1 era seguir con RabbitMQ y D4 dejaba Instagram fuera; las dos se cambiaron.
 
 ## Cómo se recorre con AI-DLC
 
@@ -197,24 +203,30 @@ artefactos de los gates 0 y 1 como cambios sobre la línea base 0.3.0, y luego s
 | Paso | Gate | Qué se produce |
 |---|---|---|
 | 0 | Cierre del Gate 2 actual | Revisión dual, corte de la 0.3.0 en el CHANGELOG y tag |
-| 1 | Requisitos (Gate 0) | PRD: RNF01 con 250 ms de mediana y menos de un 1 % sobre 1 s para WhatsApp; requisitos de orden por conversación y de traza; escenarios de abuso nuevos (un evento repetido, un evento fuera de orden, datos personales en el bus o en una traza); clasificación de datos con el bus y los spans |
-| 2 | Diseño (Gate 1) | ADRs de D1, D2 (reescribe ADR-0006 y ADR-0015) y D3 (amplía ADR-0016); ADR-0011 y AsyncAPI 2.0.0; arquitectura con el worker de ingesta; threat model con los límites de confianza nuevos y T11 |
+| 1 | Requisitos (Gate 0) | PRD: RNF01 con 250 ms de mediana y menos de un 1 % sobre 1 s para WhatsApp; requisitos de orden por conversación, de traza y del canal de Instagram; escenarios de abuso nuevos (un evento repetido, un evento fuera de orden, datos personales en el bus o en una traza, un servicio que publica en un sujeto ajeno); clasificación de datos con el bus, los spans y el identificador de Instagram |
+| 2 | Diseño (Gate 1) | ADRs de D1 (NATS JetStream), de su placement en midgard, de D2 (reescribe ADR-0006 y ADR-0015) y de D3 (amplía ADR-0016); ADR-0011 y AsyncAPI 2.0.0; arquitectura con el worker de ingesta y NATS; threat model con los límites de confianza nuevos y T11 |
 | 3 | Implementación (Gate 2) | Los incrementos de abajo, uno por PR a `develop` |
-| 4 | Pruebas (Gate 3) | Medición de latencia contra Atlas y Hermod reales en midgard, que es la evidencia de RNF01; corte de la 0.4.0 |
+| 4 | Pruebas (Gate 3) | Medición de latencia contra Atlas y NATS reales en midgard, que es la evidencia de RNF01; corte de la 0.4.0 |
 
 Incrementos del paso 3, en este orden (eje trazabilidad: qué depende de qué):
 
 ```mermaid
 flowchart LR
-    I1["I1 Medir el webhook actual en midgard"] --> I3
-    I2["I2 Puerto de publicacion y una conexion por proceso (R2)"] --> I3
+    I1["I1 Medir el webhook actual en midgard"] --> I4
+    I0["I0 NATS JetStream en midgard (R8)"] --> I2
+    I2["I2 Puerto de publicacion sobre NATS (R2)"] --> I3
     I3["I3 Contrato v2 y publicacion por mensaje (R3)"] --> I4
     I4["I4 Worker de ingesta y webhook que solo publica (R1)"] --> I5
+    I4 --> I8
     I5["I5 OpenTelemetry con la regla de los logs (R4)"]
     I6["I6 Credencial por worker (R5)"]
     I7["I7 Destinos de los intents (R6)"]
+    I8["I8 Canal de Instagram (R7)"]
 ```
 
-I1 se hace primero porque da la cifra contra la que se mide todo lo demás; I6 e I7 no dependen del resto y pueden
-ir en paralelo. Del lado del motor, que es otro repositorio, quedan partirlo en workers, consumir el contrato v2,
-deduplicar y respetar la clave de orden.
+I1 se hace primero porque da la cifra contra la que se mide todo lo demás, y se mide con el camino actual, todavía
+sobre Hermod. I0 es un despliegue en midgard, como el de Hermod y Andvari. I6 e I7 no dependen del resto y pueden
+ir en paralelo; Instagram va detrás del worker de ingesta para nacer ya en el camino nuevo. Del lado del motor,
+que es otro repositorio, quedan partirlo en workers, leer de NATS el contrato v2, deduplicar y respetar la clave
+de orden; hasta que lo haga, el gateway no puede dejar de publicar en Hermod, y el paso de uno a otro necesita su
+propio plan de corte en el Gate 4.
