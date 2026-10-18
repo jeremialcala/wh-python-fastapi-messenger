@@ -108,9 +108,13 @@ def empty_database():
     """
     import classes  # noqa: F401  The entities register the connection.
 
+    from repository import kept_bots
+
     database = mongoengine.get_db()
     for name in database.list_collection_names():
         database[name].delete_many({})
+    # Neither are the chatbots the webhook kept in memory left over from another test.
+    kept_bots.forget()
     yield
 
 

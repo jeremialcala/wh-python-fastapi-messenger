@@ -162,7 +162,7 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 
 | ID | Requisito | Estado |
 |---|---|---|
-| RNF01 | El webhook responde a Meta dentro del plazo que evita reintentos. No se compromete una cifra hasta medirlo en producción | Sin medir |
+| RNF01 | El webhook responde a Meta dentro del plazo que evita reintentos. No se compromete una cifra hasta medirlo en producción | Sin medir en producción. Medido el 2026-10-18 desde la red de midgard: 60 ms de ida y vuelta a Atlas (mediana; p95 64 ms). El webhook hace 2 viajes con un contacto conocido y 5 con uno nuevo, y bloquea el proceso mientras espera (RD-05) |
 | RNF02 | Una notificación recibe `200` solo cuando RabbitMQ ha confirmado el mensaje; si no, `503` | Construido. [ADR-0015](../00-project/adr/0015-que-se-responde-a-meta.md) lo amplía: `503` también si no responden la base de datos o el servicio de claves, y `200` con rastro en el log para lo firmado que no se entiende o no se puede procesar |
 | RNF03 | El gateway no pasa de 512 MB de RAM ni de 1 CPU en el servidor | Construido (tope del compose) |
 | RNF04 | Un mensaje entregado dos veces por Meta, o reenviado por un tercero, no se procesa dos veces | Parcial: el gateway publica en cada sobre el identificador de Meta (`messageId`), el mismo en cada reentrega; el motor todavía no deduplica |

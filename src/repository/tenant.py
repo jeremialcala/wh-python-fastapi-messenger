@@ -14,7 +14,7 @@ from classes import ChatBot, ChatbotPhone, Client, Contact, Intent, Rule
 from crypto.fields import ClientCipher
 from enums import Status
 
-from . import erasures
+from . import erasures, kept_bots
 from .data_keys import cipher_for
 from .errors import NotFound
 
@@ -102,7 +102,10 @@ class TenantRepository:
                 raise ValueError(field)
             if value is not None:
                 setattr(bot, field, self._cipher.encrypt(f"ChatBot.{field}", value))
-        return self._save_own(bot)
+        saved = self._save_own(bot)
+        # The webhook checks signatures against the secrets it was kept with.
+        kept_bots.forget(saved.uuid)
+        return saved
 
     def get_bot(self, bot_id) -> ChatBot:
         bot = self._own(ChatBot, uuid=as_uuid(bot_id)).first()
@@ -142,6 +145,7 @@ class TenantRepository:
             The chatbot goes first: from then on the webhook does not find it and nothing more is stored for it.
         """
         deleted = {"chatbots": self._own(ChatBot, uuid=bot_uuid).delete()}
+        kept_bots.forget(bot_uuid)
         for name, document, field in OF_A_BOT:
             deleted[name] = self._own(document, **{field: bot_uuid}).delete()
         return deleted
@@ -149,6 +153,8 @@ class TenantRepository:
     def erase_all(self) -> dict:
         """Every chatbot of the client and everything stored for them. Chatbots first, as in erase_bot."""
         deleted = {"chatbots": self._own(ChatBot).delete()}
+        # Which chatbots they were is not asked for: deleting a client is rare, and the rest are found again.
+        kept_bots.forget()
         for name, document, _ in OF_A_BOT:
             deleted[name] = self._own(document).delete()
         return deleted
@@ -226,10 +232,11 @@ class TenantRepository:
         return self._last_contact(bot.uuid, waIdIndex=self._cipher.blind_index("Contact.waId", wa_id))
 
     def find_contact_by_fb_id(self, bot_id, fb_id: str) -> Contact | None:
-        return self._last_contact(bot_id, fbId=fb_id)
+        return self._last_contact(self.get_bot(bot_id).uuid, fbId=fb_id)
 
-    def _last_contact(self, bot_id, **identity) -> Contact | None:
-        contacts = list(self._own(Contact, botId=self.get_bot(bot_id).uuid, **identity))
+    def _last_contact(self, bot_uuid: UUID, **identity) -> Contact | None:
+        # Only for a chatbot already found to be the client's: asking again would cost another round trip.
+        contacts = list(self._own(Contact, botId=bot_uuid, **identity))
         return contacts[-1] if contacts else None
 
     def add_contact(self, bot_id, contact: Contact) -> Contact:
