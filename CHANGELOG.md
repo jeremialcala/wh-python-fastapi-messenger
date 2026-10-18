@@ -76,6 +76,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   clave de datos de un cliente alcanzara a los respaldos.
 
 ### Cambiado
+- El webhook va menos veces a la base: el chatbot que encuentra se guarda 30 segundos en memoria, y al buscar el
+  contacto ya no se pide dos veces. Un mensaje de un contacto conocido pasa de 4 viajes a Atlas a 2 en WhatsApp y de
+  3 a 2 en Messenger; uno de un contacto nuevo, de 7 a 5 en WhatsApp y de 6 a 5 en Messenger. Con 60 ms por viaje,
+  medidos el 2026-10-18 desde la red de midgard, son unos 120 ms frente a los 240 de antes y los 250 de mediana que pide Meta. Borrar el chatbot o su
+  cliente, o cambiar sus credenciales, lo saca de la memoria del proceso que lo hace; en los demás procesos dura
+  como mucho esos 30 segundos. Lo que no se encuentra no se guarda. Es un arreglo intermedio: la solución es el
+  worker de ingesta del plan (R1), y no resuelve que esas llamadas bloqueen el proceso (RD-05).
 - **Incompatible para el consumidor de la cola:** el gateway publica un sobre por cada mensaje de la notificación,
   y en WhatsApp el contenido lleva solo ese mensaje y a quien lo envió. Los acuses de entrega y de lectura, los ecos
   de lo que envía la página y las pulsaciones de botones de Messenger se aceptan con `200` y no se publican.
