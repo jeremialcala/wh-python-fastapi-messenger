@@ -15,11 +15,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app as app_module
+import webhook as webhook_module
 import controller.messages as messages
 from classes import ChatBot, ChatbotPhone, Client, Contact
 from crypto.fields import ClientCipher, NotEncrypted, is_encrypted, normalize_number
 from migrations import assign_operator_client, encrypt_client_data
 from repository import NotFound, TenantRepository, data_keys, operator_client
+
+# What Meta calls is its own service, apart from the management API.
+META = TestClient(webhook_module.app)
 
 BOT = {"name": "Mine", "role": "Sales Assistant", "description": "A test chatbot", "tone": "helpful"}
 SECRETS = {"facebookToken": "EAAG-page-token-0123456789", "whatsappToken": "EAAG-whatsapp-token-9876543210",
@@ -67,7 +71,7 @@ def bot_id(http, caller):
 def notify(http, bot_id, payload, secret=SECRETS["appSecret"]):
     body = json.dumps(payload).encode()
     signature = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    return http.post(f"/chat/{bot_id}", content=body,
+    return META.post(f"/chat/{bot_id}", content=body,
                      headers={"content-type": "application/json", "X-Hub-Signature-256": signature})
 
 
@@ -347,9 +351,9 @@ def test_the_verification_token_is_given_to_its_client_and_is_the_one_that_works
     read = http.get(f"/chat/{created['uuid']}/info", headers=caller.auth).json()["data"]
 
     assert created["verifyToken"] == read["verifyToken"] and not is_encrypted(read["verifyToken"])
-    accepted = http.get(f"/chat/{created['uuid']}", params={"hub.mode": "subscribe", "hub.challenge": "42",
+    accepted = META.get(f"/chat/{created['uuid']}", params={"hub.mode": "subscribe", "hub.challenge": "42",
                                                             "hub.verify_token": read["verifyToken"]})
-    rejected = http.get(f"/chat/{created['uuid']}", params={"hub.mode": "subscribe", "hub.challenge": "42",
+    rejected = META.get(f"/chat/{created['uuid']}", params={"hub.mode": "subscribe", "hub.challenge": "42",
                                                             "hub.verify_token": ChatBot.objects(
                                                                 uuid=created["uuid"]).first().verifyToken})
     assert (accepted.status_code, accepted.text, rejected.status_code) == (200, "42", 403)
@@ -439,7 +443,7 @@ def test_without_the_key_service_the_webhook_is_not_verified(http, caller, bot_i
     token = http.get(f"/chat/{bot_id}/info", headers=caller.auth).json()["data"]["verifyToken"]
     key_service_down()
 
-    response = http.get(f"/chat/{bot_id}", params={"hub.mode": "subscribe", "hub.challenge": "42",
+    response = META.get(f"/chat/{bot_id}", params={"hub.mode": "subscribe", "hub.challenge": "42",
                                                    "hub.verify_token": token})
 
     assert response.status_code == 503

@@ -19,12 +19,16 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app as app_module
+import webhook as webhook_module
 import controller.facebook as facebook
 import controller.messages as messages
 import repository.clients as clients
 from classes import ChatBot, ChatbotPhone, Client, Contact, Intent, Rule, SeenToken
 from enums import Status
 from repository import NotFound, TenantRepository, data_keys, delete_client, operator_client
+
+# What Meta calls is its own service, apart from the management API.
+META = TestClient(webhook_module.app)
 
 BOT = {"name": "Mine", "role": "Sales Assistant", "description": "A test chatbot", "tone": "helpful"}
 APP_SECRET = "app-secret-of-this-test"
@@ -103,7 +107,7 @@ def bot_id(http, caller):
 def notify(http, bot_id, payload):
     body = json.dumps(payload).encode()
     signature = "sha256=" + hmac.new(APP_SECRET.encode(), body, hashlib.sha256).hexdigest()
-    return http.post(f"/chat/{bot_id}", content=body,
+    return META.post(f"/chat/{bot_id}", content=body,
                      headers={"content-type": "application/json", "X-Hub-Signature-256": signature})
 
 
@@ -396,7 +400,7 @@ def test_a_deleted_chatbot_is_not_found_by_anybody(http, caller, people, queue):
     assert http.get(f"/chat/{people}/contacts", headers=caller.auth).status_code == 404
     assert erase(http, caller, f"/bot/{people}").status_code == 404
     assert notify(http, people, whatsapp(ANA_NUMBER, ANA)).status_code == 404
-    assert http.get(f"/chat/{people}", params={"hub.mode": "subscribe", "hub.challenge": "1",
+    assert META.get(f"/chat/{people}", params={"hub.mode": "subscribe", "hub.challenge": "1",
                                                "hub.verify_token": "x"}).status_code == 404
     assert queue == [] and Contact.objects.count() == 0
     assert search(http, caller, waId=ANA_NUMBER).json()["data"] == []

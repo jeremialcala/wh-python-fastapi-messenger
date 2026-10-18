@@ -154,8 +154,8 @@ Definido en [src/app.py](src/app.py):
 
 ## Endpoints de la API
 
-URL base (Docker en local): `http://localhost:5002`
-Documentación interactiva: `http://localhost:5002/docs` (Swagger) · `http://localhost:5002/redoc`
+URL base en local: `http://localhost:5002` para la API de gestión y `http://localhost:5003` para el webhook, que son dos servicios (ADR-0018).
+Documentación interactiva, solo en `development`: `/docs` (Swagger) y `/redoc` en cada uno.
 
 Solo son públicas las dos rutas del webhook (`GET` y `POST /chat/{bot_id}`) y `GET /health`. Cualquier otro endpoint exige un token en `Authorization: Bearer` y responde `401` sin uno válido: un JWT firmado por el cliente dentro de un JWE cifrado para el gateway. Cómo se construye, y cómo se da de alta a un cliente, está en [docs/03-implementation/autenticacion.md](docs/03-implementation/autenticacion.md).
 
@@ -285,14 +285,15 @@ pip install --require-hashes -r requirements-dev.lock
 #    MongoDB / RabbitMQ / Meta, y crea el par de claves del gateway:
 #    PYTHONPATH=src python -m ops.gateway_key generate gateway-keys.json
 
-# 4. Arranca la API
-uvicorn app:app --app-dir src --host 0.0.0.0 --port 5002 --reload
+# 4. Arranca los dos servicios (ADR-0018), cada uno en su terminal
+uvicorn app:app --app-dir src --host 0.0.0.0 --port 5002 --reload       # API de gestión
+uvicorn webhook:app --app-dir src --host 0.0.0.0 --port 5003 --reload   # webhook de Meta
 
 # 5. Ejecuta las pruebas (no necesitan servicios ni config.env)
 pytest
 ```
 
-Abre `http://localhost:5002/docs` para ver la interfaz de Swagger.
+Abre `http://localhost:5002/docs` para ver la interfaz de Swagger de la gestión, y `http://localhost:5003/docs` para la del webhook. Solo se sirven con `ENVIRONMENT=development`.
 
 ---
 
@@ -305,6 +306,10 @@ docker build -t wh-python-fastapi-messenger:latest .
 # Arráncala. Los ajustes no van dentro de la imagen: se pasan al ejecutar
 docker run -d -p 127.0.0.1:5002:5002 --env-file config.env --name wh-python-fastapi-messenger wh-python-fastapi-messenger:latest
 ```
+
+La imagen arranca la API de gestión. El webhook es la misma imagen con otro comando:
+`uvicorn webhook:app --host 0.0.0.0 --port 5002 --no-access-log`, como en
+[deploy/docker-compose.yml](deploy/docker-compose.yml).
 
 La imagen corre con un usuario sin privilegios, no incluye `config.env` ni `certs/` (ver [.dockerignore](.dockerignore)) y arranca un solo worker salvo que `WEB_CONCURRENCY` diga otra cosa. `GET /health` es su sonda de vida.
 
@@ -339,13 +344,13 @@ Preparación única en el servidor:
     workflow: build
     project_dir: /srv/apps/bots-gateway
     image: ghcr.io/jeremialcala/wh-python-fastapi-messenger
-    health_url: http://127.0.0.1:5002/health
+    health_url: http://127.0.0.1:5003/health
     health_timeout: 120
     health_interval: 3
     rollback: true
   ```
 
-El contenedor escucha solo en loopback. El túnel que lo publique debe exponer `/chat/<uuid>` y nada más.
+Son dos contenedores (ADR-0018), los dos solo en loopback: `bots-webhook` en el 5003 y `bots-gateway`, la gestión, en el 5002. El túnel publica el webhook y nada más; la gestión sigue privada. El webhook arranca cuando la gestión está sana, así que el `health_url` del receptor, el del webhook, responde por los dos.
 
 ---
 
@@ -378,13 +383,13 @@ Se configura en [src/logging_config.yaml](src/logging_config.yaml) y lo aplica a
 - **Entrega** — una notificación recibe su `200` solo después de que RabbitMQ confirme la publicación. Si no responden el broker, la base de datos o el servicio de claves, recibe `503`. Lo firmado que no se entiende, y el mensaje que falla por sí mismo, reciben `200` y quedan en el log: reenviarlos no cambiaría nada, y Meta da de baja el webhook que falla durante una hora ([ADR-0015](docs/00-project/adr/0015-que-se-responde-a-meta.md)). Meta reenvía ante un `503`, así que el consumidor de la cola `llm` debe tolerar duplicados: cada sobre lleva en `messageId` el identificador de Meta, que se repite en cada reentrega. Un mensaje que nadie consume caduca en la cola a las 24 horas.
 - **Logs** — no se escribe nada de lo que envía quien llama, ni de lo que Meta envía sobre una persona: ni números, ni nombres, ni mensajes, ni tokens. Cada petición deja una línea con su método, la ruta tal como está declarada y los identificadores bien formados de su dirección; de un fallo se escribe su tipo y su línea, nunca su texto. El log de accesos de Uvicorn, que escribe la query string, está apagado.
 - **Errores** — un fallo inesperado responde `500` sin su texto, y un `422` dice dónde está el error sin repetir lo enviado.
-- **Pendiente** — `/docs`, `/redoc` y `/openapi.json` se sirven sin clave y no hay límite de tasa: publica solo `/chat/{bot_id}` en el borde y deja todo lo demás en la red privada. El mensaje viaja a la cola sin cifrar.
+- **Pendiente** — no hay límite de tasa: publica en el borde solo el servicio del webhook y deja la gestión en la red privada. `/docs`, `/redoc` y `/openapi.json` solo se sirven en `development`. El mensaje viaja a la cola sin cifrar.
 
 Para firmar a mano una notificación de prueba:
 
 ```bash
 SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$FACEBOOK_APP_SECRET" | sed 's/^.* //')
-curl -X POST "http://localhost:5002/chat/$BOT_ID" -H 'Content-Type: application/json' \
+curl -X POST "http://localhost:5003/chat/$BOT_ID" -H 'Content-Type: application/json' \
      -H "X-Hub-Signature-256: sha256=$SIG" -d "$BODY"
 ```
 

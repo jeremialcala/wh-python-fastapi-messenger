@@ -19,6 +19,8 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 import app as app_module
+import service
+import webhook as webhook_module
 import controller.clients as clients_controller
 import controller.facebook as facebook
 import controller.messages as messages
@@ -27,6 +29,9 @@ from classes import ChatBot, Contact
 from controller import BrokerUnavailable
 from repository import TenantRepository
 from utils import configure_logging, describe
+
+# What Meta calls is its own service, apart from the management API.
+META = TestClient(webhook_module.app)
 
 BOT = {"name": "bot-name-marker", "role": "bot-role-marker", "description": "bot-description-marker",
        "tone": "bot-tone-marker"}
@@ -109,7 +114,7 @@ def logged(caplog):
 def notify(http, bot_id, payload, secret=SECRETS["appSecret"]):
     body = json.dumps(payload).encode()
     signature = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    return http.post(f"/chat/{bot_id}", content=body,
+    return META.post(f"/chat/{bot_id}", content=body,
                      headers={"content-type": "application/json", "X-Hub-Signature-256": signature})
 
 
@@ -154,7 +159,7 @@ def test_nothing_a_caller_or_meta_sends_reaches_the_log(http, caller, operator, 
         call(http, caller, "POST", "/contacts/search", {"waId": WA_ID}),
         call(http, caller, "POST", "/contacts/search", {"fbId": PSID}),
         call(http, caller, "GET", f"/chat/{bot}/contacts/{contact}"),
-        http.get(f"/chat/{bot}", params={"hub.mode": "subscribe", "hub.challenge": "challenge-marker",
+        META.get(f"/chat/{bot}", params={"hub.mode": "subscribe", "hub.challenge": "challenge-marker",
                                          "hub.verify_token": made["verify"]}),
         http.get("/keys", headers={"Authorization": f"Bearer {token}"}),
         http.post("/keys", **adding),
@@ -177,10 +182,10 @@ def test_what_is_turned_away_does_not_reach_the_log_either(http, caller, logged)
     bot = made["bot"]
 
     answers = [
-        http.get(f"/chat/{bot}", params={"hub.mode": "subscribe", "hub.challenge": "challenge-marker",
+        META.get(f"/chat/{bot}", params={"hub.mode": "subscribe", "hub.challenge": "challenge-marker",
                                          "hub.verify_token": "wrong-verify-token-marker"}),
         notify(http, bot, WHATSAPP, secret="wrong-secret-marker"),
-        http.post(f"/chat/{bot}", content=b'{"object": "body-marker"', headers={"content-type": "application/json"}),
+        META.post(f"/chat/{bot}", content=b'{"object": "body-marker"', headers={"content-type": "application/json"}),
         http.get("/keys", headers={"Authorization": "Bearer bearer-marker"}),
         http.get("/keys", headers={"Authorization": "authorization-marker"}),
         call(http, caller, "PUT", f"/chat/{bot}/credentials", {"appSecret": ["rejected-secret-marker"]}),
@@ -246,7 +251,7 @@ def test_a_failure_of_the_broker_is_logged_by_its_kind(http, caller, logged, mon
 
 def request_lines(text: str) -> list:
     """The lines the service writes of each request: they start with the method."""
-    return [line for line in text.splitlines() if line.split(" ")[0] in (*app_module.METHODS, "OTHER")]
+    return [line for line in text.splitlines() if line.split(" ")[0] in (*service.METHODS, "OTHER")]
 
 
 def test_a_request_leaves_one_line_with_its_route_and_its_identifiers(http, caller, logged):
@@ -475,7 +480,7 @@ def test_the_documentation_is_only_served_in_development(environment):
     """RD-16 of the dual review of Gate 2: it showed every route and model in every environment."""
     from fastapi import FastAPI
 
-    elsewhere = TestClient(FastAPI(**app_module.documentation(environment)))
+    elsewhere = TestClient(FastAPI(**service.documentation(environment)))
     here = TestClient(app_module.app)
 
     for path in ("/docs", "/redoc", "/openapi.json"):

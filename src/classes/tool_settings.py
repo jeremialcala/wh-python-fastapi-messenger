@@ -5,11 +5,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Required: the app refuses to start without the key pair clients encrypt their tokens to. It is the path of
-    # a JWK Set file kept outside the repository and the image.
-    gateway_keys_file: str = Field(min_length=1)
+    # The key pair clients encrypt their tokens to: the path of a JWK Set file kept outside the repository and the
+    # image. The management API does not start without it (app.py); the webhook does not read it, and its
+    # container does not mount it.
+    gateway_keys_file: str | None = None
     # What clients put in the aud of their tokens, so a token issued for another service is not valid here.
-    gateway_audience: str = Field(min_length=8)
+    # Required by the management API, like the key pair.
+    gateway_audience: str | None = None
     # The key service that holds the master key: an OpenBao. The app starts without reaching it, but nothing
     # encrypted can be read or written until it answers.
     andvari_addr: str = Field(min_length=8)

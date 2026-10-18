@@ -213,7 +213,7 @@ Incrementos del paso 3, en este orden (eje trazabilidad: qué depende de qué):
 
 ```mermaid
 flowchart LR
-    IS["IS Separar el webhook de la API de gestion (RD-05)"] --> I1
+    IS["IS Separar el webhook de la API de gestion (RD-05), hecho"] --> I1
     I1["I1 Medir el webhook actual en midgard"] --> I4
     I0["I0 NATS JetStream en midgard (R8)"] --> I2
     I2["I2 Puerto de publicacion sobre NATS (R2)"] --> I3
@@ -226,7 +226,7 @@ flowchart LR
     I8["I8 Canal de Instagram (R7)"]
 ```
 
-IS va antes que nada: es la condición con la que se aceptó RD-05 al cerrar el Gate 2, y tiene que estar antes del primer despliegue. Deja el webhook en su propio contenedor, sin las rutas ni las claves de gestión. I1 va después porque da la cifra contra la que se mide todo lo demás, y se mide con el camino actual, todavía
+IS va antes que nada: es la condición con la que se aceptó RD-05 al cerrar el Gate 2, y tiene que estar antes del primer despliegue. Hecho con [ADR-0018](adr/0018-webhook-y-gestion-por-separado.md). Deja el webhook en su propio contenedor, sin las rutas ni las claves de gestión. I1 va después porque da la cifra contra la que se mide todo lo demás, y se mide con el camino actual, todavía
 sobre Hermod. I0 es un despliegue en midgard, como el de Hermod y Andvari. I6 e I7 no dependen del resto y pueden
 ir en paralelo; Instagram va detrás del worker de ingesta para nacer ya en el camino nuevo. Del lado del motor,
 que es otro repositorio, quedan partirlo en workers, leer de NATS el contrato v2, deduplicar y respetar la clave

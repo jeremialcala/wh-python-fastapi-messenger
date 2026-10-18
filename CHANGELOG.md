@@ -7,6 +7,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Cambiado
+- **Incompatible para el despliegue:** el webhook y la API de gestión son dos servicios, de la misma imagen y en dos
+  contenedores (ADR-0018, primer incremento del refactor). `uvicorn webhook:app` sirve solo `GET` y `POST
+  /chat/{bot_id}` y `/health`, sin el par de claves del gateway ni el registro de supresiones; `uvicorn app:app`,
+  el resto. Así una petición de gestión lenta ya no para el webhook (RD-05), y el túnel publica el webhook sin
+  filtrar por ruta (RS09). El compose de despliegue los levanta en los puertos 5003 y 5002 de loopback.
+- Dos contratos OpenAPI: `openapi.yaml` para la gestión y `openapi-webhook.yaml` para el webhook.
+- `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE` solo los exige la API de gestión.
+
 ## [0.3.0] - 2026-10-18
 
 Cierre del Gate 2 (implementación).

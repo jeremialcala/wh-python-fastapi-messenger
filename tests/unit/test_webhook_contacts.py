@@ -14,11 +14,14 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-import app as app_module
+import webhook as webhook_module
 import controller.facebook as facebook
 import controller.messages as messages
 from classes import ChatBot, Contact
 from repository import TenantRepository
+
+# What Meta calls is its own service, apart from the management API.
+META = TestClient(webhook_module.app)
 
 APP_SECRET = os.environ["FACEBOOK_APP_SECRET"]
 
@@ -61,7 +64,7 @@ def bot(owner):
 def notify(bot_id, payload):
     body = json.dumps(payload).encode()
     signature = "sha256=" + hmac.new(APP_SECRET.encode(), body, hashlib.sha256).hexdigest()
-    return TestClient(app_module.app).post(f"/chat/{bot_id}", content=body,
+    return META.post(f"/chat/{bot_id}", content=body,
                                            headers={"content-type": "application/json",
                                                     "X-Hub-Signature-256": signature})
 
