@@ -21,6 +21,24 @@ datos y PRD en `approved`.
 | Datos clasificados | [Clasificación de datos](../../docs/00-project/data-classification.md), con roles GDPR, inventario y retención |
 | Charter y glosario | [Charter](../../docs/00-project/charter.md) con `mindmap`; [glosario](../../docs/00-project/glossary.md) |
 
+## Refactor de la topología de workers (2026-10-18): en revisión
+
+El refactor reabre los requisitos como cambios sobre esta línea base
+([plan](../../docs/00-project/plan-topologia-de-workers.md), paso 1). Las casillas de arriba son las del cierre del
+2026-10-12; las del refactor se marcan cuando se aprueben sus cambios.
+
+| Criterio | Evidencia del refactor |
+|---|---|
+| Requisitos funcionales | PRD 0.3.0: RF13 (Instagram), RF14 (historial exportable) y RF15 (contexto del coordinador); RNF01 con cifra, RNF08 (orden por conversación) y RNF09 (traza) |
+| Seguridad mapeada a ASVS | RS19 (trazas y bus sin datos personales de más), RS20 (un usuario por servicio en el bus) y RS21 (una credencial por worker) |
+| Escenarios de abuso | AB17–AB22: duplicados, desorden, datos en trazas o bus, sujetos ajenos, credencial de worker y fuga de historial o contexto; escenarios positivos ES07–ES09 |
+| Threat assessment | DFD del objetivo con las fronteras nuevas, y cuatro amenazas más en el DREAD |
+| Datos clasificados | IGSID, contenido en historial y contexto, trazas y credenciales del bus |
+| Charter y glosario | Instagram y el historial en el alcance; términos nuevos (bus, sujeto, clave de orden, worker de ingesta, IGSID, historial, contexto, traza) |
+
+Por decidir para aprobarlo: la retención del historial, los adjuntos y cómo se conecta Instagram (sección
+"Decisiones" del PRD).
+
 ## Qué significa este cierre
 
 El gate aprueba los **requisitos**, no su cumplimiento. El gateway de hoy sigue siendo de un solo operador: de los

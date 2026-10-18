@@ -1,10 +1,10 @@
 # PRD — MVP del gateway BaaS de mensajería
 
-* **Estado:** approved (Gate 0, 2026-10-12)
-* **Fecha:** 2026-10-12
+* **Estado:** review (cambios del refactor sobre la línea base aprobada en el Gate 0)
+* **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 01-requirements
-* **Versión:** 0.2.0
+* **Versión:** 0.3.0
 * **Gate:** 0
 * **Feature ID:** BAAS-001
 * **Nivel ASVS objetivo:** L2
@@ -24,6 +24,23 @@ ya está construido y lo que el modelo BaaS y el GDPR exigen y todavía falta. C
 - **Pendiente** — no existe.
 
 "Construido" no significa probado en producción: hoy todas las pruebas son unitarias y contra dobles.
+
+### Cambios del refactor (2026-10-18)
+
+El gateway pasa a ser una pieza de la topología de ocho workers del [plan](../00-project/plan-topologia-de-workers.md). Las decisiones del 2026-10-18 cambian
+los requisitos así:
+
+| Decisión | Qué cambia aquí |
+|---|---|
+| D1: NATS JetStream en lugar de RabbitMQ | El mensaje va a un bus de eventos con un sujeto por canal; Hermod se retira al final. RS20 |
+| D2: la identificación del contacto sale del webhook | El webhook solo comprueba la firma y publica; un worker de ingesta identifica al contacto. RNF01 pasa a tener cifra |
+| D3: una credencial por worker | RS21 |
+| D4: Instagram | RF13 |
+| D6: historial exportable y contexto de 24 horas | RF14, RF15 y RNF05 ([ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)) |
+| El webhook y la gestión, por separado (RD-05) | Hecho: [ADR-0018](../00-project/adr/0018-webhook-y-gestion-por-separado.md) |
+
+Se añaden además el orden por conversación (RNF08) y la traza de cada mensaje (RNF09, RS19), y seis escenarios de
+abuso (AB17–AB22). Lo demás sigue como se aprobó el 2026-10-12.
 
 ## Objetivos / No-objetivos
 
@@ -47,21 +64,21 @@ C4Context
 
     Person(cliente, "Cliente", "Empresa duena de sus bots. Responsable del tratamiento")
     Person(operador, "Operador", "Opera la plataforma. Encargado del tratamiento")
-    Person_Ext(usuario, "Usuario final", "Escribe al bot por WhatsApp o Messenger. Interesado")
+    Person_Ext(usuario, "Usuario final", "Escribe al bot por WhatsApp, Messenger o Instagram. Interesado")
     Person_Ext(atacante, "Atacante en internet", "Envia notificaciones falsas y prueba credenciales")
 
     Enterprise_Boundary(plataforma, "Plataforma (trust boundary: red privada del servidor)") {
-        System(gateway, "Gateway BaaS", "Verifica a Meta, identifica contactos y encola mensajes")
-        SystemQueue(hermod, "Hermod", "RabbitMQ: cola llm")
+        System(gateway, "Gateway BaaS", "Verifica a Meta, identifica contactos, publica cada mensaje y guarda el historial")
+        SystemQueue(hermod, "Bus de eventos", "NATS JetStream: un sujeto por canal")
     }
 
-    System_Ext(meta, "Meta", "WhatsApp Business y Messenger: Graph API y webhooks")
-    System_Ext(motor, "ms-python-metamsghandler", "Motor de respuestas: consume la cola, aplica guardrails y clasifica la intencion")
-    SystemDb_Ext(atlas, "MongoDB Atlas", "Bots, contactos, reglas e intents")
+    System_Ext(meta, "Meta", "WhatsApp Business, Messenger e Instagram: Graph API y webhooks")
+    System_Ext(motor, "ms-python-metamsghandler", "Motor de respuestas: sus workers consumen el bus, mantienen el contexto y responden")
+    SystemDb_Ext(atlas, "MongoDB Atlas", "Bots, contactos, reglas, intents e historial")
     System_Ext(cf, "Cloudflare", "Tunel y TLS del hostname publico")
     System_Ext(cd, "GitHub y receptor", "Build de la imagen y despliegue continuo")
 
-    Rel(usuario, meta, "Escribe al bot", "WhatsApp / Messenger")
+    Rel(usuario, meta, "Escribe al bot", "WhatsApp / Messenger / Instagram")
     Rel(meta, cf, "Entrega notificaciones firmadas", "HTTPS")
     Rel(atacante, cf, "Ataca el webhook", "HTTPS")
     Rel(cf, gateway, "Entrega solo /chat/uuid", "Tunel saliente")
@@ -70,8 +87,8 @@ C4Context
     Rel(gateway, atlas, "Lee y escribe", "TLS")
     Rel(gateway, meta, "Consulta perfiles de contacto", "HTTPS, token del cliente")
     Rel(motor, meta, "Envia las respuestas", "HTTPS, token del cliente")
-    Rel(gateway, hermod, "Publica cada mensaje", "AMQP con confirmacion")
-    Rel(motor, hermod, "Consume la cola llm y publica el resultado", "AMQP")
+    Rel(gateway, hermod, "Publica cada mensaje", "NATS, con acuse")
+    Rel(motor, hermod, "Consume y publica las respuestas enviadas", "NATS")
     Rel(motor, gateway, "Pide la configuracion del bot por bot_id", "API autenticada con JWE")
     Rel(cd, gateway, "Despliega", "Webhook firmado")
 
@@ -79,10 +96,10 @@ C4Context
     UpdateElementStyle(motor, $borderColor="#b30000", $fontColor="#b30000")
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-*Eje estructura · fase 01 · Gate 0. El diagrama muestra el objetivo, y dos de sus relaciones no existen hoy: la
-gestión solo es alcanzable desde la red privada, aunque cada cliente ya entra con su propio token, y el motor de respuestas (en
-rojo) está en implementación: no está desplegado, no lee las reglas ni las herramientas del bot y todavía no envía
-respuestas.*
+*Eje estructura · fase 01 · Gate 0, actualizado con el refactor el 2026-10-18. Es el objetivo: hoy el bus es todavía
+Hermod (RabbitMQ, cola `llm`), Instagram y el historial no existen, la gestión solo es alcanzable desde la red privada
+y el motor de respuestas (en rojo) está en implementación: no está desplegado ni partido en workers, no lee las
+reglas ni las herramientas del bot y todavía no envía respuestas.*
 
 ## Usuarios y escenarios
 
@@ -119,6 +136,9 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | ES04 | El motor de respuestas pide las reglas y las herramientas del bot, genera la respuesta o ejecuta la acción que pide el usuario, y envía la respuesta por el mismo canal. |
 | ES05 | El cliente exporta o borra los datos de un contacto que ha ejercido sus derechos. |
 | ES06 | RabbitMQ no está disponible; el gateway responde `503`, Meta reintenta y el mensaje llega cuando vuelve. |
+| ES07 | Un usuario final escribe por Instagram a la cuenta profesional del cliente; el mensaje sigue el mismo camino que los de los otros dos canales. |
+| ES08 | Un usuario escribe dos mensajes seguidos; el bot responde a los dos en orden y recordando lo que se dijo antes, en la misma conversación. |
+| ES09 | El cliente exporta la conversación de un contacto con el resto de sus datos. |
 
 ### Escenarios negativos / abuso (requerido por Gate 0)
 
@@ -140,6 +160,12 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | AB14 | Un interesado pide la supresión y sus datos siguen en la cola, los logs o los respaldos | RF09, RNF05 | Parcial: el contacto se borra de la base y la cola caduca a las 24 horas; en los respaldos desaparece al caducar, a los 365 días como mucho (ADR-0014), con la retención aún sin configurar en Atlas; los logs ya no llevan datos personales. Queda lo que guarde el motor |
 | AB15 | El motor de respuestas, o quien robe su credencial, obtiene los tokens de Meta de todos los clientes | RS06 | Construido en el gateway: el motor tiene una clave por cliente, que solo alcanza los bots de ese cliente |
 | AB16 | Alguien captura un JWE de autenticación válido y lo reenvía, o fabrica uno con la clave pública del gateway | RS02 | Construido |
+| AB17 | Meta entrega la misma notificación dos veces (reintenta 7 días en WhatsApp y 36 horas en Instagram) y el bot responde dos veces | RNF04 | Parcial: cada evento lleva el identificador de Meta; falta que alguien deduplique |
+| AB18 | Dos mensajes seguidos de la misma persona se procesan en paralelo y se responden en orden inverso, o con el contexto del otro | RNF08 | Pendiente |
+| AB19 | Un dato personal viaja en un atributo de una traza, o en un evento del bus sin protección, y lo lee quien tiene acceso al colector o al bus | RS19 | Pendiente |
+| AB20 | Un servicio comprometido publica en un sujeto ajeno, por ejemplo mensajes como si vinieran del webhook, o lee uno que no le toca | RS20 | Pendiente |
+| AB21 | La credencial robada de un worker alcanza rutas que ese worker no necesita, por ejemplo los tokens de Meta desde el clasificador | RS21 | Parcial: el motor tiene una clave por cliente, no por worker (ADR-0016) |
+| AB22 | La conversación exportada, o el contexto de una conversación, llega a otro cliente o a otra conversación | RS01, RF14 | Pendiente |
 
 ## Requisitos funcionales
 
@@ -157,18 +183,23 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | RF10 | La baja de un bot o de un cliente borra todos sus datos (GDPR, art. 28.3.g) | Parcial: `DELETE /bot/{bot_id}` y `DELETE /clients/{client_id}` borran todo lo guardado en la base. En los respaldos, la supresión se cumple al caducar, a los 365 días como mucho ([ADR-0014](../00-project/adr/0014-supresion-en-respaldos-por-caducidad.md)), y un registro de supresiones permite repetirlas tras una restauración; falta configurar y comprobar esa retención en Atlas | `tests/unit/test_export_and_delete.py` |
 | RF11 | Fusionar a `main` construye la imagen y la despliega, con rollback si la sonda de vida falla | Parcial: construido, sin ejercitar en el servidor | Prueba de despliegue con la sonda rota a propósito |
 | RF12 | Todo mensaje publicado en la cola `llm`, de Messenger o de WhatsApp, lo procesa el motor de respuestas y conserva el bot al que iba dirigido | Parcial: el motor acepta los de WhatsApp, rechaza los de Messenger y descarta el bot | Comprobado el 2026-10-12 pasando al parser del motor los sobres versión 1 que el gateway publica en un RabbitMQ real: lee los de WhatsApp, rechaza los de Messenger y no conserva el bot. El lado del gateway lo fija `tests/contract/test_queue_contract.py` |
+| RF13 | El gateway recibe notificaciones de Instagram (`object=instagram`), firmadas igual que las otras, identifica al contacto por su IGSID y publica cada mensaje como los de los otros dos canales (D4) | Pendiente (I8 del plan) | Pruebas del canal a través del servicio del webhook |
+| RF14 | El historial de cada conversación, mensajes entrantes y respuestas enviadas, se guarda cifrado con la clave del cliente, se exporta con el contacto y se borra con él (D6, [ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)) | Pendiente | — |
+| RF15 | El coordinador del motor obtiene del gateway las 10 últimas vueltas de una conversación cuando su contexto no está, y recibe aviso de cada supresión para borrar el contexto que guarda (D6, [ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)) | Pendiente | — |
 
 ## Requisitos no funcionales
 
 | ID | Requisito | Estado |
 |---|---|---|
-| RNF01 | El webhook responde a Meta dentro del plazo que evita reintentos. No se compromete una cifra hasta medirlo en producción | Sin medir en producción. Medido el 2026-10-18 desde la red de midgard: 60 ms de ida y vuelta a Atlas (mediana; p95 64 ms). El webhook hace 2 viajes con un contacto conocido y 5 con uno nuevo, y bloquea el proceso mientras espera (RD-05) |
+| RNF01 | El webhook responde a Meta con una mediana de 250 ms o menos y menos de un 1 % de las respuestas por encima de 1 s, en los tres canales. Es un objetivo propio: la cifra viene de la guía de 360dialog, un proveedor oficial de WhatsApp, y la documentación actual de Meta no publica ninguna; solo dice que reintenta durante 7 días | Sin medir en producción. Medido el 2026-10-18 desde la red de midgard: 60 ms de ida y vuelta a Atlas. Con un contacto conocido, el webhook hace 2 viajes (~120 ms de red); con uno nuevo, 5. El plan lo deja en una publicación al bus (R1) |
 | RNF02 | Una notificación recibe `200` solo cuando RabbitMQ ha confirmado el mensaje; si no, `503` | Construido. [ADR-0015](../00-project/adr/0015-que-se-responde-a-meta.md) lo amplía: `503` también si no responden la base de datos o el servicio de claves, y `200` con rastro en el log para lo firmado que no se entiende o no se puede procesar |
-| RNF03 | El gateway no pasa de 512 MB de RAM ni de 1 CPU en el servidor | Construido (tope del compose) |
-| RNF04 | Un mensaje entregado dos veces por Meta, o reenviado por un tercero, no se procesa dos veces | Parcial: el gateway publica en cada sobre el identificador de Meta (`messageId`), el mismo en cada reentrega; el motor todavía no deduplica |
-| RNF05 | Cada dato personal tiene un plazo de retención y se borra al vencer, también en cola, logs y respaldos. Máximos de la plataforma, que cada cliente puede acortar: 24 horas para un mensaje en la cola y 12 meses sin actividad para un contacto. Los respaldos de la base se conservan 365 días como mucho, igual para todos los clientes (ADR-0014) | Parcial: un mensaje caduca en la cola a las 24 horas; contactos y logs no se borran por plazo, y la retención de los respaldos está decidida pero sin configurar ni comprobar en Atlas. Un contacto se puede borrar a petición (RF09) |
+| RNF03 | Cada servicio del gateway tiene un tope de memoria y de CPU en el servidor | Construido (topes del compose): el webhook, 384 MB y 1 CPU; la gestión, 256 MB y media CPU ([ADR-0018](../00-project/adr/0018-webhook-y-gestion-por-separado.md)) |
+| RNF04 | Un mensaje entregado dos veces por Meta, o reenviado por un tercero, no se procesa dos veces, durante todo el plazo en que Meta reintenta: 7 días en WhatsApp, 36 horas en Instagram | Parcial: cada sobre lleva el identificador de Meta (`messageId`), el mismo en cada reentrega; nadie deduplica todavía. La ventana de deduplicación de NATS es de minutos y no basta |
+| RNF05 | Cada dato personal tiene un plazo de retención y se borra al vencer, también en cola, bus, logs y respaldos. Máximos de la plataforma, que cada cliente puede acortar: 24 horas para un mensaje en la cola o el bus, 12 meses sin actividad para un contacto, `<TODO: confirmar>` para el historial (se propone 12 meses por mensaje) y 24 horas desde el último mensaje para el contexto del coordinador. Los respaldos de la base se conservan 365 días como mucho, igual para todos los clientes (ADR-0014) | Parcial: un mensaje caduca en la cola a las 24 horas; contactos y logs no se borran por plazo, y la retención de los respaldos está decidida pero sin configurar ni comprobar en Atlas. Un contacto se puede borrar a petición (RF09). Historial y contexto no existen ([ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)) |
 | RNF06 | El servicio arranca solo tras un apagón del servidor | Pendiente: no hay unidad de arranque para el gateway |
 | RNF07 | Disponibilidad del webhook: sin cifra comprometida mientras el servidor no tenga UPS. Se mide desde el primer despliegue | Sin medir |
+| RNF08 | Los mensajes de una misma conversación (bot y remitente) se procesan en el orden en que llegaron, también con varios consumidores por etapa: cada evento lleva una clave de orden y el bus la respeta | Pendiente (R3 del plan) |
+| RNF09 | Cada mensaje se puede seguir de un servicio a otro: cada evento lleva el contexto de traza W3C (`traceparent`) y cada servicio emite sus spans con OpenTelemetry | Pendiente (R4 del plan) |
 
 ## Trazabilidad de requisitos
 
@@ -210,6 +241,18 @@ requirementDiagram
       risk: medium
       verifymethod: test
     }
+    requirement RS20 {
+      id: RS20
+      text: Un usuario por servicio en el bus
+      risk: high
+      verifymethod: test
+    }
+    requirement RNF08 {
+      id: RNF08
+      text: Orden por conversacion
+      risk: medium
+      verifymethod: test
+    }
     element FirmaWebhook {
       type: "dependencia get_signed_webhook_bot"
     }
@@ -236,9 +279,18 @@ requirementDiagram
     CifradoPorCliente - satisfies -> RS05
     CifradoPorCliente - satisfies -> RS06
     DerechosDelInteresado - satisfies -> RF09
+    element PermisosPorSujeto {
+      type: "sin construir"
+    }
+    element ClaveDeOrden {
+      type: "sin construir"
+    }
+    PermisosPorSujeto - satisfies -> RS20
+    ClaveDeOrden - satisfies -> RNF08
 ```
-*Eje trazabilidad · fase 01 · Gate 0. Solo los requisitos de riesgo alto y RF09. Los tres elementos "sin construir"
-no tienen todavía ni componente ni prueba que los verifique.*
+*Eje trazabilidad · fase 01 · Gate 0. Los requisitos de riesgo alto, RF09 y, desde el refactor, RS20 y RNF08. Los
+elementos "sin construir" no tienen todavía ni componente ni prueba que los verifique; tres de ellos (autorización,
+cifrado y derechos) se construyeron en el Gate 2 y el diagrama no se ha vuelto a trazar.*
 
 ## Requisitos de seguridad (mapeados a OWASP ASVS)
 
@@ -265,6 +317,9 @@ OWASP Top 10 en su edición 2025.
 | RS16 | El texto del usuario final se trata como entrada no confiable para el LLM, y las llamadas a API de los intents solo pueden ir a destinos permitidos | Parcial: según su documentación, el motor filtra la entrada con guardrails y trata la salida del LLM como no confiable; la ejecución de acciones no está construida, así que el control de destinos no existe | V5.2, V12.6 | A05, A06 |
 | RS17 | El contenedor corre sin privilegios y solo puede escribir donde necesita | Construido | V14.1 | A02 |
 | RS18 | El `bot_id` identifica pero no autoriza: ninguna configuración de un bot se entrega solo por conocerlo | Construido: toda la configuración exige el token del cliente dueño del bot; las únicas rutas que funcionan solo con el `bot_id` son las del webhook, que se autentican con la firma y el token de verificación de Meta | V4.2 | A01 |
+| RS19 | Ni las trazas ni los eventos del bus llevan más datos personales que los necesarios: ningún atributo de un span contiene números, texto de mensajes ni nada que mande el llamante, como en los logs (RS07); el contenido de los mensajes en el bus se protege como en la cola (RS08) | Pendiente | V7.1, V8.3 | A09 |
+| RS20 | Cada servicio entra al bus con su propio usuario, por TLS, y solo publica y consume en sus sujetos | Pendiente (R8 del plan) | V4.1, V9.2 | A01 |
+| RS21 | Cada worker del motor tiene su propia credencial, que dice qué rutas de la API de gestión alcanza: el notificador, los tokens de Meta; el clasificador y el coordinador, reglas y herramientas (D3) | Parcial: una clave del motor por cliente que alcanza las cuatro rutas del motor ([ADR-0016](../00-project/adr/0016-credencial-del-motor-por-cliente.md)) | V4.1, V4.2 | A01 |
 
 ## Threat assessment inicial
 
@@ -294,6 +349,35 @@ no está desplegado, y motor ↔ LLM, donde el contenido de los mensajes puede s
 discontinuas son flujos que el diseño necesita y que hoy no existen. La respuesta al usuario la envía el motor,
 no el gateway ([ADR-0002](../00-project/adr/0002-el-motor-entrega-las-respuestas.md)).*
 
+DFD del objetivo del refactor, con los límites de confianza nuevos:
+
+```mermaid
+flowchart LR
+    U([Usuario final]) -->|"WhatsApp, Messenger, Instagram"| META([Meta])
+    ATK([Atacante]) -->|HTTPS| CF
+    META -->|"notificacion firmada"| CF([Cloudflare edge])
+    CF -->|"tunel: solo el webhook"| WH
+    subgraph SRV [Trust boundary: servidor midgard]
+      WH[Webhook] -->|"evento verificado, usuario propio"| BUS[(NATS JetStream)]
+      BUS --> ING[Worker de ingesta]
+      ING -->|"mensaje identificado, clave de orden"| BUS
+      GES[API de gestion]
+      KV[(KV contexto, 24 h)]
+    end
+    ING -->|"TLS: contacto e historial cifrados"| DB[(MongoDB Atlas)]
+    GES -->|TLS| DB
+    BUS --> MOTOR([Workers del motor])
+    MOTOR -->|"contexto cifrado"| KV
+    MOTOR -->|"reglas, herramientas, tokens: una credencial por worker"| GES
+    MOTOR -->|"texto del mensaje"| LLM([LLM])
+    MOTOR -->|"respuesta"| META
+    WH -.->|"spans sin datos personales"| OTEL([Colector de trazas])
+    MOTOR -.-> OTEL
+```
+*Eje comportamiento · DFD del refactor · Gate 0, 2026-10-18. Fronteras nuevas: cada servicio ↔ el bus, con su
+usuario y sus sujetos (RS20); motor ↔ bucket de contexto (ADR-0017); y los servicios ↔ el colector de trazas (RS19).
+El historial sale del servidor hacia Atlas como el resto de los datos personales.*
+
 ```mermaid
 quadrantChart
     title DREAD inicial - Gateway BaaS
@@ -314,10 +398,15 @@ quadrantChart
     Supresion incompleta: [0.5, 0.65]
     Dependencia vulnerable: [0.5, 0.7]
     Mensaje perdido sin aviso: [0.1, 0.6]
+    Evento duplicado o fuera de orden: [0.7, 0.45]
+    Datos personales en trazas o bus: [0.5, 0.6]
+    Sujeto ajeno en el bus: [0.3, 0.7]
+    Credencial de worker con rutas de mas: [0.4, 0.75]
 ```
 *Eje trazabilidad · DREAD inicial · Gate 0. "Acceso cruzado" es probable porque el control no existe: basta un
 segundo cliente. "Notificación falsa" y "Mensaje perdido" quedan a la izquierda porque sus controles ya están
-construidos. El análisis completo, con STRIDE, es entregable del Gate 1.*
+construidos. El análisis completo, con STRIDE, es entregable del Gate 1. Los cuatro últimos puntos los añade el
+refactor: duplicados y desorden son casi seguros con ocho workers asíncronos y reintentos de días.*
 
 ## Métricas de éxito
 
@@ -331,7 +420,10 @@ control construido y una prueba que lo verifica.
   intención; le falta generar y enviar la respuesta, que es responsabilidad suya ([ADR-0002](../00-project/adr/0002-el-motor-entrega-las-respuestas.md)), y no está
   desplegado. Dónde correrán él y su LLM está propuesto y sin aceptar en sus ADR-0006 y ADR-0007. Si el LLM acaba
   en un servicio gestionado, el contenido de los mensajes sale a un tercero.
-- **Meta.** El protocolo del webhook y los términos de uso de WhatsApp Business los fija Meta.
+- **Meta.** El protocolo del webhook y los términos de uso de WhatsApp Business los fija Meta. Instagram exige
+  además verificación del negocio, la app en modo *Live* y acceso avanzado a los permisos de mensajería.
+- **NATS JetStream.** Un servicio nuevo en midgard (I0 del plan), con su placement, sus usuarios y su
+  retención, que se deciden en el Gate 1.
 - **MongoDB Atlas.** Los datos personales viven fuera del servidor; su región y sus respaldos están sin confirmar.
 - **Servidor sin UPS.** Limita la disponibilidad que se puede prometer (RNF07).
 
@@ -359,6 +451,26 @@ control construido y una prueba que lo verifica.
 | Custodia de la clave de cifrado de datos | Una clave por cliente, generada y custodiada por la plataforma, con índice ciego para buscar por número | [ADR-0010](../00-project/adr/0010-clave-de-cifrado-de-datos-por-cliente.md), RS05, RS06 |
 | Contrato de la cola | El sobre del gateway, versión 1, para los dos canales; deduplicación en el motor | [ADR-0011](../00-project/adr/0011-contrato-de-la-cola.md), RF12, RNF04 |
 | Aislamiento entre clientes | `clientId` en cada documento y capa de repositorio obligatoria | [ADR-0012](../00-project/adr/0012-aislamiento-por-cliente-en-la-capa-de-datos.md), RS01 |
+
+### Tomadas el 2026-10-18 para el refactor (Jeremi Alcala)
+
+| Decisión | Resultado | Dónde queda |
+|---|---|---|
+| Bus de eventos (D1) | NATS JetStream en lugar de RabbitMQ | RS20; ADR en el Gate 1 |
+| Identificación del contacto (D2) | Fuera del webhook, en un worker de ingesta | RNF01; ADR-0006 y ADR-0015 se reescriben en el Gate 1 |
+| Credenciales del motor (D3) | Una por worker | RS21; ADR-0016 se amplía en el Gate 1 |
+| Instagram (D4) | Entra en el alcance | RF13 |
+| Historial y contexto (D6) | El historial se exporta; el contexto son 10 vueltas más un resumen y caduca a las 24 horas | RF14, RF15, RNF05, [ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md) (propuesta) |
+| Plazo del webhook | 250 ms de mediana y menos de un 1 % por encima de 1 s | RNF01 |
+| Webhook y gestión | Dos servicios | [ADR-0018](../00-project/adr/0018-webhook-y-gestion-por-separado.md) |
+
+### Por decidir para cerrar este Gate 0
+
+- **Retención del historial:** se propone 12 meses por mensaje, que cada cliente puede acortar (RNF05).
+- **Adjuntos en el historial:** se propone guardar solo su tipo, no la URL de Meta.
+- **Cómo se conecta Instagram:** con *Instagram Login* (`graph.instagram.com` y token de usuario de Instagram) o con
+  *Facebook Login* a través de una página (`graph.facebook.com` y token de página). Cambia qué token carga el
+  cliente y qué permisos pide la app.
 
 ### Datos por aportar
 
