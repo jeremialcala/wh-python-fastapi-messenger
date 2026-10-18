@@ -21,7 +21,7 @@ Los demás quedan a tu decisión.
 
 | # | Gravedad | Hallazgo | Estado |
 |---|---|---|---|
-| RD-01 | Alta | **Los gates no son obligatorios.** Ni `develop` ni `main` exigen que pasen las pruebas, gitleaks, `pip-audit` o CodeQL para fusionar. `develop` admite push directo y forzado, y la publicación de la imagen solo espera a las pruebas: un hallazgo alto de CodeQL o un secreto filtrado llegan igual a producción | **Decidido el 2026-10-18: asegurarlo.** Reglas preparadas para `main`, `develop` y las etiquetas `v*`: pull request obligatorio, las cinco comprobaciones (pruebas, imagen, gitleaks, `pip-audit`, CodeQL), sin push forzado ni borrado, y etiquetas de versión que no se mueven ni se borran. **Falta aplicarlas**: cambiar la configuración de GitHub lo hace Jeremi |
+| RD-01 | Alta | **Los gates no son obligatorios.** Ni `develop` ni `main` exigen que pasen las pruebas, gitleaks, `pip-audit` o CodeQL para fusionar. `develop` admite push directo y forzado, y la publicación de la imagen solo espera a las pruebas: un hallazgo alto de CodeQL o un secreto filtrado llegan igual a producción | **Decidido el 2026-10-18: asegurarlo.** Reglas preparadas para `main`, `develop` y las etiquetas `v*`: pull request obligatorio, las cinco comprobaciones (pruebas, imagen, gitleaks, `pip-audit`, CodeQL), sin push forzado ni borrado, y etiquetas de versión que no se mueven ni se borran. **Aplicadas el 2026-10-18** por Jeremi: `Protect-MAIN` (seis comprobaciones, con la de GitFlow), `Protect-DEVELOP` (cinco) y `Protect-TAGS` |
 | RD-02 | Media | **Un cambio de claves simultáneo deshacía una revocación.** Añadir y quitar una clave leía la lista y la guardaba entera: si el operador revocaba una clave mientras otra petición añadía una, la revocada volvía a valer. La misma carrera recreaba un cliente ya borrado | **Corregido**: el alta y la baja son una sola actualización condicionada en la base |
 | RD-03 | Media | **El perfil de Messenger se rellenaba con datos reales tuyos.** Lo que la Graph API no devolvía tomaba tu nombre, tu foto y tu identificador de Messenger, se guardaba como dato de esa persona y salía en el sobre de la cola y en su exportación. El identificador del contacto, además, salía de la respuesta de la Graph API y no del mensaje | **Corregido**: lo que falta queda vacío y el identificador sale del remitente. También se quitan tu identificador y tu nombre de otros DTO que no están en el camino del webhook |
 | RD-04 | Media | **Una clave robada sobrevivía a la revocación documentada.** Con una clave de un cliente se puede dar de alta otra y quitar la legítima; el procedimiento decía que bastaba con revocar la comprometida, y el alta se escribía en el log a un nivel que producción no guarda | **Corregido** en parte: cada alta de clave deja un aviso con su `kid`, y cada baja otro, y el procedimiento de `autenticacion.md` pide quitar todas las que el cliente no reconozca. **Decidido el 2026-10-18: la firma de la clave nueva.** `POST /keys` exige una prueba que firma la clave que se añade, ligada al token de la misma petición. Impide registrar una clave con la que nadie puede firmar; no impide que quien robó una clave añada una suya. Contra eso queda la revocación por el operador |
@@ -69,12 +69,11 @@ Los demás quedan a tu decisión.
 
 ## La parte humana
 
-La revisión dual pide además la tuya. Decisiones del 2026-10-18: asegurar el repositorio (RD-01), la firma de la
+La revisión dual pide además la tuya. Decisiones del 2026-10-18: asegurar el repositorio (RD-01, ya aplicado), la firma de la
 clave nueva para añadirla (RD-04) y aceptar RD-14 y RD-19.
 
 Para cerrar el Gate 2 y cortar la 0.3.0 faltan:
 
-- **RD-01:** aplicar en GitHub las reglas preparadas.
 - **RD-05:** decidir si la API de gestión tiene su incremento propio o espera al refactor.
 - **RD-16:** el valor de `ENVIRONMENT` en midgard.
 - La revisión humana del código.
