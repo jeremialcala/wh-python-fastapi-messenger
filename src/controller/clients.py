@@ -105,8 +105,8 @@ async def ctr_remove_signing_key(client_id, kid: str, keep_one: bool) -> Respons
         raise _not_found() from None
     except Conflict as e:
         raise _conflict(e) from None
-    # The kid is the one that was stored: an unknown one did not get this far.
-    log.warning(f"Signing key {kid} removed from client {client.uuid}")
+    # Without the kid: it is what the caller sent. Which keys are left is in the answer.
+    log.warning(f"Signing key removed from client {client.uuid}")
     return ResponseData(data=client_info(client))
 
 
@@ -128,7 +128,7 @@ async def ctr_remove_service_key(client_id, kid: str) -> ResponseData:
         client = remove_service_key(client_id, kid)
     except NotFound:
         raise _not_found() from None
-    log.warning(f"Service key {kid} removed from client {client.uuid}")
+    log.warning(f"Service key removed from client {client.uuid}")
     return ResponseData(data=client_info(client))
 
 

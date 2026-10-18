@@ -52,7 +52,8 @@ def run(apply: bool) -> dict:
                     # meantime would bring back part of it, without the client it belonged to.
                     document.save(save_condition={"clientId": document.clientId})
                 except SaveConditionError:
-                    pass
+                    # Deleted since it was read: there is nothing left to encrypt.
+                    continue
         report[collection.__name__] = {"in clear": pending, "without a client": without_client}
     return report
 

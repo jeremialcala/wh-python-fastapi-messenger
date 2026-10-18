@@ -161,7 +161,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ### Seguridad
 - Un POST al webhook sin nada con forma de firma recibe `403` sin abrir los secretos del bot (RD-09).
 - Un token solo se acepta con el JWT en forma compacta, y el emisor firmado tiene que ser el del token (RD-12).
-- Cada alta y cada baja de una clave de cliente deja un aviso en el log con su `kid`, y el procedimiento de
+- Cada alta de una clave de cliente deja un aviso en el log con su `kid`, y cada baja otro; el procedimiento de
   revocación pide quitar todas las claves que el cliente no reconozca (RD-04).
 - `pip-audit` audita también el lock que instala la imagen, y el `.dockerignore` excluye los secretos en cualquier
   directorio (RD-06, RD-17).

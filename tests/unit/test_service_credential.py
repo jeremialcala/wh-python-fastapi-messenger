@@ -452,4 +452,4 @@ def test_letting_the_engine_in_and_out_leaves_a_trace_that_production_keeps(http
 
     kept = [record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING]
     assert kept == [f"Service key {engine.kid} added to client {acme.client_id}",
-                    f"Service key {engine.kid} removed from client {acme.client_id}"]
+                    f"Service key removed from client {acme.client_id}"]

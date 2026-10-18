@@ -11,7 +11,8 @@ from uuid import uuid4
 import pytest
 
 import crypto.key_service as key_service
-from crypto.key_service import KeyServiceUnavailable, OpenBaoKeyService
+
+KeyServiceUnavailable, OpenBaoKeyService = key_service.KeyServiceUnavailable, key_service.OpenBaoKeyService
 
 KEY = base64.b64encode(b"k" * 32).decode()
 LOGIN = {"auth": {"client_token": "token", "lease_duration": 3600}}
