@@ -209,8 +209,9 @@ class TenantRepository:
                 if intent.status != Status.DIS.value]
 
     def get_intent(self, bot_id, intent_id) -> Intent:
+        """A deleted intent is not found, as it is not listed: it is kept, disabled, but nothing reaches it."""
         intent = self._own(Intent, botId=self.get_bot(bot_id).uuid, uuid=as_uuid(intent_id)).first()
-        if intent is None:
+        if intent is None or intent.status == Status.DIS.value:
             raise NotFound(intent_id)
         return intent
 

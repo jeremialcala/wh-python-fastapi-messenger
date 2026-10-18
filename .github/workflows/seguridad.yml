@@ -55,11 +55,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Se audita el LOCK, que es exactamente lo que instalan el CI y la imagen. El de desarrollo incluye al de
-      # runtime, así que una pasada cubre los dos. `--strict` exige que todo se haya podido auditar.
+      # Se auditan los dos LOCKS: el de runtime es exactamente lo que instala la imagen, y el de desarrollo lo que
+      # instala el CI. Nada obliga a que el de desarrollo fije las mismas versiones que el de runtime, así que
+      # auditar solo uno dejaba pasar una versión vulnerable en el otro. `--strict` exige que todo se haya podido
+      # auditar.
       - name: Auditar el árbol fijado
         run: |
           pip install --quiet pip-audit
+          pip-audit --progress-spinner off --requirement requirements.lock --no-deps --strict
           pip-audit --progress-spinner off --requirement requirements-dev.lock --no-deps --strict
 
       # Si el lock no fija los mismos paquetes que se declaran, alguien añadió o quitó una dependencia sin

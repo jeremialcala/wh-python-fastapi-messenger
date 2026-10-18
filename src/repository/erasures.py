@@ -87,7 +87,13 @@ def record(kind: str, client_id: UUID, bot_id: UUID | None = None, contacts=()) 
 
 
 def entries() -> tuple:
-    """Everything in the register, oldest first, and how many lines could not be read."""
+    """
+        Everything in the register, oldest first, and how many lines could not be read. A register that is not
+        there is not an empty one: it is read after restoring a backup, and reading it from the wrong place would
+        say there is nothing to delete again.
+    """
+    if _directory is not None and not _directory.is_dir():
+        raise RegisterUnavailable("not found")
     read, unreadable = [], 0
     for path, _ in _files():
         try:

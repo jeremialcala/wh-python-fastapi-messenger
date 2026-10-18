@@ -200,6 +200,9 @@ def test_without_the_key_service_no_token_is_handed_out(http, engine, bot, key_s
 
 
 def test_a_failure_handing_out_the_tokens_says_nothing_of_itself(http, engine, bot, monkeypatch, caplog):
+    # Everything the service writes, down to its debug lines: development and staging keep those.
+    caplog.set_level(logging.DEBUG, logger=app_module.settings.environment)
+
     def fails(*args, **kwargs):
         raise RuntimeError(f"failure-text-marker {SECRETS['facebookToken']}")
 
@@ -288,6 +291,8 @@ def test_every_route_is_either_for_the_engine_or_closed_to_it():
 
 def test_a_client_does_not_get_its_own_tokens_back(http, acme, operator, bot, caplog):
     """They go in through the API and do not come out to whoever loaded them."""
+    # Everything the service writes, down to its debug lines: development and staging keep those.
+    caplog.set_level(logging.DEBUG, logger=app_module.settings.environment)
     for caller in (acme, operator):
         response = http.get(f"/chat/{bot}/tokens", headers=caller.auth)
 
@@ -306,6 +311,8 @@ def test_a_token_of_the_engine_is_valid_once(http, engine, bot):
 # --- A trace of every time ------------------------------------------------------------------------------------------
 
 def test_every_time_the_tokens_are_handed_out_leaves_a_trace_that_production_keeps(http, acme, engine, bot, caplog):
+    # Everything the service writes, down to its debug lines: development and staging keep those.
+    caplog.set_level(logging.DEBUG, logger=app_module.settings.environment)
     http.get(f"/chat/{bot}/tokens", headers=engine.auth)
     http.get(f"/chat/{bot}/tokens", headers=engine.auth)
 
@@ -318,6 +325,8 @@ def test_every_time_the_tokens_are_handed_out_leaves_a_trace_that_production_kee
 
 
 def test_tokens_that_were_not_handed_out_leave_no_such_trace(http, globex, engine, caplog):
+    # Everything the service writes, down to its debug lines: development and staging keep those.
+    caplog.set_level(logging.DEBUG, logger=app_module.settings.environment)
     theirs = new_bot(http, globex)["uuid"]
 
     http.get(f"/chat/{theirs}/tokens", headers=engine.auth)

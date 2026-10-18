@@ -14,6 +14,8 @@
 """
 import sys
 
+from mongoengine.errors import SaveConditionError
+
 from classes import ChatBot, ChatbotPhone, Contact
 from crypto.fields import is_encrypted
 from repository import data_keys
@@ -45,7 +47,13 @@ def run(apply: bool) -> dict:
                     if collection is Contact:
                         document.waIdIndex = cipher.blind_index("Contact.waId", value)
                     setattr(document, field, cipher.encrypt(f"{collection.__name__}.{field}", value))
-                document.save()
+                try:
+                    # It runs while the service does: without the condition, saving a document deleted in the
+                    # meantime would bring back part of it, without the client it belonged to.
+                    document.save(save_condition={"clientId": document.clientId})
+                except SaveConditionError:
+                    # Deleted since it was read: there is nothing left to encrypt.
+                    continue
         report[collection.__name__] = {"in clear": pending, "without a client": without_client}
     return report
 

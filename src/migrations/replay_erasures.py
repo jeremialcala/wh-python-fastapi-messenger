@@ -64,7 +64,10 @@ if __name__ == "__main__":
 
     erasures.configure(Settings().erasures_dir)
     apply = "--apply" in sys.argv[1:]
-    report = run(apply)
+    try:
+        report = run(apply)
+    except erasures.RegisterUnavailable as e:
+        sys.exit(f"The register of erasures cannot be read ({e}): check ERASURES_DIR. Nothing was deleted.")
     for kind in (erasures.CONTACT, erasures.CHATBOT, erasures.CLIENT):
         counts = report[kind]
         done = " -> deleted again" if apply and counts["back"] else ""

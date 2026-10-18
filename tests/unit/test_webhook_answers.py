@@ -156,6 +156,26 @@ def test_without_a_good_signature_the_answer_is_403_and_the_body_is_not_read(htt
     assert read == [] and queue == [] and Contact.objects.count() == 0
 
 
+@pytest.mark.parametrize("header", [None, "", "sha256=body-marker", "sha1=" + "0" * 40, "sha256=" + "A" * 64,
+                                    "sha256=" + "0" * 63], ids=["none", "empty", "not hex", "sha1", "upper case",
+                                                                 "one digit short"])
+def test_without_anything_like_a_signature_the_key_service_is_not_asked(http, bot, queue, key_service, monkeypatch,
+                                                                        header):
+    """Found in the dual review of Gate 2: an unsigned request opened the secrets of the chatbot first."""
+    opened = []
+    monkeypatch.setattr(app_module, "webhook_secrets", lambda bot_: opened.append(bot_))
+    key_service.down = True
+    raw = json.dumps(whatsapp(ANA)).encode()
+    headers = {"content-type": "application/json"}
+    if header is not None:
+        headers["X-Hub-Signature-256"] = header
+
+    response = http.post(f"/chat/{bot}", content=raw, headers=headers)
+
+    assert response.status_code == 403
+    assert opened == [] and queue == []
+
+
 # --- Signed, and not something the service understands: 200 and a line in the log ----------------------------------
 
 NOT_UNDERSTOOD = {

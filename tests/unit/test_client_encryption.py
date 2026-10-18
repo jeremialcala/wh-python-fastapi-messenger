@@ -538,6 +538,22 @@ def test_the_migration_encrypts_what_was_in_clear_and_everything_keeps_working(h
         "ChatBot": 0, "ChatbotPhone": 0, "Contact": 0}
 
 
+def test_the_migration_does_not_bring_back_what_is_deleted_while_it_runs(legacy, monkeypatch):
+    """Found in the dual review of Gate 2: it saved without a condition, and saving brought a deleted one back."""
+    cipher_for = data_keys.cipher_for
+
+    def deleted_meanwhile(client_id):
+        for collection in (ChatBot, ChatbotPhone, Contact):
+            collection.objects.delete()
+        return cipher_for(client_id)
+
+    monkeypatch.setattr(data_keys, "cipher_for", deleted_meanwhile)
+
+    encrypt_client_data.run(apply=True)
+
+    assert (ChatBot.objects.count(), ChatbotPhone.objects.count(), Contact.objects.count()) == (0, 0, 0)
+
+
 def test_the_migration_leaves_alone_what_has_no_client_and_says_so():
     ChatBot._get_collection().insert_one({"uuid": uuid4(), "name": "Orphan", "role": "r", "description": "d",
                                           "tone": "t", "appSecret": "orphan-secret"})

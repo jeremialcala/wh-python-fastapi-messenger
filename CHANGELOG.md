@@ -8,6 +8,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- La parte de la IA de la revisión dual del Gate 2 (`docs/03-implementation/revision-dual-gate-2.md`): cuatro
+  revisores sobre todo lo que entró desde la 0.2.0, sin hallazgos críticos, uno alto, siete medios y trece bajos.
+  Anotados en el threat model H14 (llamadas que bloquean el proceso) y H15 (gates que no son obligatorios).
 - ADR-0013, aceptado: OpenBao como gestor de secretos y controlador central de claves, desplegado en el servidor
   con el nombre de Andvari. La clave maestra de ADR-0010 vive en su motor Transit, derivada por cliente.
 - Workflow `Seguridad`, con tres gates que rompen el build: fuga de secretos (gitleaks sobre la historia
@@ -120,6 +123,17 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   motor (ADR-0002).
 
 ### Corregido
+- Hallazgos de la revisión dual del Gate 2, cada uno con su prueba:
+  - Añadir una clave mientras se revocaba otra devolvía la revocada, y podía recrear un cliente borrado: el alta y la
+    baja son ahora una sola actualización condicionada (RD-02).
+  - Lo que la Graph API no devolvía de un perfil de Messenger se guardaba con el nombre, la foto y el identificador
+    de una persona real; el identificador del contacto sale ahora del remitente del mensaje (RD-03).
+  - La migración de cifrado devolvía a la base un documento borrado mientras corría (RD-08).
+  - Repetir las supresiones desde un directorio que no existe decía que no había nada que hacer (RD-10).
+  - Un intent borrado se podía leer y modificar (RD-11).
+  - Una respuesta malformada del servicio de claves acababa en `500` y no en `503` (RD-13).
+  - Las pruebas de logs del motor solo veían los avisos, y una de autenticación dependía de lo que tardara la
+    batería (RD-07, RD-18).
 - `metadata` de WhatsApp salía hacia la cola como una lista de pares y no como un objeto, y el motor no podía leer
   el número desde el que responder.
 - De una notificación con varios mensajes no salían todos: con varias entradas, o con varios eventos de Messenger,
@@ -145,6 +159,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   `Content-Length` cuenta bytes y no caracteres, que no coincidían en cuanto había una tilde.
 
 ### Seguridad
+- Un POST al webhook sin nada con forma de firma recibe `403` sin abrir los secretos del bot (RD-09).
+- Un token solo se acepta con el JWT en forma compacta, y el emisor firmado tiene que ser el del token (RD-12).
+- Cada alta de una clave de cliente deja un aviso en el log con su `kid`, y cada baja otro; el procedimiento de
+  revocación pide quitar todas las claves que el cliente no reconozca (RD-04).
+- `pip-audit` audita también el lock que instala la imagen, y el `.dockerignore` excluye los secretos en cualquier
+  directorio (RD-06, RD-17).
 - FastAPI pasa de 0.110.0 a 0.143.0 y Starlette de 0.36.3 a 1.7.0. La versión anterior de Starlette tenía 14
   vulnerabilidades conocidas; con las dependencias nuevas, `pip-audit` no encuentra ninguna.
 - Los valores de ejemplo de los modelos del webhook llevaban números de teléfono reales, uno de ellos también
