@@ -39,6 +39,17 @@ loggers:
         handlers: [console]
         propagate: no
 
+    # What other libraries would write of each request. None of it may reach an output, at any level:
+    # the server's access log writes the address with its query string, where Meta sends the verification
+    # token; the database driver writes each query, with what it searches for; and the HTTP client writes the
+    # address it calls, which for the Graph API carries the page token.
+    uvicorn.access:
+        level: WARNING
+    pymongo:
+        level: WARNING
+    urllib3:
+        level: WARNING
+
 root:
     level: DEBUG
     handlers: [console]

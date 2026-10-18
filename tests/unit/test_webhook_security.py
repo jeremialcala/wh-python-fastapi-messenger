@@ -10,18 +10,15 @@ from uuid import uuid4
 
 import pika
 import pytest
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
-from starlette.responses import Response
 
 import app as app_module
 import controller.amqp_broker as broker
 import controller.messages as messages
-from classes import ChatBot, FacebookRequest
+from classes import FacebookRequest
 from controller import BrokerUnavailable
 from utils import is_valid_signature
 
-ADMIN_API_KEY = os.environ["ADMIN_API_KEY"]
 APP_SECRET = os.environ["FACEBOOK_APP_SECRET"]
 
 BOT_ID = str(uuid4())
@@ -36,6 +33,7 @@ WHATSAPP_PAYLOAD = {
             "field": "messages",
             "value": {
                 "messaging_product": "whatsapp",
+                "metadata": {"display_phone_number": "15550001111", "phone_number_id": "100000000000001"},
                 "contacts": [{"profile": {"name": "Ana"}, "wa_id": "584120000000"}],
                 "messages": [{"from": "584120000000", "id": "wamid.TEST", "type": "text", "text": {"body": "hola"}}],
             },
@@ -58,7 +56,10 @@ def client():
 @pytest.fixture
 def bot(monkeypatch):
     _bot = SimpleNamespace(uuid=BOT_ID, verifyToken=VERIFY_TOKEN, appSecret=None)
-    monkeypatch.setattr(ChatBot, "get_chatbot_by_uuid", AsyncMock(return_value=_bot))
+    monkeypatch.setattr(app_module, "find_webhook_bot", lambda bot_id: _bot)
+    # Read when asked for, not now: the tests change the secrets of the bot after this.
+    monkeypatch.setattr(app_module, "webhook_secrets",
+                        lambda bot: SimpleNamespace(verify_token=bot.verifyToken, app_secret=bot.appSecret))
     return _bot
 
 
@@ -100,8 +101,8 @@ def test_signed_notification_is_processed(client, bot, process):
     {},
     {"X-Hub-Signature-256": sign(BODY, secret="not-the-app-secret")},
     {"X-Hub-Signature-256": sign(b'{"object": "page", "entry": []}')},
-    {"X-API-Key": ADMIN_API_KEY},
-], ids=["unsigned", "wrong secret", "signature of another body", "api key is not a signature"])
+    {"Authorization": "Bearer a-token-is-not-a-signature"},
+], ids=["unsigned", "wrong secret", "signature of another body", "a token is not a signature"])
 def test_notification_without_a_valid_signature_is_rejected(client, bot, process, headers):
     response = client.post(WEBHOOK, content=BODY, headers={**JSON, **headers})
 
@@ -129,9 +130,7 @@ def test_notification_is_rejected_when_no_secret_is_configured(client, bot, proc
     process.assert_not_awaited()
 
 
-def test_notification_for_an_unknown_bot_is_not_found(client, process, monkeypatch):
-    monkeypatch.setattr(ChatBot, "get_chatbot_by_uuid", AsyncMock(side_effect=IndexError))
-
+def test_notification_for_an_unknown_bot_is_not_found(client, process):
     response = client.post(WEBHOOK, content=BODY, headers={**JSON, "X-Hub-Signature-256": sign(BODY)})
 
     assert response.status_code == 404
@@ -185,49 +184,19 @@ def test_verification_never_passes_for_a_bot_without_verify_token(client, bot, t
     assert response.status_code == 403
 
 
-# --- Management endpoints: X-API-Key ---------------------------------------------------------------------------------
+# --- The health check ------------------------------------------------------------------------------------------------
 
-PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/health")}
-ROUTES = {(method, route.path) for route in app_module.app.routes if isinstance(route, APIRoute)
-          for method in route.methods}
-MANAGEMENT = sorted(ROUTES - PUBLIC)
-
-
-def test_the_webhook_and_health_routes_are_the_only_public_ones():
-    assert PUBLIC <= ROUTES
-    assert len(MANAGEMENT) == len(ROUTES) - len(PUBLIC)
-
-
-def test_health_answers_without_key_nor_database(client):
+def test_health_answers_without_token_nor_database(client):
     response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
 
-@pytest.mark.parametrize("headers", [{}, {"X-API-Key": "wrong"}, {"X-API-Key": ADMIN_API_KEY[:-1]}],
-                         ids=["no key", "wrong key", "truncated key"])
-@pytest.mark.parametrize("method,path", MANAGEMENT)
-def test_management_endpoint_requires_the_api_key(client, method, path, headers):
-    url = path.format(bot_id=BOT_ID, intent_id=str(uuid4()))
-
-    assert client.request(method, url, headers=headers, json={}).status_code == 401
-
-
-def test_management_endpoint_opens_with_the_api_key(client, monkeypatch):
-    monkeypatch.setattr(app_module, "ctr_get_chatbot_from_uuid",
-                        AsyncMock(return_value=Response(content="{}", media_type="application/json")))
-
-    response = client.get(f"{WEBHOOK}/info", headers={"X-API-Key": ADMIN_API_KEY})
-
-    assert response.status_code == 200
-
-
 # --- No silent message loss ------------------------------------------------------------------------------------------
 
 @pytest.fixture
 def whatsapp_message(monkeypatch):
-    monkeypatch.setattr(ChatBot, "get_chatbot_by_uuid", AsyncMock(return_value=SimpleNamespace(uuid=BOT_ID)))
     monkeypatch.setattr(messages, "ctr_identify_contact_by_wa_id",
                         AsyncMock(return_value=SimpleNamespace(firstName="Ana", waId="584120000000")))
     return FacebookRequest(**WHATSAPP_PAYLOAD)
@@ -237,7 +206,7 @@ def test_processing_waits_for_the_broker(whatsapp_message, monkeypatch):
     send = AsyncMock()
     monkeypatch.setattr(messages, "send_message_to_queue", send)
 
-    asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot_info=BOT_ID))
+    asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot=SimpleNamespace(uuid=BOT_ID, clientId=BOT_ID)))
 
     send.assert_awaited_once()
     assert send.await_args.kwargs["queue"] == "llm"
@@ -247,7 +216,7 @@ def test_processing_does_not_swallow_a_broker_failure(whatsapp_message, monkeypa
     monkeypatch.setattr(messages, "send_message_to_queue", AsyncMock(side_effect=BrokerUnavailable("llm")))
 
     with pytest.raises(BrokerUnavailable):
-        asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot_info=BOT_ID))
+        asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot=SimpleNamespace(uuid=BOT_ID, clientId=BOT_ID)))
 
 
 def publish(monkeypatch, connection):
@@ -265,6 +234,15 @@ def test_publish_is_confirmed_by_the_broker(monkeypatch):
     channel.confirm_delivery.assert_called_once()
     assert channel.basic_publish.call_args.kwargs["mandatory"] is True
     connection.return_value.close.assert_called_once()
+
+
+def test_a_published_message_is_persistent_and_expires_after_24_hours(monkeypatch):
+    connection = MagicMock()
+
+    publish(monkeypatch, connection)
+
+    properties = connection.return_value.channel.return_value.basic_publish.call_args.kwargs["properties"]
+    assert (properties.delivery_mode, properties.expiration) == (2, "86400000")
 
 
 def test_unreachable_broker_is_reported(monkeypatch):

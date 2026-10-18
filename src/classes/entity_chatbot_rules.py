@@ -17,10 +17,10 @@ connect(
 
 
 class Rule(Document):
-    uuid = UUIDField(required=True, unique=True, default=uuid4())
+    uuid = UUIDField(required=True, unique=True, default=uuid4)
+    clientId = UUIDField(required=True)
     botId = UUIDField(required=True)
     rule = StringField(required=True)
-    createdAt = DateTimeField(required=True, default=datetime.now())
+    createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)
-    statusDate = DateTimeField(required=True, default=datetime.now())
-
+    statusDate = DateTimeField(required=True, default=datetime.now)

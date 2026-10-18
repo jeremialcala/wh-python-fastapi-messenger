@@ -14,4 +14,4 @@ log = logging.getLogger(settings.environment)
 
 class Contact(BaseModel):
     profile: dict | Profile = Field(default=Profile())
-    wa_id: str = Field(default="584127733522")
+    wa_id: str = Field(default="12025550143")

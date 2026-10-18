@@ -8,8 +8,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /usr/src/app
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Runtime dependencies only, from the lock and with hash verification: nothing is re-resolved at build time.
+COPY requirements.lock ./
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 
 # Only the application code. config.env and certs/ live outside src/, and .dockerignore keeps them out of the
 # build context as a second barrier.
@@ -25,5 +26,6 @@ EXPOSE 5002
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5002/health', timeout=3)"]
 
-# The number of workers comes from WEB_CONCURRENCY (one by default).
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5002"]
+# The number of workers comes from WEB_CONCURRENCY (one by default). No access log: it writes the query string of
+# every request, and the application already logs each one without it.
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5002", "--no-access-log"]

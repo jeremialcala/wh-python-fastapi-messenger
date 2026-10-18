@@ -24,8 +24,8 @@ CABECERA = """\
 # Contrato OpenAPI del gateway (fase 02-design, Gate 1). Refleja la API tal como está construida.
 # Generado con .ai-dlc/scripts/gen_openapi.py: regenerar, no editar a mano.
 # Sin valores por defecto ni ejemplos: en el código son aleatorios y cambian en cada arranque.
-# No declara esquemas de seguridad porque la aplicación no los declara: la cabecera X-API-Key y la firma
-# X-Hub-Signature-256 se comprueban en dependencias que OpenAPI no ve.
+# Declara el token de autenticación (HTTPBearer: un JWT firmado dentro de un JWE). La firma X-Hub-Signature-256
+# del webhook no aparece: se comprueba en una dependencia que OpenAPI no ve.
 """
 
 
@@ -47,8 +47,9 @@ def volcar(spec) -> str:
 
 
 def generar() -> str:
-    runpy.run_path(str(RAIZ / "tests" / "conftest.py"))
+    # Antes que el conftest: este genera la clave del gateway de las pruebas con código de `src`.
     sys.path.insert(0, str(RAIZ / "src"))
+    runpy.run_path(str(RAIZ / "tests" / "conftest.py"))
     import app  # noqa: E402  (después de fijar los ajustes de prueba)
 
     return volcar(app.app.openapi())

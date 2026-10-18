@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4, UUID
 from mongoengine import *
@@ -27,15 +27,24 @@ connect(
 )
 
 
+def _now():
+    # With its time zone: the instant in the envelope must not depend on the clock setting of the machine.
+    return datetime.now(timezone.utc)
+
+
 class QueueMessage(Document):
-    _uuid = UUIDField(required=True, unique=True, default=uuid4())
+    # Version of the envelope, as described in docs/02-design/contracts/asyncapi.yaml.
+    schemaVersion = IntField(required=True, default=1)
+    _uuid = UUIDField(required=True, unique=True, default=uuid4)
+    # The identifier Meta gave the message: the same one when Meta delivers it again.
+    messageId = StringField(required=True)
     eventId = UUIDField(required=True)
     endpoint = StringField()
     operation = StringField()
     jwe_body = StringField()
-    createdAt = DateTimeField(required=True, default=datetime.now())
+    createdAt = DateTimeField(required=True, default=_now)
     status = IntField(required=True, default=Status.REG.value)
-    statusDate = DateTimeField(required=True, default=datetime.now())
+    statusDate = DateTimeField(required=True, default=_now)
 
     def set_jwe_body(self, body: MessageBody):
         log.info(f"Starting: {currentframe().f_code.co_name}")
@@ -58,5 +67,5 @@ class QueueMessage(Document):
             self.jwe_body = _jwe_tk.serialize(compact=True)
             log.info(f"Ending: {currentframe().f_code.co_name}")
         except Exception as e:
-            log.error(e.__str__())
+            log.error(type(e).__name__)
 

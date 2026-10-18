@@ -6,8 +6,15 @@ from starlette.concurrency import run_in_threadpool
 
 from classes import Settings, QueueMessage
 
+__all__ = ["BrokerUnavailable", "send_message_to_queue"]
+
 settings = Settings()
 log = logging.getLogger(settings.environment)
+
+
+# How long a message may wait for the response engine: 24 hours, in milliseconds and as text, which is how
+# RabbitMQ takes it. Set on each message and not on the queue, so nobody has to declare the queue again.
+MESSAGE_TTL = str(24 * 60 * 60 * 1000)
 
 
 class BrokerUnavailable(Exception):
@@ -36,7 +43,7 @@ def _publish(queue: str, body: bytes):
         channel.basic_publish(exchange='',
                               routing_key=queue,
                               body=body,
-                              properties=pika.BasicProperties(delivery_mode=2),
+                              properties=pika.BasicProperties(delivery_mode=2, expiration=MESSAGE_TTL),
                               mandatory=True)
     finally:
         if connection.is_open:

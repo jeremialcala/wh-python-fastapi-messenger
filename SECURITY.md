@@ -7,17 +7,27 @@ No abras issues públicos para fallos de seguridad. Escribe al mantenedor indica
 
 ## Gestión de secretos
 
-No hay gestor de secretos. La configuración vive en `config.env` en desarrollo y en un `.env` con permisos
+La clave maestra con la que se protegen los datos de los clientes vive en Andvari, un OpenBao propio, y no sale
+de él: el gateway le pide que la use
+([ADR-0013](docs/00-project/adr/0013-openbao-como-gestor-de-secretos.md)). El resto de la configuración vive en `config.env` en desarrollo y en un `.env` con permisos
 restringidos junto al compose en el servidor; ninguno de los dos se versiona ni entra en la imagen
 (`.gitignore`, `.dockerignore`). Los tokens de Meta y el `appSecret` de cada chatbot están en su documento de
 MongoDB.
 
-Está prohibido commitear secretos. El escaneo automático de secretos en el pipeline está pendiente (Gate 2).
+La clave privada con la que el gateway abre los tokens de autenticación vive en un fichero del servidor, legible
+solo por la cuenta del contenedor y montado en solo lectura. De los clientes no se guarda ningún secreto: solo
+la clave pública con la que firman.
+
+Está prohibido commitear secretos. El pipeline lo comprueba: el workflow `Seguridad` escanea la historia
+completa con gitleaks y rompe el build ante cualquier hallazgo.
 
 ## SBOM y supply chain (A03)
 
-La imagen base está fijada por digest. Las dependencias de Python **no** están fijadas con lockfile ni hashes, y
-todavía no se genera SBOM ni se ejecuta SCA: son requisitos de los gates 2 y 4, aún abiertos.
+La imagen base está fijada por digest. Las dependencias de Python están fijadas con hashes en
+`requirements.lock` y `requirements-dev.lock`, y la imagen y el CI instalan desde ellos. El workflow `Seguridad`
+audita ese árbol con `pip-audit` en cada cambio y una vez por semana, y analiza el código con CodeQL.
+
+Todavía no se genera SBOM: es requisito del Gate 4.
 
 ## OWASP
 

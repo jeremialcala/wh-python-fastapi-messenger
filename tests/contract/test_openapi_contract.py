@@ -5,8 +5,10 @@
 """
 import importlib.util
 import pathlib
+import re
 
 import app as app_module
+from constants import DESCRIPTION
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "docs" / "02-design" / "contracts" / "openapi.yaml"
@@ -25,6 +27,20 @@ def test_committed_openapi_matches_the_application():
     committed = CONTRACT.read_text(encoding="utf-8").replace("\r\n", "\n")
 
     assert committed == generator.volcar(app_module.app.openapi())
+
+
+def test_the_description_names_no_route_the_application_does_not_serve():
+    """It described an /answers endpoint that was never there."""
+    def shape(path: str) -> str:
+        return re.sub(r"\{[^}]*\}", "{}", path)
+
+    served = {shape(route.path) for route in app_module.app.routes}
+    named = re.findall(r"(?<![\w}])(/[a-z][\w{}/-]*)", DESCRIPTION)
+
+    assert len(named) > 20
+    for path in named:
+        assert shape(path) in served, path
+    assert "answers" not in app_module.app.openapi()["info"]["description"]
 
 
 def test_volatile_keys_are_dropped_but_property_names_are_kept():

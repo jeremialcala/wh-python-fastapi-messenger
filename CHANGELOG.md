@@ -7,6 +7,208 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-18
+
+Cierre del Gate 2 (implementación).
+
+### Añadido
+- ADR-0017, propuesta: el historial de cada conversación se guarda en el gateway (Atlas, cifrado con la clave del
+  cliente, exportable y con supresión) y el contexto del coordinador, las últimas 10 vueltas más un resumen, vive
+  24 horas en un bucket KV de NATS. Decidido el 2026-10-18 que el historial se exporta, que el contexto caduca a las
+  24 horas y su tamaño; quedan abiertas la retención del historial y los adjuntos.
+- La parte de la IA de la revisión dual del Gate 2 (`docs/03-implementation/revision-dual-gate-2.md`): cuatro
+  revisores sobre todo lo que entró desde la 0.2.0, sin hallazgos críticos, uno alto, siete medios y trece bajos.
+  Anotados en el threat model H14 (llamadas que bloquean el proceso) y H15 (gates que no son obligatorios).
+- Plan para encajar el gateway en la topología de ocho workers que propone el análisis «Rust vs. Python»
+  (`docs/00-project/plan-topologia-de-workers.md`): revisión del análisis, por qué el webhook actual no cumple los
+  250 ms de mediana que pide Meta para WhatsApp, ocho cambios y el recorrido por los gates. Decidido el
+  2026-10-18: NATS JetStream en lugar de RabbitMQ, la identificación del contacto fuera del webhook, una credencial
+  por worker, Instagram como tercer canal y cerrar antes el Gate 2.
+- ADR-0013, aceptado: OpenBao como gestor de secretos y controlador central de claves, desplegado en el servidor
+  con el nombre de Andvari. La clave maestra de ADR-0010 vive en su motor Transit, derivada por cliente.
+- Workflow `Seguridad`, con tres gates que rompen el build: fuga de secretos (gitleaks sobre la historia
+  completa), dependencias vulnerables (`pip-audit` sobre el lock) y análisis estático (CodeQL sobre todo el código,
+  con umbral en los hallazgos de seguridad altos y críticos).
+- `requirements.lock` y `requirements-dev.lock`: dependencias fijadas con hashes. La imagen y el CI instalan
+  desde ellos.
+- Suelo de cobertura por ramas en el CI: 80 %, lo que pide el Gate 2.
+- Aislamiento entre clientes en la capa de datos (ADR-0012): entidad cliente, `clientId` obligatorio en
+  chatbots, números, reglas, intents y contactos, y capa de repositorio por la que pasa todo acceso a esos
+  datos. Lo ajeno responde `404`, igual que lo inexistente.
+- Autenticación por cliente (ADR-0005, ADR-0009): un JWT firmado por el cliente (`ES256`) dentro de un JWE cifrado
+  para el gateway (`RSA-OAEP-256`, `A256CBC-HS512`), de 60 segundos como máximo y un solo uso.
+- Registro de clientes: `POST` y `GET /clients` para el operador, con las claves de un cliente en
+  `/clients/{client_id}/keys`; y `/keys` para que cada cliente rote la suya. `GET /gateway/keys` devuelve la
+  audiencia y las claves públicas del gateway.
+- Comandos `python -m ops.gateway_key`, `ops.operator_key` y `ops.client`, y la guía
+  `docs/03-implementation/autenticacion.md`.
+- Cifrado de los datos de cada cliente (ADR-0010, ADR-0013): los números de contactos y bots, los tokens de Meta,
+  el App Secret y el token de verificación se guardan cifrados (AES-256-GCM) con una clave por cliente, envuelta
+  por la clave maestra de Andvari. El contacto se busca por un índice ciego.
+- `PUT /chat/{bot_id}/credentials`: el cliente carga y rota las credenciales de Meta de su bot.
+- `python -m migrations.encrypt_client_data`: cifra lo que estaba guardado en claro. Sin `--apply` solo informa.
+- Pruebas de integración contra un OpenBao real, también en el pipeline, y la guía
+  `docs/03-implementation/cifrado-de-datos.md`.
+- `python -m migrations.assign_operator_client`: asigna al cliente del operador los documentos anteriores a la
+  existencia de clientes. Sin `--apply` solo informa.
+- Sobre versión 1 de la cola `llm` (ADR-0011): cada sobre lleva `schemaVersion` y, en `messageId`, el
+  identificador que Meta dio al mensaje, que es la clave con la que el motor de respuestas deduplica.
+- Caducidad de 24 horas en cada mensaje publicado: el broker descarta el que nadie ha consumido.
+- Pruebas de integración de la publicación contra un RabbitMQ real, también en el pipeline.
+- Contactos de un bot (RF08): `GET /chat/{bot_id}/contacts` los lista por páginas, y `POST /contacts/search` encuentra
+  a una persona, por número o por identificador de Messenger, en todos los bots del cliente.
+- Exportar y borrar un contacto (RF09; GDPR, arts. 15, 17 y 20): `GET` y
+  `DELETE /chat/{bot_id}/contacts/{contact_id}`.
+- Baja de un bot y de un cliente (RF10): `DELETE /bot/{bot_id}` borra un bot con sus contactos, números, reglas e
+  intents; `DELETE /clients/{client_id}`, solo para el operador, borra a un cliente con todo lo suyo, su clave de
+  datos envuelta incluida. Los respaldos anteriores a una baja siguen siendo legibles.
+- Guía `docs/03-implementation/exportar-y-borrar.md`.
+- Registro de supresiones (ADR-0014): cada borrado de un contacto, de un bot o de un cliente se apunta, antes de
+  hacerse, en ficheros fuera de la base de datos (`ERASURES_DIR`), con identificadores y fechas y sin datos
+  personales. `python -m migrations.replay_erasures` repite los borrados después de restaurar un respaldo; sin
+  `--apply` solo informa.
+- ADR-0016, aceptado: el motor de respuestas tiene una credencial por cliente.
+- Credencial del motor de respuestas (RS06): el operador registra bajo cada cliente la clave pública con la que el
+  motor actúa por él, en `POST` y `DELETE /clients/{client_id}/service-keys`. Con ella el motor alcanza las reglas,
+  las herramientas y los tokens de los bots de ese cliente, y ninguna otra ruta.
+- `GET /chat/{bot_id}/tokens`: los tokens de Meta de un bot, solo para el motor. Cada entrega deja una línea en el
+  log.
+- El sobre de la cola lleva `clientId`, el cliente dueño del bot. El contrato AsyncAPI pasa a la versión 1.1.0;
+  `schemaVersion` sigue en 1.
+- `GET /keys` y `GET /clients` listan en `serviceKeys` las claves del motor que alcanzan los bots de cada cliente.
+- ADR-0015, aceptado: a Meta solo se le pide reintento, con un `503`, cuando falta algo que el servicio necesita.
+- Límite de tamaño: ninguna petición puede pasar de 3 MiB, que es lo más que envía Meta. Por encima responde `413`,
+  antes de comprobar firma o token.
+- ADR-0014, aceptado: en los respaldos la supresión se cumple por caducidad, y los respaldos de la base se
+  conservan 365 días como máximo. Corrige el apartado de borrado de ADR-0010, que contaba con que destruir la
+  clave de datos de un cliente alcanzara a los respaldos.
+
+### Cambiado
+- El webhook va menos veces a la base: el chatbot que encuentra se guarda 30 segundos en memoria, y al buscar el
+  contacto ya no se pide dos veces. Un mensaje de un contacto conocido pasa de 4 viajes a Atlas a 2 en WhatsApp y de
+  3 a 2 en Messenger; uno de un contacto nuevo, de 7 a 5 en WhatsApp y de 6 a 5 en Messenger. Con 60 ms por viaje,
+  medidos el 2026-10-18 desde la red de midgard, son unos 120 ms frente a los 240 de antes y los 250 de mediana que pide Meta. Borrar el chatbot o su
+  cliente, o cambiar sus credenciales, lo saca de la memoria del proceso que lo hace; en los demás procesos dura
+  como mucho esos 30 segundos. Lo que no se encuentra no se guarda. Es un arreglo intermedio: la solución es el
+  worker de ingesta del plan (R1), y no resuelve que esas llamadas bloqueen el proceso (RD-05).
+- **Incompatible para el consumidor de la cola:** el gateway publica un sobre por cada mensaje de la notificación,
+  y en WhatsApp el contenido lleva solo ese mensaje y a quien lo envió. Los acuses de entrega y de lectura, los ecos
+  de lo que envía la página y las pulsaciones de botones de Messenger se aceptan con `200` y no se publican.
+- Un mensaje de WhatsApp sin el número al que iba dirigido (`metadata.phone_number_id`) no se publica: el motor no
+  tendría desde dónde responder. Antes salía con un número de ejemplo.
+- El procesamiento de la notificación ya no escribe en el log el contenido de los mensajes. La identificación del
+  contacto sigue registrando su número o su identificador.
+- Los chatbots guardados antes de este cambio responden `404`, también en el webhook, hasta que se ejecute la
+  migración que les asigna cliente.
+- El gate de análisis estático bloquea por hallazgos altos o críticos fuera del código de pruebas. Los de
+  `tests/` se informan como aviso: una prueba maneja secretos de mentira por necesidad.
+- **Incompatible:** el servicio no arranca sin los ajustes del servicio de claves (`ANDVARI_ADDR`,
+  `ANDVARI_ROLE_ID` y `ANDVARI_SECRET_ID_FILE`), y fuera de desarrollo la dirección tiene que ser `https`.
+- **Incompatible:** `GET /chat/{bot_id}/info` ya no devuelve los tokens de Meta, solo cuáles están cargados; y
+  `GET /chat/{bot_id}/phones` necesita el servicio de claves para devolver los números.
+- Un bot con secretos en claro responde `404` en el webhook hasta que se ejecute la migración de cifrado.
+- Sin el servicio de claves, el webhook y lo que toca datos cifrados responden `503`.
+- La respuesta `422` a una petición mal formada dice dónde está el error y por qué (`type`, `loc` y `msg`), y ya no
+  trae `input` ni `ctx`.
+- **Incompatible para el despliegue:** borrar un contacto, un bot o un cliente responde `503` mientras el registro de
+  supresiones no se pueda escribir. En el servidor hay que crear el directorio `erasures/`, con dueño `10001`, e
+  incluirlo en los respaldos.
+- Cada petición deja una sola línea en el log: el método, la ruta tal como está declarada, los identificadores bien
+  formados de su dirección, el código y el tiempo. Ya no se escribe la dirección tal como llegó ni la de quien llama.
+- De un fallo se escribe en el log su tipo y la línea de la que salió, no su texto.
+- **Cambia lo que se responde a Meta** (ADR-0015). Una notificación firmada que no es JSON recibe `200` y un aviso en
+  el log; antes recibía `422`. Una sin tipo de objeto o sin entradas se descarta con un aviso; antes se aceptaba
+  rellenando valores de ejemplo. Sin firma válida la respuesta es `403` aunque el cuerpo no sea JSON; antes era `422`.
+- Si no responde la base de datos, el webhook responde `503`, igual que cuando falta el broker o el servicio de
+  claves.
+- Un mensaje de Messenger se publica sin el nombre cuando la Graph API no da el perfil, y su contacto se guarda sin
+  él.
+- Los mensajes de una notificación que se dejan fuera por incompletos, y las notificaciones de un tipo que no se
+  atiende, dejan un aviso en el log.
+- La imagen arranca Uvicorn sin su log de accesos.
+- **Incompatible:** la cabecera `X-API-Key` y el ajuste `ADMIN_API_KEY` desaparecen. Todo lo que no es el webhook
+  ni `/health` pide el token nuevo, y el servicio no arranca sin `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE`.
+- El operador es un cliente más en las rutas de los chatbots: solo alcanza los suyos.
+- Una clave de `config.env` que ya no corresponde a ningún ajuste se ignora, en vez de impedir el arranque.
+- `GET` y `POST /chat/{bot_id}/phones` responden `404` para un chatbot que no existe. Antes respondían `200`
+  con el texto `HTTP_404_NOT_FOUND` en el cuerpo.
+- La imagen instala solo las dependencias de ejecución; las de pruebas pasan a `requirements-dev.txt`.
+- Se retiran once dependencias que el código no importaba: `fastapi-sessions`, `asgi-correlation-id`,
+  `python-multipart`, `pytz`, `pyjwt`, `pycryptodome`, `keyboard`, `segno`, `pillow`, `phonenumbers` y
+  `pydantic-extra-types`.
+
+### Eliminado
+- El envío de mensajes por WhatsApp desde el gateway, que no se usaba: responder es cosa del motor (ADR-0002).
+- La mención al endpoint `/answers` en la descripción de la API. Nunca existió, y entregar la respuesta es cosa del
+  motor (ADR-0002).
+
+### Corregido
+- Hallazgos de la revisión dual del Gate 2, cada uno con su prueba:
+  - Añadir una clave mientras se revocaba otra devolvía la revocada, y podía recrear un cliente borrado: el alta y la
+    baja son ahora una sola actualización condicionada (RD-02).
+  - Lo que la Graph API no devolvía de un perfil de Messenger se guardaba con el nombre, la foto y el identificador
+    de una persona real; el identificador del contacto sale ahora del remitente del mensaje (RD-03).
+  - La migración de cifrado devolvía a la base un documento borrado mientras corría (RD-08).
+  - Repetir las supresiones desde un directorio que no existe decía que no había nada que hacer (RD-10).
+  - Un intent borrado se podía leer y modificar (RD-11).
+  - Una respuesta malformada del servicio de claves acababa en `500` y no en `503` (RD-13).
+  - Las pruebas de logs del motor solo veían los avisos, y una de autenticación dependía de lo que tardara la
+    batería (RD-07, RD-18).
+- `metadata` de WhatsApp salía hacia la cola como una lista de pares y no como un objeto, y el motor no podía leer
+  el número desde el que responder.
+- De una notificación con varios mensajes no salían todos: con varias entradas, o con varios eventos de Messenger,
+  solo se publicaba lo último, y los demás se perdían con un `200`.
+- El filtro que debía descartar el eco de lo que envía la propia página en Messenger no descartaba nada: el eco
+  seguía el camino de un mensaje más.
+- La fecha del sobre dependía de la zona horaria de la máquina: fuera de UTC salía desplazada.
+- Con la base de datos caída, el webhook respondía `200` y el mensaje se perdía. Ahora responde `503` y Meta lo
+  reenvía.
+- Si la Graph API no devolvía el perfil de quien escribía por Messenger, el mensaje se perdía con un `200`.
+- Un mensaje que fallaba al procesarse se llevaba consigo a los que venían detrás en la misma notificación.
+- A una notificación sin tipo de objeto o sin entradas se le ponían valores de ejemplo en vez de rechazarla.
+- Un fallo al guardar un contacto se tragaba dentro de un `finally` con `return`, y el mensaje se perdía con un
+  `200`. Ahora la caída del servicio de claves llega hasta Meta como `503`.
+- Un intent se podía leer, cambiar o desactivar a través de cualquier chatbot: la ruta no comprobaba que fuera
+  suyo. Y se podían añadir reglas a un chatbot que no existe.
+- Los valores por defecto de las entidades se calculaban una sola vez, al importar. Todos los documentos
+  guardaban como fecha de creación la hora de arranque del proceso, todos los mensajes de la cola compartían
+  `_uuid`, y todas las credenciales compartían la clave con la que se firma el token de verificación.
+- La marca de tiempo de las respuestas de la API era también la hora de arranque.
+- Las respuestas de los endpoints de gestión llegaban rotas al cliente desde la actualización de Starlette: los
+  controladores enviaban el cuerpo como texto, y la versión nueva ya no lo convierte. Ahora lo envían en bytes, y
+  `Content-Length` cuenta bytes y no caracteres, que no coincidían en cuanto había una tilde.
+
+### Seguridad
+- **Incompatible para los clientes:** `POST /keys` exige, además del token, la prueba de que quien añade la clave
+  tiene su parte privada: un JWT que firma la clave nueva (`typ: key-proof+jwt`) para el `jti` del token de la misma
+  petición. Sin ella responde `422` `INVALID_KEY_PROOF`. El cliente de referencia la genera con
+  `python -m ops.client add-key`. El operador sigue añadiendo claves sin prueba: es quien deja volver a un cliente que
+  perdió la suya. No frena a quien robó una clave, que puede probar que tiene una propia (RD-04).
+- Un POST al webhook sin nada con forma de firma recibe `403` sin abrir los secretos del bot (RD-09).
+- Un token solo se acepta con el JWT en forma compacta, y el emisor firmado tiene que ser el del token (RD-12).
+- Cada alta de una clave de cliente deja un aviso en el log con su `kid`, y cada baja otro; el procedimiento de
+  revocación pide quitar todas las claves que el cliente no reconozca (RD-04).
+- `pip-audit` audita también el lock que instala la imagen, y el `.dockerignore` excluye los secretos en cualquier
+  directorio (RD-06, RD-17).
+- FastAPI pasa de 0.110.0 a 0.143.0 y Starlette de 0.36.3 a 1.7.0. La versión anterior de Starlette tenía 14
+  vulnerabilidades conocidas; con las dependencias nuevas, `pip-audit` no encuentra ninguna.
+- Los valores de ejemplo de los modelos del webhook llevaban números de teléfono reales, uno de ellos también
+  codificado dentro de un identificador de mensaje de WhatsApp. Se sustituyen por números del rango reservado
+  para ficción. Siguen en la historia de git y en las imágenes ya publicadas.
+- La respuesta a una petición mal formada repetía lo enviado: una credencial de Meta rechazada por su formato volvía
+  en el `422`. Ya no devuelve el valor.
+- El cuerpo de una notificación se interpretaba antes de comprobar su firma: quien no tenía el secreto de la
+  aplicación podía hacer que el servicio interpretara lo que enviara. Ahora no se lee nada sin firma válida.
+- El log de accesos de Uvicorn escribía cada petición con su query string, también en `production`: el token de
+  verificación que Meta envía al comprobar el webhook quedaba en el log del contenedor. Está apagado.
+- Los logs ya no llevan números, nombres, identificadores de Messenger, contenido de mensajes, reglas ni credenciales,
+  en ningún nivel, ni el texto de las excepciones, que los repetía. Tampoco lo que escribirían el driver de la
+  base y el cliente HTTP.
+- Dos respuestas de error devolvían el texto de la excepción. Un fallo inesperado responde ahora `500` sin él.
+- `/docs`, `/redoc` y `/openapi.json` solo se sirven en `development`. `ENVIRONMENT` solo admite `development`,
+  `staging` o `production`: con cualquier otro valor el servicio no arranca, en vez de arrancar con otro nivel de log
+  y sin exigir HTTPS a Andvari. El compose de despliegue lo fija en `production` (RD-16).
+
 ## [0.2.0] - 2026-10-12
 
 Cierre del Gate 1 (diseño).
@@ -71,7 +273,8 @@ Cierre del Gate 0 (requisitos). Primera versión con la estructura AI-DLC.
 Primera versión etiquetada. Los cambios entre esta versión y la adopción de este changelog (2026-10-12) no se
 registraron aquí; están en el historial de git.
 
-[Unreleased]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jeremialcala/wh-python-fastapi-messenger/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/jeremialcala/wh-python-fastapi-messenger/releases/tag/v0.0.1

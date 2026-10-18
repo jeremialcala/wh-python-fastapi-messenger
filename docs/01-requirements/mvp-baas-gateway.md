@@ -80,7 +80,7 @@ C4Context
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
 *Eje estructura · fase 01 · Gate 0. El diagrama muestra el objetivo, y dos de sus relaciones no existen hoy: la
-gestión solo es alcanzable desde la red privada y con la clave única del operador, y el motor de respuestas (en
+gestión solo es alcanzable desde la red privada, aunque cada cliente ya entra con su propio token, y el motor de respuestas (en
 rojo) está en implementación: no está desplegado, no lee las reglas ni las herramientas del bot y todavía no envía
 respuestas.*
 
@@ -125,48 +125,48 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | ID | Escenario | Control | Estado |
 |---|---|---|---|
 | AB01 | Un tercero envía al webhook una notificación sin firma, o firmada con otro secreto, para inyectar mensajes en la cola | RS03 | Construido |
-| AB02 | El cliente A lee o modifica los bots, contactos o tokens del cliente B usando un UUID que conoce o adivina | RS01 | Pendiente |
-| AB03 | Una copia de la base (volcado, respaldo, acceso indebido a Atlas) expone números de teléfono y tokens de Meta | RS05, RS06 | Pendiente |
+| AB02 | El cliente A lee o modifica los bots, contactos o tokens del cliente B usando un UUID que conoce o adivina | RS01 | Construido |
+| AB03 | Una copia de la base (volcado, respaldo, acceso indebido a Atlas) expone números de teléfono y tokens de Meta | RS05, RS06 | Construido |
 | AB04 | Un tercero recorre el hostname público y encuentra `/docs`, `/openapi.json` o los endpoints de gestión | RS09 | Pendiente |
 | AB05 | Un bot en internet prueba credenciales de gestión o tokens de verificación | RS02, RS04, RS10 | Parcial |
-| AB06 | Alguien reenvía una notificación legítima capturada: la firma de Meta no caduca | RNF04 | Pendiente |
+| AB06 | Alguien reenvía una notificación legítima capturada: la firma de Meta no caduca | RNF04 | Parcial: el sobre lleva el identificador de Meta; falta que el motor deduplique |
 | AB07 | Una ráfaga de notificaciones agota el worker o llena la cola | RS10, RNF03 | Pendiente |
 | AB08 | Un usuario final escribe instrucciones para que el LLM invoque herramientas del cliente en su contra (prompt injection) | RS16 | Pendiente |
 | AB09 | Un cliente define un intent cuya llamada a API apunta a la red interna de la plataforma (SSRF a través del ejecutor de herramientas) | RS16 | Pendiente |
-| AB10 | Quien tiene acceso a los logs lee conversaciones, nombres y números | RS07 | Parcial |
+| AB10 | Quien tiene acceso a los logs lee conversaciones, nombres y números | RS07 | Construido |
 | AB11 | El broker cae y el gateway responde `200` a un mensaje que nunca se encoló | RNF02 | Construido |
-| AB12 | Un cuerpo malformado o enorme provoca un error que revela detalles internos | RS11, RS15 | Parcial |
+| AB12 | Un cuerpo malformado o enorme provoca un error que revela detalles internos | RS11, RS15 | Construido: `413` por encima de 3 MiB, y ningún error repite lo enviado ni el texto del fallo |
 | AB13 | Una dependencia vulnerable o una imagen manipulada llegan a producción | RS12 | Parcial |
-| AB14 | Un interesado pide la supresión y sus datos siguen en la cola, los logs o los respaldos | RF09, RNF05 | Pendiente |
-| AB15 | El motor de respuestas, o quien robe su credencial, obtiene los tokens de Meta de todos los clientes | RS06 | Pendiente |
-| AB16 | Alguien captura un JWE de autenticación válido y lo reenvía, o fabrica uno con la clave pública del gateway | RS02 | Pendiente |
+| AB14 | Un interesado pide la supresión y sus datos siguen en la cola, los logs o los respaldos | RF09, RNF05 | Parcial: el contacto se borra de la base y la cola caduca a las 24 horas; en los respaldos desaparece al caducar, a los 365 días como mucho (ADR-0014), con la retención aún sin configurar en Atlas; los logs ya no llevan datos personales. Queda lo que guarde el motor |
+| AB15 | El motor de respuestas, o quien robe su credencial, obtiene los tokens de Meta de todos los clientes | RS06 | Construido en el gateway: el motor tiene una clave por cliente, que solo alcanza los bots de ese cliente |
+| AB16 | Alguien captura un JWE de autenticación válido y lo reenvía, o fabrica uno con la clave pública del gateway | RS02 | Construido |
 
 ## Requisitos funcionales
 
 | ID | Requisito | Estado | Verificación |
 |---|---|---|---|
-| RF01 | El operador registra a un cliente, y el registro le da material de clave propio con el que se autentica y con el que se controlan sus bots y sus datos por separado ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)) | Pendiente: no existe la entidad cliente | — |
-| RF02 | Un cliente crea y administra sus bots: persona, reglas, intents y números | Parcial: existe para bots sin dueño, con la clave única | Pruebas unitarias de autenticación |
+| RF01 | El operador registra a un cliente, y el registro le da material de clave propio con el que se autentica y con el que se controlan sus bots y sus datos por separado ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)) | Construido: el operador da de alta al cliente con su clave pública de firma. La clave de datos por cliente llega con RS05 | — |
+| RF02 | Un cliente crea y administra sus bots: persona, reglas, intents y números | Construido: cada cliente administra los suyos con su token | Pruebas unitarias de autenticación |
 | RF03 | Meta verifica el webhook de cada bot con su token de verificación | Construido | `tests/unit/test_webhook_security.py` |
-| RF04 | El gateway recibe notificaciones de Messenger y de WhatsApp, identifica o crea el contacto y publica el mensaje en la cola `llm` | Construido | Pruebas unitarias del camino de WhatsApp; Messenger sin prueba; falta integración con MongoDB y RabbitMQ reales |
-| RF05 | Con el `bot_id` del mensaje, el motor de respuestas obtiene del gateway la configuración del bot: system prompt, herramientas y token de Meta ([ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md)) | Parcial: el gateway la expone en `/rules`, `/tools` e `/info`, pero bajo la clave única del operador; el motor no la consulta y descarta el `bot_id` | `tests/unit/test_intent_tool_schema.py` para las herramientas; el system prompt no tiene prueba |
-| RF06 | El cliente carga y rota las credenciales de Meta de su bot (tokens y App Secret) por API | Pendiente: hoy se escriben a mano en la base | — |
-| RF07 | El motor de respuestas dispone de lo que necesita para responder al usuario final por su canal: el bot de destino, el destinatario y el token de Meta de ese bot | Parcial: el mensaje lleva el bot y el destinatario; el token solo se obtiene de `/info`, con la clave única del operador. El envío en sí es del motor ([ADR-0002](../00-project/adr/0002-el-motor-entrega-las-respuestas.md)) y está en implementación | — |
-| RF08 | El cliente consulta los contactos de sus bots | Pendiente | — |
-| RF09 | El cliente exporta y borra los datos de un contacto (GDPR, arts. 15, 17 y 20) | Pendiente | — |
-| RF10 | La baja de un bot o de un cliente borra todos sus datos (GDPR, art. 28.3.g) | Pendiente | — |
+| RF04 | El gateway recibe notificaciones de Messenger y de WhatsApp, identifica o crea el contacto y publica el mensaje en la cola `llm` | Construido | Pruebas de los dos canales a través de la aplicación, e integración con un RabbitMQ real. Contra un MongoDB real, solo en local |
+| RF05 | Con el `bot_id` del mensaje, el motor de respuestas obtiene del gateway la configuración del bot: system prompt, herramientas y token de Meta ([ADR-0003](../00-project/adr/0003-el-bot-id-es-la-llave-de-la-configuracion.md)) | Parcial: el gateway la entrega al motor en `/rules`, `/tools` y `/tokens`, con la clave que el motor tiene para el cliente dueño del bot ([ADR-0016](../00-project/adr/0016-credencial-del-motor-por-cliente.md)); el motor no la consulta todavía y descarta el `bot_id` | `tests/unit/test_service_credential.py` |
+| RF06 | El cliente carga y rota las credenciales de Meta de su bot (tokens y App Secret) por API | Construido: `PUT /chat/{bot_id}/credentials` | — |
+| RF07 | El motor de respuestas dispone de lo que necesita para responder al usuario final por su canal: el bot de destino, el destinatario y el token de Meta de ese bot | Parcial: el mensaje lleva el bot, su cliente y el destinatario, y el gateway entrega el token al motor en `/tokens`. El envío en sí es del motor ([ADR-0002](../00-project/adr/0002-el-motor-entrega-las-respuestas.md)) y está en implementación | — |
+| RF08 | El cliente consulta los contactos de sus bots | Construido: `GET /chat/{bot_id}/contacts`, por páginas, y `POST /contacts/search` para encontrar a una persona en todos sus bots | `tests/unit/test_export_and_delete.py` |
+| RF09 | El cliente exporta y borra los datos de un contacto (GDPR, arts. 15, 17 y 20) | Construido en el gateway: `GET` y `DELETE /chat/{bot_id}/contacts/{contact_id}`. El borrado no alcanza a los respaldos ni a lo que guarde el motor (AB14) | `tests/unit/test_export_and_delete.py` |
+| RF10 | La baja de un bot o de un cliente borra todos sus datos (GDPR, art. 28.3.g) | Parcial: `DELETE /bot/{bot_id}` y `DELETE /clients/{client_id}` borran todo lo guardado en la base. En los respaldos, la supresión se cumple al caducar, a los 365 días como mucho ([ADR-0014](../00-project/adr/0014-supresion-en-respaldos-por-caducidad.md)), y un registro de supresiones permite repetirlas tras una restauración; falta configurar y comprobar esa retención en Atlas | `tests/unit/test_export_and_delete.py` |
 | RF11 | Fusionar a `main` construye la imagen y la despliega, con rollback si la sonda de vida falla | Parcial: construido, sin ejercitar en el servidor | Prueba de despliegue con la sonda rota a propósito |
-| RF12 | Todo mensaje publicado en la cola `llm`, de Messenger o de WhatsApp, lo procesa el motor de respuestas y conserva el bot al que iba dirigido | Parcial: el motor acepta los de WhatsApp, rechaza los de Messenger y descarta el bot | Comprobado el 2026-10-12 con el código de los dos repositorios; falta una prueba de contrato |
+| RF12 | Todo mensaje publicado en la cola `llm`, de Messenger o de WhatsApp, lo procesa el motor de respuestas y conserva el bot al que iba dirigido | Parcial: el motor acepta los de WhatsApp, rechaza los de Messenger y descarta el bot | Comprobado el 2026-10-12 pasando al parser del motor los sobres versión 1 que el gateway publica en un RabbitMQ real: lee los de WhatsApp, rechaza los de Messenger y no conserva el bot. El lado del gateway lo fija `tests/contract/test_queue_contract.py` |
 
 ## Requisitos no funcionales
 
 | ID | Requisito | Estado |
 |---|---|---|
-| RNF01 | El webhook responde a Meta dentro del plazo que evita reintentos. No se compromete una cifra hasta medirlo en producción | Sin medir |
-| RNF02 | Una notificación recibe `200` solo cuando RabbitMQ ha confirmado el mensaje; si no, `503` | Construido |
+| RNF01 | El webhook responde a Meta dentro del plazo que evita reintentos. No se compromete una cifra hasta medirlo en producción | Sin medir en producción. Medido el 2026-10-18 desde la red de midgard: 60 ms de ida y vuelta a Atlas (mediana; p95 64 ms). El webhook hace 2 viajes con un contacto conocido y 5 con uno nuevo, y bloquea el proceso mientras espera (RD-05) |
+| RNF02 | Una notificación recibe `200` solo cuando RabbitMQ ha confirmado el mensaje; si no, `503` | Construido. [ADR-0015](../00-project/adr/0015-que-se-responde-a-meta.md) lo amplía: `503` también si no responden la base de datos o el servicio de claves, y `200` con rastro en el log para lo firmado que no se entiende o no se puede procesar |
 | RNF03 | El gateway no pasa de 512 MB de RAM ni de 1 CPU en el servidor | Construido (tope del compose) |
-| RNF04 | Un mensaje entregado dos veces por Meta, o reenviado por un tercero, no se procesa dos veces | Pendiente: ni el gateway ni el motor deduplican |
-| RNF05 | Cada dato personal tiene un plazo de retención y se borra al vencer, también en cola, logs y respaldos. Máximos de la plataforma, que cada cliente puede acortar: 24 horas para un mensaje en la cola y 12 meses sin actividad para un contacto | Pendiente: no se borra nada por plazo |
+| RNF04 | Un mensaje entregado dos veces por Meta, o reenviado por un tercero, no se procesa dos veces | Parcial: el gateway publica en cada sobre el identificador de Meta (`messageId`), el mismo en cada reentrega; el motor todavía no deduplica |
+| RNF05 | Cada dato personal tiene un plazo de retención y se borra al vencer, también en cola, logs y respaldos. Máximos de la plataforma, que cada cliente puede acortar: 24 horas para un mensaje en la cola y 12 meses sin actividad para un contacto. Los respaldos de la base se conservan 365 días como mucho, igual para todos los clientes (ADR-0014) | Parcial: un mensaje caduca en la cola a las 24 horas; contactos y logs no se borran por plazo, y la retención de los respaldos está decidida pero sin configurar ni comprobar en Atlas. Un contacto se puede borrar a petición (RF09) |
 | RNF06 | El servicio arranca solo tras un apagón del servidor | Pendiente: no hay unidad de arranque para el gateway |
 | RNF07 | Disponibilidad del webhook: sin cifra comprometida mientras el servidor no tenga UPS. Se mide desde el primer despliegue | Sin medir |
 
@@ -247,24 +247,24 @@ OWASP Top 10 en su edición 2025.
 
 | ID | Requisito | Estado | ASVS | OWASP Top 10 |
 |---|---|---|---|---|
-| RS01 | Un cliente solo accede a los elementos de su propio registro: sus claves, sus bots, sus contactos y sus credenciales; todo lo demás se deniega por defecto | Pendiente | V4.1, V4.2 | A01 |
-| RS02 | Todo endpoint que no sea el webhook se autentica con un JWT firmado por el cliente y metido dentro de un JWE ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md), [ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)): el gateway verifica la firma con la clave pública registrada del cliente, y el token caduca y no se puede reutilizar | Pendiente: hoy lo sustituye una única clave de operador, `X-API-Key`, de 32 caracteres o más y comparada en tiempo constante. Las piezas de JWE existen en el código, por evento y desactivadas | V2.10, V3.5, V6.2 | A07 |
+| RS01 | Un cliente solo accede a los elementos de su propio registro: sus claves, sus bots, sus contactos y sus credenciales; todo lo demás se deniega por defecto | Construido | V4.1, V4.2 | A01 |
+| RS02 | Todo endpoint que no sea el webhook se autentica con un JWT firmado por el cliente y metido dentro de un JWE ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md), [ADR-0005](../00-project/adr/0005-jwt-firmado-por-el-cliente-dentro-del-jwe.md)): el gateway verifica la firma con la clave pública registrada del cliente, y el token caduca y no se puede reutilizar | Construido, también para el motor de respuestas, que se autentica con una clave por cliente ([ADR-0016](../00-project/adr/0016-credencial-del-motor-por-cliente.md)) | V2.10, V3.5, V6.2 | A07 |
 | RS03 | Solo se procesan notificaciones con `X-Hub-Signature-256` válida sobre el cuerpo crudo | Construido | V2.10, V9.2 | A08 |
 | RS04 | El token de verificación se compara en tiempo constante, y un bot sin token no se puede verificar | Construido | V2.10 | A07 |
-| RS05 | El número de teléfono de un contacto y el número de WhatsApp de un bot se guardan cifrados con una clave propia del cliente dueño del bot, y el contacto se puede localizar sin guardar el número en claro | Pendiente | V6.2, V8.3 | A04 |
-| RS06 | Los tokens de Meta y el App Secret de un bot se guardan cifrados; la API de gestión no los devuelve a los clientes, y solo el motor de respuestas obtiene los tokens, pidiéndolos al gateway por `bot_id` con una credencial de servicio propia y dejando registro | Pendiente: en claro, y `/info` devuelve los tokens a quien tenga la clave única | V6.4, V8.3 | A04 |
-| RS07 | Ningún log contiene números, nombres, contenido de mensajes ni credenciales, en ningún nivel | Parcial: el interceptor no registra query strings ni cabeceras; `messages.py` y `facebook.py` sí registran contenido y números por debajo de `production` | V7.1 | A09 |
+| RS05 | El número de teléfono de un contacto y el número de WhatsApp de un bot se guardan cifrados con una clave propia del cliente dueño del bot, y el contacto se puede localizar sin guardar el número en claro | Construido | V6.2, V8.3 | A04 |
+| RS06 | Los tokens de Meta y el App Secret de un bot se guardan cifrados; la API de gestión no los devuelve a los clientes, y solo el motor de respuestas obtiene los tokens, pidiéndolos al gateway por `bot_id` con una credencial de servicio propia y dejando registro | Construido en el gateway: cifrados, fuera de la API de gestión, y entregados solo al motor con la clave que tiene para el cliente dueño del bot, dejando una línea en el log cada vez. `tests/unit/test_service_credential.py` | V6.4, V8.3 | A04 |
+| RS07 | Ningún log contiene números, nombres, contenido de mensajes ni credenciales, en ningún nivel | Construido: no se escribe en el log nada de lo que envía quien llama ni de lo que Meta envía sobre una persona; de un fallo, su tipo y su línea. El log de accesos del servidor, que escribía el token de verificación, está apagado. `tests/unit/test_logs_and_errors.py` | V7.1 | A09 |
 | RS08 | El mensaje viaja y reposa protegido entre el gateway y el motor: broker en red privada, con usuario propio, y contenido cifrado | Parcial: red privada y usuario propio previstos con Hermod; el cifrado JWE existe y está desactivado | V6.2, V9.2 | A04 |
 | RS09 | En internet solo se publica `/chat/<uuid>`. La gestión y la documentación de la API se quedan en red privada hasta que existan el registro de clientes y la autenticación con JWE (RS01, RS02); a partir de entonces la gestión se publica | Pendiente: sin desplegar | V14.3 | A02 |
 | RS10 | El borde limita la tasa de peticiones por origen y por bot | Pendiente | V11.1 | A06 |
-| RS11 | Toda entrada se valida contra un esquema estricto y con límite de tamaño | Parcial: Pydantic valida, pero `FacebookRequest` acepta listas sin tipar y no hay límite de tamaño | V5.1, V13.2 | A05 |
-| RS12 | Imagen base por digest, dependencias fijadas y analizadas en cada build, y SBOM publicado | Parcial: imagen por digest; sin lockfile, SCA ni SBOM | V14.2 | A03 |
-| RS13 | Ningún secreto vive en el repo ni en la imagen, y el servicio no arranca sin su clave de gestión | Construido | V2.10, V14.1 | A02 |
-| RS14 | Queda registro de los eventos de seguridad (rechazos, altas, bajas y accesos de gestión), atribuibles a un cliente | Parcial: se registran los rechazos; no hay auditoría por cliente | V7.2 | A09 |
-| RS15 | Un error no revela detalles internos y falla cerrado | Parcial: dos funciones de `controller/chatbot.py` devuelven el texto de la excepción en la respuesta | V7.4 | A10 |
+| RS11 | Toda entrada se valida contra un esquema estricto y con límite de tamaño | Parcial: ninguna petición pasa de 3 MiB, y la notificación tiene que traer su tipo y sus entradas, leídas solo tras comprobar la firma (`tests/unit/test_webhook_answers.py`). Los modelos de gestión siguen rellenando lo que falta con valores de ejemplo y no acotan la longitud de sus campos | V5.1, V13.2 | A05 |
+| RS12 | Imagen base por digest, dependencias fijadas y analizadas en cada build, y SBOM publicado | Parcial: imagen por digest, dependencias fijadas con hashes y analizadas en cada build; falta el SBOM | V14.2 | A03 |
+| RS13 | Ningún secreto vive en el repo ni en la imagen, y el servicio no arranca sin el par de claves con el que abre los tokens | Construido | V2.10, V14.1 | A02 |
+| RS14 | Queda registro de los eventos de seguridad (rechazos, altas, bajas y accesos de gestión), atribuibles a un cliente | Parcial: se registran los rechazos y cada borrado, con quién lo hizo, y los borrados quedan además en el registro de supresiones; no hay auditoría por cliente | V7.2 | A09 |
+| RS15 | Un error no revela detalles internos y falla cerrado | Construido: con un fallo forzado en cada ruta de gestión, la respuesta es un `500` genérico; la respuesta a una petición mal formada no repite lo enviado. `tests/unit/test_logs_and_errors.py` | V7.4 | A10 |
 | RS16 | El texto del usuario final se trata como entrada no confiable para el LLM, y las llamadas a API de los intents solo pueden ir a destinos permitidos | Parcial: según su documentación, el motor filtra la entrada con guardrails y trata la salida del LLM como no confiable; la ejecución de acciones no está construida, así que el control de destinos no existe | V5.2, V12.6 | A05, A06 |
 | RS17 | El contenedor corre sin privilegios y solo puede escribir donde necesita | Construido | V14.1 | A02 |
-| RS18 | El `bot_id` identifica pero no autoriza: ninguna configuración de un bot se entrega solo por conocerlo | Construido: toda la configuración exige la clave de gestión; las únicas rutas que funcionan solo con el `bot_id` son las del webhook, que son también las únicas autenticadas solo con la firma y el token de verificación ([ADR-0004](../00-project/adr/0004-firma-en-el-webhook-jwe-en-el-resto.md)) | V4.2 | A01 |
+| RS18 | El `bot_id` identifica pero no autoriza: ninguna configuración de un bot se entrega solo por conocerlo | Construido: toda la configuración exige el token del cliente dueño del bot; las únicas rutas que funcionan solo con el `bot_id` son las del webhook, que se autentican con la firma y el token de verificación de Meta | V4.2 | A01 |
 
 ## Threat assessment inicial
 
@@ -348,6 +348,7 @@ control construido y una prueba que lo verifica.
 | Alcance de "los números" | El número del contacto y el número del bot | RS05 |
 | Nivel ASVS | L2 | Cabecera de este documento |
 | Retención | Máximos de plataforma que el cliente puede acortar: 24 horas en la cola y 12 meses sin actividad para un contacto | RNF05 |
+| Supresión en respaldos | Se cumple por caducidad: los respaldos de la base se conservan 365 días como mucho | [ADR-0014](../00-project/adr/0014-supresion-en-respaldos-por-caducidad.md), RNF05 |
 | SLO del webhook | Sin cifra comprometida; se mide desde el primer despliegue | RNF01, RNF07 |
 
 ### Resueltas en el Gate 1 (2026-10-12, Jeremi Alcala)

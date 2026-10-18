@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from datetime import datetime
-from uuid import uuid4, UUID
+from uuid import uuid4
 from mongoengine import *
 from inspect import currentframe
 
@@ -21,7 +21,8 @@ connect(
 
 
 class ChatBot(Document):
-    uuid = UUIDField(required=True, unique=True, default=uuid4())
+    uuid = UUIDField(required=True, unique=True, default=uuid4)
+    clientId = UUIDField(required=True)
     name = StringField(required=True)
     role = StringField(required=True)
     description = StringField(required=True)
@@ -30,9 +31,9 @@ class ChatBot(Document):
     facebookToken = StringField()
     whatsappToken = StringField()
     appSecret = StringField()
-    createdAt = DateTimeField(required=True, default=datetime.now())
+    createdAt = DateTimeField(required=True, default=datetime.now)
     status = IntField(required=True, default=Status.REG.value)
-    statusDate = DateTimeField(required=True, default=datetime.now())
+    statusDate = DateTimeField(required=True, default=datetime.now)
 
     def chatbot_info(self) -> dict:
         log.info(f"Executing: {currentframe().f_code.co_name}")
@@ -41,14 +42,16 @@ class ChatBot(Document):
             "name": self.name,
             "rol": self.role,
             "tone": self.tone,
-            "verifyToken": self.verifyToken,
-            "facebookToken": self.facebookToken,
-            "whatsappToken": self.whatsappToken
+            # Which Meta credentials are loaded, never their values: those go in and do not come out.
+            "credentials": {
+                "facebookToken": bool(self.facebookToken),
+                "whatsappToken": bool(self.whatsappToken),
+                "appSecret": bool(self.appSecret)
+            }
         }
 
     def generate_verification_token(self):
         log.info(f"Executing: {currentframe().f_code.co_name}")
-        log.info(self.name)
         _cred = Credentials()
         _cred.set_claims(claim=self.name)
         _cred.set_jwt()
@@ -56,8 +59,3 @@ class ChatBot(Document):
         # log.info(_cred.to_json())
         # _cred.save()
         self.verifyToken = _cred.jwt.serialize()
-
-    @staticmethod
-    async def get_chatbot_by_uuid(_uuid: str):
-        log.info(f"Executing: {currentframe().f_code.co_name}")
-        return [chatbot for chatbot in ChatBot.objects(uuid=UUID(_uuid))][-1]

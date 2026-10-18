@@ -1,10 +1,27 @@
+from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Required: the app refuses to start without a key for the management endpoints.
-    admin_api_key: str = Field(min_length=32)
+    # Required: the app refuses to start without the key pair clients encrypt their tokens to. It is the path of
+    # a JWK Set file kept outside the repository and the image.
+    gateway_keys_file: str = Field(min_length=1)
+    # What clients put in the aud of their tokens, so a token issued for another service is not valid here.
+    gateway_audience: str = Field(min_length=8)
+    # The key service that holds the master key: an OpenBao. The app starts without reaching it, but nothing
+    # encrypted can be read or written until it answers.
+    andvari_addr: str = Field(min_length=8)
+    andvari_role_id: str = Field(min_length=1)
+    # Path of the file with the AppRole secret id. A file, not a variable: it does not show in the environment
+    # of the container, and it can be rotated without a restart.
+    andvari_secret_id_file: str = Field(min_length=1)
+    # The CA that signed the key service's certificate. Without it, the system's are used.
+    andvari_ca_file: str | None = None
+    # Where the register of erasures is kept: a directory that outlives the container and is not the database.
+    # Nothing is deleted while it cannot be written.
+    erasures_dir: str = Field(default="erasures", min_length=1)
     # Meta App Secret used to verify webhook signatures; a bot's own appSecret overrides it.
     facebook_app_secret: str | None = None
 
@@ -34,7 +51,9 @@ class Settings(BaseSettings):
     private_key_filename: str
     public_key_filename: str
 
-    environment: str
+    # Which logger is used (logging_config.yaml) and whether development shortcuts apply. Anything else stops
+    # the start: with a typo, production would log at another level and skip the HTTPS check of the key service.
+    environment: Literal["development", "staging", "production"]
     version: str
 
     verify_token: str
@@ -44,4 +63,5 @@ class Settings(BaseSettings):
     facebook_graph_version: str
 
     # hide_input_in_errors: a rejected setting must not be echoed into the startup traceback.
-    model_config = SettingsConfigDict(env_file="config.env", hide_input_in_errors=True)
+    # extra="ignore": a key left over in config.env from a setting that no longer exists must not stop the start.
+    model_config = SettingsConfigDict(env_file="config.env", hide_input_in_errors=True, extra="ignore")

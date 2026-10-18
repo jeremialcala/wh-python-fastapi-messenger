@@ -17,10 +17,10 @@ marca qué existe y qué falta. La lista completa de diferencias está en
 
 | Contexto | Responsabilidad | Entidades núcleo | Estado |
 |---|---|---|---|
-| Clientes y acceso | Registrar clientes, autenticar cada petición y decidir qué puede ver cada uno | Cliente, clave pública de firma, clave de datos | Sin construir: hoy una única clave de gestión |
+| Clientes y acceso | Registrar clientes, autenticar cada petición y decidir qué puede ver cada uno | Cliente, clave pública de firma, clave de datos | Construido: registro y baja de clientes, token firmado y cifrado, aislamiento por cliente y clave de datos |
 | Gestión de bots | Alta y configuración de un bot: persona, reglas, números y credenciales de Meta | `ChatBot`, `ChatbotPhone`, `Rule` | Construido, sin dueño por bot |
 | Mensajería entrante | Verificar a Meta, normalizar la notificación y publicarla con confirmación | `FacebookRequest`, `MessageBody`, `QueueMessage` | Construido |
-| Contactos | Identificar o crear a quien escribe; exportar y borrar sus datos | `Contact` | Construido sin cifrado, sin exportar ni borrar |
+| Contactos | Identificar o crear a quien escribe; exportar y borrar sus datos | `Contact` | Construido, con el número cifrado; se listan, se buscan, se exportan y se borran |
 | Intents y herramientas | Lo que un bot sabe hacer, expuesto al motor como herramientas | `Intent`, `Action`, `ApiCall` | Construido |
 | Trazabilidad | Registrar cada petición y sus pasos | `Event`, `EventAction`, `Jwk` | Construido y desactivado |
 
@@ -62,8 +62,8 @@ C4Container
     UpdateElementStyle(gateway, $bgColor="#1168bd", $fontColor="#ffffff")
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-*Eje estructura · fase 02 · Gate 1. Es el objetivo. Hoy no existen: el acceso de los clientes (la gestión solo se
-alcanza en red privada y con una clave única), las dos relaciones del motor con el gateway y con Meta, y el propio
+*Eje estructura · fase 02 · Gate 1. Es el objetivo. El acceso de los clientes ya existe, con su token. No existen
+todavía: las dos relaciones del motor con el gateway y con Meta, la publicación de la gestión, y el propio
 despliegue del gateway en el servidor.*
 
 ## Vista C4 — Component (gateway)
@@ -81,15 +81,15 @@ C4Component
     Container_Boundary(gw, "Gateway") {
         Component(interceptor, "Interceptor", "Middleware HTTP", "Tiempos y respuesta 500 por defecto")
         Component(firma, "Verificacion del webhook", "Dependencia FastAPI", "Token de verificacion y X-Hub-Signature-256")
-        Component(auth, "Autenticacion de gestion", "Dependencia FastAPI", "Hoy X-API-Key. Objetivo: JWT firmado en JWE")
+        Component(auth, "Autenticacion", "Dependencia FastAPI", "JWT firmado por el cliente dentro de un JWE")
         Component(rutas, "Rutas", "FastAPI", "Webhook, bots, reglas, intents, salud")
         Component(mensajes, "Mensajeria entrante", "controller.messages", "Normaliza la notificacion y arma el sobre")
         Component(contactos, "Contactos", "controller.facebook", "Identifica o crea al contacto")
         Component(bots, "Bots e intents", "controller.chatbot, intents", "Configuracion de cada bot")
         Component(publicador, "Publicador", "controller.amqp_broker, pika", "Publica con confirmacion del broker")
-        Component(registro, "Registro de clientes", "Por construir", "Clientes, claves publicas y claves de datos")
+        Component(registro, "Registro de clientes", "Repositorio", "Clientes y sus claves publicas de firma")
         Component(repos, "Repositorios por cliente", "Por construir", "Unico acceso a datos, siempre con clientId")
-        Component(cifrado, "Cifrado de campos", "Por construir", "Clave de datos del cliente e indice ciego")
+        Component(cifrado, "Cifrado de campos", "AES-256-GCM", "Clave de datos del cliente e indice ciego")
         Component(entidades, "Entidades", "mongoengine", "Documentos de MongoDB")
     }
 
@@ -111,13 +111,10 @@ C4Component
     Rel(entidades, atlas, "Lee y escribe", "TLS")
     Rel(publicador, hermod, "Publica", "AMQP")
 
-    UpdateElementStyle(registro, $borderColor="#b30000", $fontColor="#b30000")
-    UpdateElementStyle(repos, $borderColor="#b30000", $fontColor="#b30000")
-    UpdateElementStyle(cifrado, $borderColor="#b30000", $fontColor="#b30000")
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-*Eje estructura · fase 02 · Gate 1. En rojo, los tres componentes que el diseño añade y que no existen. Hoy los
-controladores usan las entidades directamente, sin pasar por ningún repositorio.*
+*Eje estructura · fase 02 · Gate 1. Los cuatro componentes que el diseño añadía ya están construidos: la
+autenticación, el registro de clientes, la capa de repositorio y el cifrado de campos.*
 
 ## Flujos críticos (comportamiento)
 
@@ -212,8 +209,9 @@ stateDiagram-v2
     Respondido --> [*]
     Fallido --> [*]
 ```
-*Eje comportamiento · fase 02 · Gate 1. Hasta `Encolado` es responsabilidad del gateway y está construido. `Duplicado`
-y `Caducado` son del contrato de la cola (ADR-0011) y no existen todavía. De `EnProceso` en adelante es del motor.*
+*Eje comportamiento · fase 02 · Gate 1. Hasta `Encolado` es responsabilidad del gateway y está construido. `Caducado`
+lo aplica el broker, con la caducidad que el gateway pone en cada mensaje. `Duplicado` es del motor y no existe todavía
+(ADR-0011). De `EnProceso` en adelante es del motor.*
 
 ## Modelo de datos y dominio
 
@@ -335,7 +333,8 @@ función, no como puerto.*
 | Cola `llm` | [`contracts/asyncapi.yaml`](contracts/asyncapi.yaml) | Escrito a mano. Una prueba de contrato valida contra él el mensaje que el código publica de verdad |
 
 Los dos describen lo que hay **hoy**. El OpenAPI no declara esquemas de seguridad porque la aplicación no los
-declara. El AsyncAPI incluye los defectos conocidos del mensaje; la versión objetivo está en ADR-0011.
+declara. El AsyncAPI describe el sobre versión 1 de ADR-0011, que es lo que el gateway publica: un sobre por cada
+mensaje, con el identificador de Meta y una caducidad de 24 horas.
 
 Autenticación por superficie:
 
@@ -343,7 +342,7 @@ Autenticación por superficie:
 |---|---|---|
 | `GET` y `POST /chat/{bot_id}` | Token de verificación y firma de Meta | Igual (ADR-0004) |
 | `GET /health` | Sin autenticación; solo en loopback | Igual |
-| Resto de endpoints | Cabecera `X-API-Key`, una clave para todo | JWT firmado por el cliente dentro de un JWE (ADR-0005, ADR-0009) |
+| Resto de endpoints | JWT firmado por el cliente dentro de un JWE: construido | JWT firmado por el cliente dentro de un JWE (ADR-0005, ADR-0009) |
 
 ## Patrones de seguridad seleccionados (por amenaza DREAD priorizada)
 
@@ -366,13 +365,13 @@ Lo que hay que construir para que el código cumpla este diseño, en el orden qu
 
 | Orden | Trabajo | Cubre | ADR |
 |---|---|---|---|
-| 1 | Entidad cliente, `clientId` en cada documento y capa de repositorio | RF01, RS01 | ADR-0012 |
-| 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key` | RS02 | ADR-0005, ADR-0009 |
-| 3 | Clave de datos por cliente, cifrado de campos e índice ciego; migrar lo que está en claro | RS05, RS06 | ADR-0010 |
-| 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad | RF12, RNF04, RNF05 | ADR-0011 |
-| 5 | Endpoints para cargar credenciales de Meta, y para exportar y borrar contactos y bots | RF06, RF08, RF09, RF10 | — |
-| 6 | Logs sin datos personales, errores sin detalles, esquema estricto de la notificación | RS07, RS11, RS15 | — |
-| 7 | Retirar el envío por WhatsApp y la mención a `/answers`, que ya no son del gateway | — | ADR-0002 |
+| 1 | Entidad cliente, `clientId` en cada documento y capa de repositorio. **Hecho** | RF01, RS01 | ADR-0012 |
+| 2 | Autenticación con JWT firmado dentro de un JWE; retirar `X-API-Key`. **Hecho**, con el alta de clientes y la credencial del motor, una por cliente | RS02, RS06 | ADR-0005, ADR-0009, ADR-0016 |
+| 3 | Clave de datos por cliente, cifrado de campos e índice ciego; migrar lo que está en claro. **Hecho**; la migración se ejecuta a mano | RS05, RS06 | ADR-0010 |
+| 4 | Sobre versión 1: identificadores y fechas reales, `metadata` como objeto, `messageId`, caducidad. **Hecho** del lado del gateway; el motor tiene su parte | RF12, RNF04, RNF05 | ADR-0011 |
+| 5 | Endpoints para cargar credenciales de Meta, y para exportar y borrar contactos, bots y clientes. **Hecho**; en los respaldos la supresión se cumple por caducidad, a los 365 días como mucho | RF06, RF08, RF09, RF10 | ADR-0014 |
+| 6 | Logs sin datos personales, errores sin detalles, esquema estricto de la notificación y límite de tamaño. **Hecho**; los modelos de gestión siguen sin acotar | RS07, RS11, RS15 | ADR-0015 |
+| 7 | Retirar el envío por WhatsApp y la mención a `/answers`, que ya no son del gateway. **Hecho** | — | ADR-0002 |
 
 Del lado del motor, en su repositorio: aceptar el sobre para Messenger, conservar el `botId`, deduplicar, pedir la
 configuración al gateway y enviar la respuesta (ADR-0002, ADR-0003, ADR-0011).

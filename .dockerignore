@@ -1,9 +1,23 @@
 # Secrets and keys: these must never end up in an image layer.
+# Each one also with **/, which reaches any directory: without it a pattern only matches at the root.
 config.env
+**/config.env
 *.env
+**/*.env
 .env*
+**/.env*
 certs/
+**/certs/
+erasures/
+**/erasures/
 *.pem
+**/*.pem
+gateway-keys*.json
+**/gateway-keys*.json
+keys/
+**/keys/
+*-key.json
+**/*-key.json
 
 # Not needed at runtime.
 .git/
@@ -21,6 +35,9 @@ deploy/
 bootstrap.sh
 compose-dev.yaml
 pytest.ini
+requirements.txt
+requirements-dev.txt
+requirements-dev.lock
 Dockerfile
 .dockerignore
 *.md

@@ -30,7 +30,8 @@ una comprobación de dueño en cada una es fácil de olvidar en la siguiente.
 4. **Un objeto ajeno responde igual que uno inexistente**: `404`, sin distinguir.
 5. **Dos papeles más, aparte del cliente.** El operador, que registra clientes y no usa las rutas de los clientes
    para leer sus datos. Y el cliente de servicio (el motor), con lectura de la configuración de cualquier bot y sin
-   escritura.
+   escritura. **Corregido el 2026-10-13 por [ADR-0016](0016-credencial-del-motor-por-cliente.md):** el motor tiene
+   una clave por cliente y solo lee la configuración de los bots de ese cliente.
 6. **El webhook no cambia.** Lo identifica el `bot_id` de la URL y lo autentica la firma; el `clientId` se toma del
    bot.
 
