@@ -259,7 +259,7 @@ Los ajustes los carga `src/classes/tool_settings.py` (`pydantic-settings`) desde
 | `EXPIRATION_TIME`, `ACTIVATION_CODE_LENGTH`, `PASSWORD_LENGTH` | Parámetros de generación de códigos y tokens. |
 | `QMS_SERVER`, `QMS_USER`, `QMS_PASSWORD` | Host y credenciales de RabbitMQ. |
 | `KEY_SIZE`, `PRIVATE_KEY_FILENAME`, `PUBLIC_KEY_FILENAME` | Generación de claves y plantillas de ruta de los PEM (marcador `{UUID}`). |
-| `ENVIRONMENT` | `development`, `staging` o `production` (selecciona el logger). |
+| `ENVIRONMENT` | `development`, `staging` o `production`: selecciona el logger, y solo en `development` se sirven `/docs`, `/redoc` y `/openapi.json`. Con cualquier otro valor el servicio no arranca. El compose de despliegue lo fija en `production`. |
 | `VERSION` | Versión de la app que muestra OpenAPI. |
 | `VERIFY_TOKEN` | Token de verificación por defecto. |
 | `FACEBOOK_GRAPH_URL`, `FACEBOOK_WHATSAPP_MESSAGE`, `FACEBOOK_GRAPH_VERSION` | Plantillas de los endpoints de la API Graph de Meta y su versión (por ejemplo, `v19.0`). |

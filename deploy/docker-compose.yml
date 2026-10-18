@@ -24,6 +24,8 @@ services:
     env_file:
       - .env
     environment:
+      # Here and not in .env: a typo there would stop the start, but this is what production is.
+      ENVIRONMENT: production
       # Two cores on the host, and they also route the network.
       WEB_CONCURRENCY: 2
       GATEWAY_KEYS_FILE: /run/gateway/gateway-keys.json

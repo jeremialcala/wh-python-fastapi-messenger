@@ -178,7 +178,18 @@ async def get_signed_webhook_bot(request: Request, _bot: ChatBot = Depends(get_w
     return _bot
 
 
+def documentation(environment: str) -> dict:
+    """
+        The interactive documentation, and the schema it reads, only in development: anywhere else they show every
+        route and model to whoever finds the address. The contract is docs/02-design/contracts/openapi.yaml.
+    """
+    if environment == "development":
+        return {}
+    return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+
+
 app = FastAPI(
+    **documentation(settings.environment),
     openapi_tags=TAGS_METADATA,
     on_startup=[configure_logging],
     title=TITLE,

@@ -466,3 +466,28 @@ def test_what_other_libraries_write_of_a_request_reaches_no_output(capsys, produ
     assert "a-warning-still-comes-out" in output.out + output.err
     for sent in ("verify-token-marker", "123456789", "EAAG-marker"):
         assert sent not in output.out + output.err
+
+
+# --- What depends on the environment ---------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("environment", ["staging", "production"])
+def test_the_documentation_is_only_served_in_development(environment):
+    """RD-16 of the dual review of Gate 2: it showed every route and model in every environment."""
+    from fastapi import FastAPI
+
+    elsewhere = TestClient(FastAPI(**app_module.documentation(environment)))
+    here = TestClient(app_module.app)
+
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert elsewhere.get(path).status_code == 404
+        assert here.get(path).status_code == 200
+
+
+@pytest.mark.parametrize("environment", ["Production", "prod", "", "production "])
+def test_an_environment_that_does_not_exist_stops_the_start(environment):
+    from pydantic import ValidationError
+
+    from classes import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(environment=environment)

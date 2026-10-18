@@ -197,6 +197,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   en ningún nivel, ni el texto de las excepciones, que los repetía. Tampoco lo que escribirían el driver de la
   base y el cliente HTTP.
 - Dos respuestas de error devolvían el texto de la excepción. Un fallo inesperado responde ahora `500` sin él.
+- `/docs`, `/redoc` y `/openapi.json` solo se sirven en `development`. `ENVIRONMENT` solo admite `development`,
+  `staging` o `production`: con cualquier otro valor el servicio no arranca, en vez de arrancar con otro nivel de log
+  y sin exigir HTTPS a Andvari. El compose de despliegue lo fija en `production` (RD-16).
 
 ## [0.2.0] - 2026-10-12
 

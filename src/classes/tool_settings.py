@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -49,7 +51,9 @@ class Settings(BaseSettings):
     private_key_filename: str
     public_key_filename: str
 
-    environment: str
+    # Which logger is used (logging_config.yaml) and whether development shortcuts apply. Anything else stops
+    # the start: with a typo, production would log at another level and skip the HTTPS check of the key service.
+    environment: Literal["development", "staging", "production"]
     version: str
 
     verify_token: str
