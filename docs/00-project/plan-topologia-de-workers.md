@@ -4,11 +4,11 @@
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 00-project
-* **Versión:** 0.2.0
+* **Versión:** 0.3.0
 * **Origen:** «Análisis comparativo exhaustivo: Rust vs. Python para la arquitectura de motores de chatbots asistidos por IA» (documento externo, revisado el 2026-10-18)
 
 Este documento revisa el análisis y planifica qué cambia en este repositorio para encajar en la arquitectura que
-propone. Las cinco decisiones se tomaron el 2026-10-18 y están en la sección [Decisiones](#decisiones); cada una
+propone. Las seis decisiones se tomaron el 2026-10-18 y están en la sección [Decisiones](#decisiones); cada una
 se escribe como ADR en el diseño (paso 2).
 
 ## Qué propone el análisis
@@ -192,6 +192,7 @@ Tomadas el 2026-10-18 por Jeremi Alcala.
 | D3 | Una credencial por worker | **Sí** (R5) | ADR-0016 se amplía: cada clave de servicio dice qué rutas alcanza |
 | D4 | Instagram | **Entra en el alcance** (R7) | Requisito nuevo en el PRD, contrato y clasificación de datos; consultar lo que Meta exige a ese webhook |
 | D5 | Cerrar el Gate 2 antes de empezar | **Sí** | Revisión dual y corte de la 0.3.0 antes del paso 1 |
+| D6 | Contexto de conversación | **Historial exportable; contexto de 10 vueltas más resumen que caduca a las 24 horas** | [ADR-0017](adr/0017-contexto-de-conversacion-e-historial.md), propuesta: historial en Atlas, escrito por el worker de ingesta; contexto en un bucket KV de NATS, del coordinador. Incrementos nuevos detrás de I4 |
 
 La recomendación de D1 era seguir con RabbitMQ y D4 dejaba Instagram fuera; las dos se cambiaron.
 
@@ -204,7 +205,7 @@ artefactos de los gates 0 y 1 como cambios sobre la línea base 0.3.0, y luego s
 |---|---|---|
 | 0 | Cierre del Gate 2 actual | Revisión dual, corte de la 0.3.0 en el CHANGELOG y tag |
 | 1 | Requisitos (Gate 0) | PRD: RNF01 con 250 ms de mediana y menos de un 1 % sobre 1 s para WhatsApp; requisitos de orden por conversación, de traza y del canal de Instagram; escenarios de abuso nuevos (un evento repetido, un evento fuera de orden, datos personales en el bus o en una traza, un servicio que publica en un sujeto ajeno); clasificación de datos con el bus, los spans y el identificador de Instagram |
-| 2 | Diseño (Gate 1) | ADRs de D1 (NATS JetStream), de su placement en midgard, de D2 (reescribe ADR-0006 y ADR-0015) y de D3 (amplía ADR-0016); ADR-0011 y AsyncAPI 2.0.0; arquitectura con el worker de ingesta y NATS; threat model con los límites de confianza nuevos y T11 |
+| 2 | Diseño (Gate 1) | ADR-0017 (D6, ya propuesta); ADRs de D1 (NATS JetStream), de su placement en midgard, de D2 (reescribe ADR-0006 y ADR-0015) y de D3 (amplía ADR-0016); ADR-0011 y AsyncAPI 2.0.0; arquitectura con el worker de ingesta y NATS; threat model con los límites de confianza nuevos y T11 |
 | 3 | Implementación (Gate 2) | Los incrementos de abajo, uno por PR a `develop` |
 | 4 | Pruebas (Gate 3) | Medición de latencia contra Atlas y NATS reales en midgard, que es la evidencia de RNF01; corte de la 0.4.0 |
 

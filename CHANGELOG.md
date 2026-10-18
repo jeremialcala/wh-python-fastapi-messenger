@@ -8,6 +8,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- ADR-0017, propuesta: el historial de cada conversación se guarda en el gateway (Atlas, cifrado con la clave del
+  cliente, exportable y con supresión) y el contexto del coordinador, las últimas 10 vueltas más un resumen, vive
+  24 horas en un bucket KV de NATS. Decidido el 2026-10-18 que el historial se exporta, que el contexto caduca a las
+  24 horas y su tamaño; quedan abiertas la retención del historial y los adjuntos.
 - La parte de la IA de la revisión dual del Gate 2 (`docs/03-implementation/revision-dual-gate-2.md`): cuatro
   revisores sobre todo lo que entró desde la 0.2.0, sin hallazgos críticos, uno alto, siete medios y trece bajos.
   Anotados en el threat model H14 (llamadas que bloquean el proceso) y H15 (gates que no son obligatorios).
