@@ -11,6 +11,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - La parte de la IA de la revisión dual del Gate 2 (`docs/03-implementation/revision-dual-gate-2.md`): cuatro
   revisores sobre todo lo que entró desde la 0.2.0, sin hallazgos críticos, uno alto, siete medios y trece bajos.
   Anotados en el threat model H14 (llamadas que bloquean el proceso) y H15 (gates que no son obligatorios).
+- Plan para encajar el gateway en la topología de ocho workers que propone el análisis «Rust vs. Python»
+  (`docs/00-project/plan-topologia-de-workers.md`): revisión del análisis, por qué el webhook actual no cumple los
+  250 ms de mediana que pide Meta para WhatsApp, ocho cambios y el recorrido por los gates. Decidido el
+  2026-10-18: NATS JetStream en lugar de RabbitMQ, la identificación del contacto fuera del webhook, una credencial
+  por worker, Instagram como tercer canal y cerrar antes el Gate 2.
 - ADR-0013, aceptado: OpenBao como gestor de secretos y controlador central de claves, desplegado en el servidor
   con el nombre de Andvari. La clave maestra de ADR-0010 vive en su motor Transit, derivada por cliente.
 - Workflow `Seguridad`, con tres gates que rompen el build: fuga de secretos (gitleaks sobre la historia
