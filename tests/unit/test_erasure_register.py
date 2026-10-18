@@ -21,11 +21,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app as app_module
+import webhook as webhook_module
 import controller.messages as messages
 from classes import ChatBot, ChatbotPhone, Client, Contact, Intent, Rule
 from migrations import replay_erasures
 from repository import RegisterUnavailable, TenantRepository, erasures
 from repository import clients as client_registry
+
+# What Meta calls is its own service, apart from the management API.
+META = TestClient(webhook_module.app)
 
 BOT = {"name": "Mine", "role": "Sales Assistant", "description": "A test chatbot", "tone": "helpful"}
 APP_SECRET = "app-secret-of-this-test"
@@ -69,7 +73,7 @@ def new_bot(http, caller) -> str:
 def notify(http, bot_id, payload):
     body = json.dumps(payload).encode()
     signature = "sha256=" + hmac.new(APP_SECRET.encode(), body, hashlib.sha256).hexdigest()
-    return http.post(f"/chat/{bot_id}", content=body,
+    return META.post(f"/chat/{bot_id}", content=body,
                      headers={"content-type": "application/json", "X-Hub-Signature-256": signature})
 
 

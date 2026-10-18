@@ -1,4 +1,4 @@
-# Contrato OpenAPI del gateway (fase 02-design, Gate 1). Refleja la API tal como está construida.
+# Contrato OpenAPI de un servicio del gateway (fase 02-design). Refleja la API tal como está construida.
 # Generado con .ai-dlc/scripts/gen_openapi.py: regenerar, no editar a mano.
 # Sin valores por defecto ni ejemplos: en el código son aleatorios y cambian en cada arranque.
 # Declara el token de autenticación (HTTPBearer: un JWT firmado dentro de un JWE). La firma X-Hub-Signature-256
@@ -337,30 +337,27 @@ info:
     email: jeremialcala@gmail.com
     name: Jeremi Alcala
     url: https://jeremi.web-ones.com/
-  description: "\nThe gateway between Meta (Messenger and WhatsApp) and the response engine of each chatbot. It\
-    \ checks that a\nnotification comes from Meta, finds or stores who wrote, and queues each message for the engine.\
-    \ Each client\nmanages its own chatbots through it and reaches nothing of anybody else's.\n\nEvery route but\
-    \ the webhook and the health check asks for a token in `Authorization: Bearer`: a JWT signed by the\ncaller\
-    \ inside a JWE encrypted to the gateway, valid once and for 60 seconds at most.\n\n### The webhook\n\n* /chat/{bot_id}:\
-    \ what Meta calls for a chatbot.\n    * @GET: the verification challenge, checked against the verification token\
-    \ of the chatbot.\n    * @POST: a notification, taken only with a valid `X-Hub-Signature-256`. Each message\
-    \ in it is queued.\n\n### A client and its chatbots\n\n* /bot: @POST creates a chatbot.\n* /bot/{bot_id}: @DELETE\
-    \ deletes it with everything stored for it.\n* /chat/{bot_id}/info: @GET what is stored of the chatbot, and\
-    \ which Meta credentials are loaded.\n* /chat/{bot_id}/credentials: @PUT loads or rotates its Meta credentials.\
-    \ They are never returned.\n* /chat/{bot_id}/phones: @POST adds a WhatsApp number, @GET lists them. `?environment=`\
-    \ gives the last one of it.\n* /chat/{bot_id}/rules: @POST adds rules, @GET builds the system prompt from them.\n\
-    * /chat/{bot_id}/intents: @POST and @GET; /chat/{bot_id}/intents/{intent_id} takes @GET, @PUT and @DELETE.\n\
-    * /chat/{bot_id}/tools: @GET the actions of its intents as tool definitions for the model.\n* /chat/{bot_id}/contacts:\
-    \ @GET who wrote to it, a page at a time; /chat/{bot_id}/contacts/{contact_id} exports\n  one with @GET and\
-    \ deletes it with @DELETE.\n* /contacts/search: @POST finds a person in every chatbot of the client, by number\
-    \ or by Messenger id.\n* /keys: @GET the keys of the caller, @POST adds one to rotate; /keys/{kid} removes one\
-    \ with @DELETE.\n\n### The response engine\n\n* /chat/{bot_id}/tokens: @GET the Meta tokens of a chatbot. Only\
-    \ for the engine, with the key it holds for the\n  client that owns the chatbot. It also reads the rules and\
-    \ the tools of that chatbot, and nothing else.\n\n### The operator\n\n* /clients: @POST registers a client,\
-    \ @GET lists them; /clients/{client_id} takes one off with @DELETE.\n* /clients/{client_id}/keys: the keys a\
-    \ client signs with; /clients/{client_id}/service-keys, the keys the\n  response engine signs with for that\
-    \ client.\n\n### Any caller\n\n* /gateway/keys: @GET the audience and the public keys tokens are encrypted to.\n\
-    * /health: @GET liveness, without a token.\n"
+  description: "\nThe management API of the gateway between Meta (Messenger and WhatsApp) and the response engine\
+    \ of each chatbot.\nEach client manages its own chatbots through it and reaches nothing of anybody else's. What\
+    \ Meta calls is another\nservice, the webhook, which runs apart from this one.\n\nEvery route but the health\
+    \ check asks for a token in `Authorization: Bearer`: a JWT signed by the caller inside a\nJWE encrypted to the\
+    \ gateway, valid once and for 60 seconds at most.\n\n### A client and its chatbots\n\n* /bot: @POST creates\
+    \ a chatbot.\n* /bot/{bot_id}: @DELETE deletes it with everything stored for it.\n* /chat/{bot_id}/info: @GET\
+    \ what is stored of the chatbot, and which Meta credentials are loaded.\n* /chat/{bot_id}/credentials: @PUT\
+    \ loads or rotates its Meta credentials. They are never returned.\n* /chat/{bot_id}/phones: @POST adds a WhatsApp\
+    \ number, @GET lists them. `?environment=` gives the last one of it.\n* /chat/{bot_id}/rules: @POST adds rules,\
+    \ @GET builds the system prompt from them.\n* /chat/{bot_id}/intents: @POST and @GET; /chat/{bot_id}/intents/{intent_id}\
+    \ takes @GET, @PUT and @DELETE.\n* /chat/{bot_id}/tools: @GET the actions of its intents as tool definitions\
+    \ for the model.\n* /chat/{bot_id}/contacts: @GET who wrote to it, a page at a time; /chat/{bot_id}/contacts/{contact_id}\
+    \ exports\n  one with @GET and deletes it with @DELETE.\n* /contacts/search: @POST finds a person in every chatbot\
+    \ of the client, by number or by Messenger id.\n* /keys: @GET the keys of the caller, @POST adds one to rotate;\
+    \ /keys/{kid} removes one with @DELETE.\n\n### The response engine\n\n* /chat/{bot_id}/tokens: @GET the Meta\
+    \ tokens of a chatbot. Only for the engine, with the key it holds for the\n  client that owns the chatbot. It\
+    \ also reads the rules and the tools of that chatbot, and nothing else.\n\n### The operator\n\n* /clients: @POST\
+    \ registers a client, @GET lists them; /clients/{client_id} takes one off with @DELETE.\n* /clients/{client_id}/keys:\
+    \ the keys a client signs with; /clients/{client_id}/service-keys, the keys the\n  response engine signs with\
+    \ for that client.\n\n### Any caller\n\n* /gateway/keys: @GET the audience and the public keys tokens are encrypted\
+    \ to.\n* /health: @GET liveness, without a token.\n"
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
@@ -429,93 +426,6 @@ paths:
       summary: Delete Chatbot
       tags:
       - Bot
-  /chat/{bot_id}:
-    get:
-      operationId: verify_chat__bot_id__get
-      parameters:
-      - in: path
-        name: bot_id
-        required: true
-        schema:
-          title: Bot Id
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Verify
-      tags:
-      - Chat
-    post:
-      description: 'What Meta is answered. 403 without a good signature, before anything of the body is read. 200
-        for
-
-        everything it signed, also for what the service does not understand or cannot process: asking for it
-
-        again would not change it, and Meta stops delivering to a webhook that keeps failing. 503 only when
-
-        something the service needs is not there: then Meta sends it again later.'
-      operationId: message_processor_chat__bot_id__post
-      parameters:
-      - in: path
-        name: bot_id
-        required: true
-        schema:
-          title: Bot Id
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              description: 'A notification from Meta, as far as the service reads it: the kind of object it is about
-                and its entries.
-
-                Both have to be there, and nothing is filled in for what is missing. Whatever else Meta sends, today
-                or
-
-                tomorrow, is ignored: it adds fields without notice.'
-              properties:
-                entry:
-                  items:
-                    additionalProperties: true
-                    type: object
-                  maxItems: 1000
-                  title: Entry
-                  type: array
-                object:
-                  maxLength: 64
-                  minLength: 1
-                  title: Object
-                  type: string
-              required:
-              - object
-              - entry
-              title: FacebookRequest
-              type: object
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Message Processor
-      tags:
-      - Chat
   /chat/{bot_id}/contacts:
     get:
       description: The contacts of a chatbot, oldest first, a page at a time, with everything stored about each.
@@ -1295,8 +1205,8 @@ paths:
       - Clients
   /health:
     get:
-      description: 'Liveness only: it answers without touching MongoDB or RabbitMQ, so a slow dependency does not
-        get a
+      description: 'Liveness only: it answers without touching MongoDB or the broker, so a slow dependency does
+        not get a
 
         healthy container restarted or rolled back.'
       operationId: health_health_get

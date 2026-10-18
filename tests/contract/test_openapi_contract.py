@@ -1,17 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-    The committed OpenAPI contract must be what the application actually serves.
+    The committed OpenAPI contracts must be what the two services actually serve: the management API and the
+    webhook.
     If this fails, regenerate it:  python .ai-dlc/scripts/gen_openapi.py
 """
 import importlib.util
 import pathlib
 import re
 
+import pytest
+
 import app as app_module
-from constants import DESCRIPTION
+import webhook as webhook_module
+from constants import DESCRIPTION, WEBHOOK_DESCRIPTION
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-CONTRACT = ROOT / "docs" / "02-design" / "contracts" / "openapi.yaml"
+CONTRACTS = ROOT / "docs" / "02-design" / "contracts"
+SERVICES = {"management": (app_module, CONTRACTS / "openapi.yaml", DESCRIPTION),
+            "webhook": (webhook_module, CONTRACTS / "openapi-webhook.yaml", WEBHOOK_DESCRIPTION)}
 GENERATOR = ROOT / ".ai-dlc" / "scripts" / "gen_openapi.py"
 
 
@@ -22,25 +28,29 @@ def load_generator():
     return module
 
 
-def test_committed_openapi_matches_the_application():
+@pytest.mark.parametrize("service", sorted(SERVICES))
+def test_committed_openapi_matches_the_application(service):
     generator = load_generator()
-    committed = CONTRACT.read_text(encoding="utf-8").replace("\r\n", "\n")
+    module, contract, _ = SERVICES[service]
+    committed = contract.read_text(encoding="utf-8").replace("\r\n", "\n")
 
-    assert committed == generator.volcar(app_module.app.openapi())
+    assert committed == generator.volcar(module.app.openapi())
 
 
-def test_the_description_names_no_route_the_application_does_not_serve():
+@pytest.mark.parametrize("service,at_least", [("management", 20), ("webhook", 2)])
+def test_the_description_names_no_route_the_application_does_not_serve(service, at_least):
     """It described an /answers endpoint that was never there."""
     def shape(path: str) -> str:
         return re.sub(r"\{[^}]*\}", "{}", path)
 
-    served = {shape(route.path) for route in app_module.app.routes}
-    named = re.findall(r"(?<![\w}])(/[a-z][\w{}/-]*)", DESCRIPTION)
+    module, _, description = SERVICES[service]
+    served = {shape(route.path) for route in module.app.routes}
+    named = re.findall(r"(?<![\w}])(/[a-z][\w{}/-]*)", description)
 
-    assert len(named) > 20
+    assert len(named) >= at_least
     for path in named:
         assert shape(path) in served, path
-    assert "answers" not in app_module.app.openapi()["info"]["description"]
+    assert "answers" not in module.app.openapi()["info"]["description"]
 
 
 def test_volatile_keys_are_dropped_but_property_names_are_kept():

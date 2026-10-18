@@ -39,30 +39,34 @@ C4Container
     ContainerDb_Ext(atlas, "MongoDB Atlas", "MongoDB", "Bots, contactos, reglas, intents y registro de clientes")
 
     System_Boundary(servidor, "Servidor midgard") {
-        Container(tunel, "cloudflared", "Cloudflare Tunnel", "Publica solo /chat/uuid")
-        Container(gateway, "Gateway", "Python 3.12, FastAPI, Uvicorn", "Verifica, identifica, encola y sirve la configuracion de los bots")
+        Container(tunel, "cloudflared", "Cloudflare Tunnel", "Publica solo el webhook")
+        Container(webhook, "Webhook", "Python 3.12, FastAPI, Uvicorn", "Verifica, identifica y encola cada mensaje")
+        Container(gateway, "API de gestion", "Python 3.12, FastAPI, Uvicorn", "Clientes, bots y la configuracion que pide el motor")
         ContainerQueue(hermod, "Hermod", "RabbitMQ 4.3", "Cola durable llm")
         Container(receptor, "Receptor de despliegue", "cd-receiver", "Levanta el tag nuevo y vuelve atras si falla")
     }
 
     Rel(meta, cf, "Entrega notificaciones firmadas", "HTTPS")
     Rel(cf, tunel, "Reenvia por el tunel", "QUIC saliente")
-    Rel(tunel, gateway, "Pasa /chat/uuid", "HTTP en loopback")
+    Rel(tunel, webhook, "Pasa /chat/uuid", "HTTP en loopback")
     Rel(cliente, gateway, "Administra sus bots", "HTTPS, JWT firmado en JWE")
     Rel(operador, gateway, "Registra clientes", "Red privada")
     Rel(gateway, atlas, "Lee y escribe", "TLS")
-    Rel(gateway, meta, "Consulta el perfil del contacto", "HTTPS")
-    Rel(gateway, hermod, "Publica cada mensaje", "AMQP con confirmacion")
+    Rel(webhook, atlas, "Lee el bot, guarda el contacto", "TLS")
+    Rel(webhook, meta, "Consulta el perfil del contacto", "HTTPS")
+    Rel(webhook, hermod, "Publica cada mensaje", "AMQP con confirmacion")
     Rel(motor, hermod, "Consume la cola llm", "AMQP")
     Rel(motor, gateway, "Pide la configuracion por bot_id", "JWT firmado en JWE")
     Rel(motor, meta, "Envia la respuesta", "HTTPS")
     Rel(cd, receptor, "Avisa del build", "Webhook firmado")
-    Rel(receptor, gateway, "Despliega", "Docker Compose")
+    Rel(receptor, webhook, "Despliega los dos", "Docker Compose")
 
+    UpdateElementStyle(webhook, $bgColor="#1168bd", $fontColor="#ffffff")
     UpdateElementStyle(gateway, $bgColor="#1168bd", $fontColor="#ffffff")
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
-*Eje estructura · fase 02 · Gate 1. Es el objetivo. El acceso de los clientes ya existe, con su token. No existen
+*Eje estructura · fase 02 · Gate 1. Es el objetivo. El webhook y la API de gestión son dos contenedores de la misma
+imagen ([ADR-0018](../00-project/adr/0018-webhook-y-gestion-por-separado.md)). El acceso de los clientes ya existe, con su token. No existen
 todavía: las dos relaciones del motor con el gateway y con Meta, la publicación de la gestión, y el propio
 despliegue del gateway en el servidor.*
 

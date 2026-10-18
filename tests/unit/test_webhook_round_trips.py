@@ -17,11 +17,14 @@ import pymongo.collection
 import pytest
 from fastapi.testclient import TestClient
 
-import app as app_module
+import webhook as webhook_module
 import controller.facebook as facebook
 import controller.messages as messages
 from classes import ChatBot
 from repository import TenantRepository, delete_client, kept_bots
+
+# What Meta calls is its own service, apart from the management API.
+META = TestClient(webhook_module.app)
 
 APP_SECRET = os.environ["FACEBOOK_APP_SECRET"]
 # What mongoengine sends the database for: each call is one round trip.
@@ -86,7 +89,7 @@ def bot(owner):
 def notify(bot_id, payload, secret=APP_SECRET):
     body = json.dumps(payload).encode()
     signature = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    return TestClient(app_module.app).post(f"/chat/{bot_id}", content=body,
+    return META.post(f"/chat/{bot_id}", content=body,
                                            headers={"content-type": "application/json",
                                                     "X-Hub-Signature-256": signature})
 

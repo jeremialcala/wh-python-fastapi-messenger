@@ -17,6 +17,7 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 import app as app_module
+import webhook as webhook_module
 import controller.messages as messages
 from auth import gateway_keys
 from auth.client import build_token, new_signing_key, public_part
@@ -24,6 +25,9 @@ from classes import Client
 from conftest import GATEWAY_AUDIENCE, GATEWAY_KEYS_FILE
 from enums import Role, Status
 from repository import TenantRepository, data_keys, find_signer
+
+# What Meta calls is its own service, apart from the management API.
+META = TestClient(webhook_module.app)
 
 BOT = {"name": "Mine", "role": "Sales Assistant", "description": "A test chatbot", "tone": "helpful"}
 SECRETS = {"facebookToken": "EAAG-page-token-0123456789", "whatsappToken": "EAAG-whatsapp-token-9876543210",
@@ -256,7 +260,7 @@ def test_the_envelope_says_whose_chatbot_it_is_and_that_is_all_the_engine_needs(
             "contacts": [{"profile": {"name": "Ana"}, "wa_id": "12025550143"}],
             "messages": [{"from": "12025550143", "id": "wamid.ONE", "type": "text", "text": {"body": "hola"}}]}}]}]})
     signature = "sha256=" + hmac.new(SECRETS["appSecret"].encode(), payload.encode(), hashlib.sha256).hexdigest()
-    assert http.post(f"/chat/{bot}", content=payload, headers={"content-type": "application/json",
+    assert META.post(f"/chat/{bot}", content=payload, headers={"content-type": "application/json",
                                                                "X-Hub-Signature-256": signature}).status_code == 200
     (envelope,) = queue
     body = envelope["jwe_body"]

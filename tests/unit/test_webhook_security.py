@@ -12,7 +12,7 @@ import pika
 import pytest
 from fastapi.testclient import TestClient
 
-import app as app_module
+import webhook as webhook_module
 import controller.amqp_broker as broker
 import controller.messages as messages
 from classes import FacebookRequest
@@ -50,15 +50,15 @@ def sign(body: bytes, secret: str = APP_SECRET) -> str:
 
 @pytest.fixture
 def client():
-    return TestClient(app_module.app)
+    return TestClient(webhook_module.app)
 
 
 @pytest.fixture
 def bot(monkeypatch):
     _bot = SimpleNamespace(uuid=BOT_ID, verifyToken=VERIFY_TOKEN, appSecret=None)
-    monkeypatch.setattr(app_module, "find_webhook_bot", lambda bot_id: _bot)
+    monkeypatch.setattr(webhook_module, "find_webhook_bot", lambda bot_id: _bot)
     # Read when asked for, not now: the tests change the secrets of the bot after this.
-    monkeypatch.setattr(app_module, "webhook_secrets",
+    monkeypatch.setattr(webhook_module, "webhook_secrets",
                         lambda bot: SimpleNamespace(verify_token=bot.verifyToken, app_secret=bot.appSecret))
     return _bot
 
@@ -66,7 +66,7 @@ def bot(monkeypatch):
 @pytest.fixture
 def process(monkeypatch):
     mock = AsyncMock()
-    monkeypatch.setattr(app_module, "ctr_process_messages", mock)
+    monkeypatch.setattr(webhook_module, "ctr_process_messages", mock)
     return mock
 
 
@@ -122,7 +122,7 @@ def test_bot_app_secret_overrides_the_global_one(client, bot, process):
 
 
 def test_notification_is_rejected_when_no_secret_is_configured(client, bot, process, monkeypatch):
-    monkeypatch.setattr(app_module.settings, "facebook_app_secret", None)
+    monkeypatch.setattr(webhook_module.settings, "facebook_app_secret", None)
 
     response = client.post(WEBHOOK, content=BODY, headers={**JSON, "X-Hub-Signature-256": sign(BODY, secret="")})
 

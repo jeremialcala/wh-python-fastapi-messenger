@@ -7,18 +7,12 @@ SUMMARY = "Controls the Facebook Messenger Lifecycle"
 TERMS = "https://web-ones.com/terms"
 
 DESCRIPTION = """
-The gateway between Meta (Messenger and WhatsApp) and the response engine of each chatbot. It checks that a
-notification comes from Meta, finds or stores who wrote, and queues each message for the engine. Each client
-manages its own chatbots through it and reaches nothing of anybody else's.
+The management API of the gateway between Meta (Messenger and WhatsApp) and the response engine of each chatbot.
+Each client manages its own chatbots through it and reaches nothing of anybody else's. What Meta calls is another
+service, the webhook, which runs apart from this one.
 
-Every route but the webhook and the health check asks for a token in `Authorization: Bearer`: a JWT signed by the
-caller inside a JWE encrypted to the gateway, valid once and for 60 seconds at most.
-
-### The webhook
-
-* /chat/{bot_id}: what Meta calls for a chatbot.
-    * @GET: the verification challenge, checked against the verification token of the chatbot.
-    * @POST: a notification, taken only with a valid `X-Hub-Signature-256`. Each message in it is queued.
+Every route but the health check asks for a token in `Authorization: Bearer`: a JWT signed by the caller inside a
+JWE encrypted to the gateway, valid once and for 60 seconds at most.
 
 ### A client and its chatbots
 
@@ -50,6 +44,16 @@ caller inside a JWE encrypted to the gateway, valid once and for 60 seconds at m
 
 * /gateway/keys: @GET the audience and the public keys tokens are encrypted to.
 * /health: @GET liveness, without a token.
+"""
+
+WEBHOOK_DESCRIPTION = """
+What Meta calls for each chatbot. It checks that a notification comes from Meta, finds or stores who wrote, and
+queues each message for the response engine. It runs apart from the management API and serves nothing else.
+
+* /chat/{bot_id}: what Meta calls for a chatbot.
+    * @GET: the verification challenge, checked against the verification token of the chatbot.
+    * @POST: a notification, taken only with a valid `X-Hub-Signature-256`. Each message in it is queued.
+* /health: @GET liveness.
 """
 
 TAGS_METADATA = [

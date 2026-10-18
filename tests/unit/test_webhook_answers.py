@@ -25,12 +25,17 @@ from mongoengine.errors import NotUniqueError, OperationError
 from pymongo.errors import AutoReconnect, DuplicateKeyError, OperationFailure, ServerSelectionTimeoutError
 
 import app as app_module
+import service
+import webhook as webhook_module
 import controller.facebook as facebook
 import controller.messages as messages
 from classes import Contact
 from controller.incoming import MESSENGER, WHATSAPP, NotUnderstood, incoming_messages, read_notification
 from repository import NotFound, TenantRepository, data_keys, database_failed
 from utils import BodySizeLimit
+
+# What Meta calls is its own service, apart from the management API.
+META = TestClient(webhook_module.app)
 
 BOT = {"name": "Mine", "role": "Sales Assistant", "description": "A test chatbot", "tone": "helpful"}
 APP_SECRET = "app-secret-of-this-test"
@@ -39,7 +44,7 @@ METADATA = {"display_phone_number": "12025550101", "phone_number_id": "100000000
 ANA, LUIS, EVA = "12025550143", "12025550177", "12025550190"
 PSID = "123456789"
 PROFILE = {"id": PSID, "first_name": "Carla", "last_name": "Diaz", "profile_pic": "https://example.com/c.jpg"}
-LIMIT = app_module.MAX_BODY_BYTES
+LIMIT = service.MAX_BODY_BYTES
 ASYNCAPI = Path(__file__).resolve().parents[2] / "docs" / "02-design" / "contracts" / "asyncapi.yaml"
 
 
@@ -67,7 +72,7 @@ def messenger(psid: str = PSID, **message) -> dict:
 
 @pytest.fixture
 def http():
-    return TestClient(app_module.app)
+    return TestClient(webhook_module.app)
 
 
 @pytest.fixture(autouse=True)
@@ -100,9 +105,12 @@ def caller(register):
 
 
 @pytest.fixture
-def bot(http, caller):
-    created = http.post("/bot", headers=caller.auth, json=BOT).json()["data"]
-    assert http.put(f"/chat/{created['uuid']}/credentials", headers=caller.auth, json=SECRETS).status_code == 200
+def bot(caller):
+    # Created through the management API, which is the other service.
+    management = TestClient(app_module.app)
+    created = management.post("/bot", headers=caller.auth, json=BOT).json()["data"]
+    assert management.put(f"/chat/{created['uuid']}/credentials", headers=caller.auth,
+                          json=SECRETS).status_code == 200
     return created["uuid"]
 
 
@@ -113,7 +121,7 @@ def signed(raw: bytes, secret: str = APP_SECRET) -> dict:
 
 def notify(http, bot_id, payload, secret: str = APP_SECRET):
     raw = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
-    return http.post(f"/chat/{bot_id}", content=raw, headers=signed(raw, secret))
+    return META.post(f"/chat/{bot_id}", content=raw, headers=signed(raw, secret))
 
 
 def queued(queue) -> list:
@@ -141,7 +149,7 @@ BODIES = {
 def test_without_a_good_signature_the_answer_is_403_and_the_body_is_not_read(http, bot, queue, monkeypatch, body,
                                                                              signature):
     read = []
-    monkeypatch.setattr(app_module, "read_notification", lambda raw: read.append(raw))
+    monkeypatch.setattr(webhook_module, "read_notification", lambda raw: read.append(raw))
     raw = BODIES[body]
     headers = {"content-type": "application/json"}
     if signature == "of another secret":
@@ -149,7 +157,7 @@ def test_without_a_good_signature_the_answer_is_403_and_the_body_is_not_read(htt
     elif signature == "not a signature":
         headers["X-Hub-Signature-256"] = "sha256=body-marker"
 
-    response = http.post(f"/chat/{bot}", content=raw, headers=headers)
+    response = META.post(f"/chat/{bot}", content=raw, headers=headers)
 
     assert response.status_code == 403
     assert "body-marker" not in response.text
@@ -163,14 +171,14 @@ def test_without_anything_like_a_signature_the_key_service_is_not_asked(http, bo
                                                                         header):
     """Found in the dual review of Gate 2: an unsigned request opened the secrets of the chatbot first."""
     opened = []
-    monkeypatch.setattr(app_module, "webhook_secrets", lambda bot_: opened.append(bot_))
+    monkeypatch.setattr(webhook_module, "webhook_secrets", lambda bot_: opened.append(bot_))
     key_service.down = True
     raw = json.dumps(whatsapp(ANA)).encode()
     headers = {"content-type": "application/json"}
     if header is not None:
         headers["X-Hub-Signature-256"] = header
 
-    response = http.post(f"/chat/{bot}", content=raw, headers=headers)
+    response = META.post(f"/chat/{bot}", content=raw, headers=headers)
 
     assert response.status_code == 403
     assert opened == [] and queue == []
@@ -307,8 +315,8 @@ def too_large() -> bytes:
                                    "a management route, without one", "a route that does not exist"])
 def test_a_body_over_the_limit_is_turned_away_whoever_sends_it(http, caller, bot, queue, monkeypatch, route):
     checked, read = [], []
-    monkeypatch.setattr(app_module, "is_valid_signature", lambda *args: checked.append(args) or True)
-    monkeypatch.setattr(app_module, "read_notification", lambda raw: read.append(raw))
+    monkeypatch.setattr(webhook_module, "is_valid_signature", lambda *args: checked.append(args) or True)
+    monkeypatch.setattr(webhook_module, "read_notification", lambda raw: read.append(raw))
     raw = too_large()
     path, headers = {
         "the webhook, signed": (f"/chat/{bot}", signed(raw)),
@@ -318,7 +326,9 @@ def test_a_body_over_the_limit_is_turned_away_whoever_sends_it(http, caller, bot
         "a route that does not exist": ("/nowhere", {}),
     }[route]
 
-    response = http.post(path, content=raw, headers={"content-type": "application/json", **headers})
+    # Each service has the limit: the management routes are sent to the management API.
+    service_for_it = TestClient(app_module.app) if path == "/bot" else http
+    response = service_for_it.post(path, content=raw, headers={"content-type": "application/json", **headers})
 
     assert (response.status_code, response.json()) == (413, {"code": 413, "message": "PAYLOAD TOO LARGE"})
     assert checked == [] and read == [] and queue == []
@@ -329,7 +339,7 @@ def test_a_body_that_does_not_say_how_long_it_is_is_counted_as_it_arrives(http, 
         for _ in range(LIMIT // 65536 + 2):
             yield b"x" * 65536
 
-    response = http.post(f"/chat/{bot}", content=pieces(), headers={"content-type": "application/json"})
+    response = META.post(f"/chat/{bot}", content=pieces(), headers={"content-type": "application/json"})
 
     assert response.status_code == 413 and queue == []
 
@@ -343,7 +353,7 @@ def test_the_limit_is_the_largest_notification_meta_sends():
 def test_one_byte_over_the_limit_is_too_much(http, bot, queue, declared):
     raw = b"x" * (LIMIT + 1)
 
-    response = http.post(f"/chat/{bot}", content=raw if declared else iter([raw[:LIMIT], raw[LIMIT:]]),
+    response = META.post(f"/chat/{bot}", content=raw if declared else iter([raw[:LIMIT], raw[LIMIT:]]),
                          headers={"content-type": "application/json"})
 
     assert response.status_code == 413 and queue == []
@@ -361,7 +371,7 @@ def test_a_notification_exactly_as_large_as_the_limit_is_read(http, bot, queue):
 def test_what_is_turned_away_for_its_size_leaves_its_line_in_the_log(http, bot, caplog):
     caplog.set_level(logging.INFO)
 
-    http.post(f"/chat/{bot}", content=too_large(), headers={"content-type": "application/json"})
+    META.post(f"/chat/{bot}", content=too_large(), headers={"content-type": "application/json"})
 
     assert any(record.getMessage().startswith("POST no route code:413") for record in caplog.records)
 
@@ -421,7 +431,7 @@ DOWN = {
     "a write does not go through": lambda: OperationError("Could not save document (failure-marker)"),
 }
 WHERE = {
-    "finding the chatbot": (app_module, "find_webhook_bot", whatsapp(ANA)),
+    "finding the chatbot": (webhook_module, "find_webhook_bot", whatsapp(ANA)),
     "reading its secrets": (TenantRepository, "bot_secrets", whatsapp(ANA)),
     "finding a whatsapp contact": (TenantRepository, "find_contact_by_wa_id", whatsapp(ANA)),
     "storing a whatsapp contact": (TenantRepository, "add_contact", whatsapp(ANA)),
@@ -489,9 +499,9 @@ def test_the_webhook_is_not_verified_while_the_database_is_not_there(http, bot, 
     def fails(*args, **kwargs):
         raise ServerSelectionTimeoutError("no servers")
 
-    monkeypatch.setattr(app_module, "find_webhook_bot", fails)
+    monkeypatch.setattr(webhook_module, "find_webhook_bot", fails)
 
-    response = http.get(f"/chat/{bot}", params={"hub.mode": "subscribe", "hub.challenge": "1",
+    response = META.get(f"/chat/{bot}", params={"hub.mode": "subscribe", "hub.challenge": "1",
                                                 "hub.verify_token": "x"})
 
     assert response.status_code == 503
@@ -623,5 +633,5 @@ def test_the_key_service_failing_while_the_token_of_the_page_is_read_asks_meta_t
 def test_a_message_for_a_chatbot_that_does_not_exist_is_not_found(http, queue):
     raw = json.dumps(whatsapp(ANA)).encode()
 
-    assert http.post(f"/chat/{uuid4()}", content=raw, headers=signed(raw)).status_code == 404
+    assert META.post(f"/chat/{uuid4()}", content=raw, headers=signed(raw)).status_code == 404
     assert queue == []
