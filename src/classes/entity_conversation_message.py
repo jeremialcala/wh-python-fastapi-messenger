@@ -48,6 +48,8 @@ class ConversationMessage(Document):
     text = StringField()
     attachments = ListField(StringField())
     intent = StringField()
+    # Of an answer, the identifier of Meta of the message it answers.
+    inReplyTo = StringField()
     createdAt = DateTimeField(required=True, default=utc_now)
     # MongoDB deletes the message by itself at that time: 12 months at most (RNF05).
     expiresAt = DateTimeField(required=True)

@@ -61,7 +61,7 @@ def streams(url):
     backoff = [30, 60, 300, 900, 1800, 3600]
 
     async def create(js):
-        for name in ("WEBHOOK", "MENSAJES"):
+        for name in ("WEBHOOK", "MENSAJES", "RESPUESTAS"):
             try:
                 await js.delete_stream(name)
             except nats.js.errors.NotFoundError:
@@ -72,12 +72,16 @@ def streams(url):
                                          duplicate_window=120))
         await js.add_stream(StreamConfig(name="MENSAJES", subjects=["gateway.message.>"], max_age=24 * 3600,
                                          duplicate_window=120))
-        await js.add_consumer("WEBHOOK", ConsumerConfig(durable_name="ingesta", ack_policy=AckPolicy.EXPLICIT,
-                                                        ack_wait=backoff[0], max_deliver=1000, backoff=backoff,
-                                                        max_ack_pending=100))
+        await js.add_stream(StreamConfig(name="RESPUESTAS", subjects=["engine.reply.sent.>"],
+                                         retention=RetentionPolicy.WORK_QUEUE, max_age=24 * 3600,
+                                         duplicate_window=120))
+        for stream, durable in (("WEBHOOK", "ingesta"), ("RESPUESTAS", "historial")):
+            await js.add_consumer(stream, ConsumerConfig(durable_name=durable, ack_policy=AckPolicy.EXPLICIT,
+                                                         ack_wait=backoff[0], max_deliver=1000, backoff=backoff,
+                                                         max_ack_pending=100))
     admin(url, create)
     yield
-    admin(url, lambda js: asyncio.gather(js.delete_stream("WEBHOOK"), js.delete_stream("MENSAJES")))
+    admin(url, lambda js: asyncio.gather(*(js.delete_stream(name) for name in ("WEBHOOK", "MENSAJES", "RESPUESTAS"))))
 
 
 @pytest.fixture
@@ -121,10 +125,11 @@ async def _publish_and_ingest(url, bot, messages_) -> list[str]:
     await webhook.close()
 
     bus.configure(as_the_worker(url))
-    connection, subscription = await ingest.subscribe(url, "ingesta", "test", None, "_INBOX_ingesta")
+    connection = await ingest.connect(url, "ingesta", "test", None, "_INBOX_ingesta")
     try:
+        subscription = await ingest.bind(connection, ingest.NOTIFICATIONS)
         delivered = await subscription.fetch(10, timeout=5)
-        return [await ingest.handle(each) for each in delivered]
+        return [await ingest.handle(each, ingest.NOTIFICATIONS) for each in delivered]
     finally:
         await connection.drain()
         await bus.close()
@@ -175,3 +180,38 @@ def test_the_worker_may_not_make_a_consumer_of_its_own(url, streams):
 
     with pytest.raises((nats.errors.Error, asyncio.TimeoutError)):
         asyncio.run(try_to_make_one())
+
+
+# --- The answers the engine sent, to the history -----------------------------------------------------------------
+
+async def _answer_and_ingest(url, answer: dict) -> list[str]:
+    """The notifier's user is not in the test server: the answer is published as the operator."""
+    connection = await nats.connect(url, user="admin", password="test")
+    await connection.jetstream().publish(f"engine.reply.sent.{answer['botId']}", json.dumps(answer).encode(),
+                                         headers={"Nats-Msg-Id": f"{answer['botId']}:{answer['messageId']}"})
+    await connection.close()
+
+    worker = await ingest.connect(url, "ingesta", "test", None, "_INBOX_ingesta")
+    try:
+        subscription = await ingest.bind(worker, ingest.ANSWERS)
+        delivered = await subscription.fetch(10, timeout=5)
+        return [await ingest.handle(each, ingest.ANSWERS) for each in delivered]
+    finally:
+        await worker.drain()
+
+
+def test_the_worker_stores_the_answer_the_engine_sent_with_the_user_bifrost_gives_it(url, streams, bot, queue):
+    asyncio.run(_publish_and_ingest(url, bot, [message("wamid.A")]))
+    contact = Contact.objects.get()
+    answer = {"schemaVersion": 2, "botId": str(bot.uuid), "clientId": str(bot.clientId),
+              "contactId": str(contact._uuid), "channel": "whatsapp", "inReplyTo": "wamid.A",
+              "messageId": "wamid.ANSWER", "sentAt": datetime.now(timezone.utc).isoformat(), "text": "claro"}
+
+    assert asyncio.run(_answer_and_ingest(url, answer)) == ["acknowledged"]
+    stored = ConversationMessage.objects(direction="out").get()
+    assert (stored.messageId, stored.inReplyTo, stored.contactId) == ("wamid.ANSWER", "wamid.A", contact._uuid)
+    for _ in range(20):
+        if not kept(url, "RESPUESTAS"):
+            break
+        asyncio.run(asyncio.sleep(0.1))
+    assert kept(url, "RESPUESTAS") == []

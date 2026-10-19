@@ -125,6 +125,26 @@ en `gateway.message.>`.
 Ritmo medido en midgard: 2,1 notificaciones de un mensaje por segundo, porque cada una hace varios viajes seguidos a
 Atlas ([medición](../04-testing/medicion-webhook-i1.md#lo-que-cuesta-ahora-el-worker-de-ingesta)).
 
+### Las respuestas del motor, al historial
+
+El worker lee también `RESPUESTAS`, con el consumidor `historial`, en un bucle propio para que una respuesta no
+espere detrás de una notificación. Cada `RespuestaEnviada` del contrato v2 la publica el notificador del motor cuando
+Meta acepta un envío. El worker la guarda en la conversación del contacto como mensaje de salida (`out`):
+
+- con `inReplyTo`, el identificador de Meta del mensaje al que responde;
+- con el texto cifrado;
+- de cada adjunto, solo el tipo.
+
+| Respuesta | Qué hace |
+|---|---|
+| Guardada, o ya estaba | La confirma |
+| Su contacto, su bot o su cliente ya no existen | La descarta: la conversación se fue con ellos |
+| No es de la versión 2 o le falta un campo | La descarta |
+| No responden la base o Andvari | No la confirma: Bifröst la reentrega mientras la guarde, 24 horas |
+
+Probado en midgard contra el Bifröst real (2026-10-19): una respuesta publicada en `engine.reply.sent.<botId>` quedó
+en el historial del contacto con su `inReplyTo` y el texto cifrado, y el consumidor `historial` sin pendientes.
+
 ## Medido contra Bifröst (2026-10-19)
 
 En midgard, con la imagen de esta rama (`i2-fcc3764`), el usuario `webhook` y TLS. Fueron 300 eventos de 1 KB

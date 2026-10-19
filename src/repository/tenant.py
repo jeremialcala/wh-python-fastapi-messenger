@@ -305,7 +305,8 @@ class TenantRepository:
                                                                                   message_id)).count())
 
     def record_message(self, contact: Contact, direction: str, message_id: str, channel: str, sent_at: datetime,
-                       text: str | None = None, attachments: tuple = (), intent: str | None = None) -> bool:
+                       text: str | None = None, attachments: tuple = (), intent: str | None = None,
+                       in_reply_to: str | None = None) -> bool:
         """
             Stores one message of the contact's conversation, with its text encrypted. False if it was already
             stored: storing it twice changes nothing, and does not tell whoever sent it again apart.
@@ -317,7 +318,8 @@ class TenantRepository:
             key=ConversationMessage.key_for(contact.botId, direction, message_id), clientId=self.client_id,
             botId=contact.botId, contactId=contact._uuid, direction=direction, messageId=message_id,
             channel=channel, sentAt=sent_at, text=self._cipher.encrypt("Message.text", text),
-            attachments=list(attachments), intent=intent, createdAt=now, expiresAt=now + HISTORY_RETENTION)
+            attachments=list(attachments), intent=intent, inReplyTo=in_reply_to, createdAt=now,
+            expiresAt=now + HISTORY_RETENTION)
         try:
             message.save(force_insert=True)
         except NotUniqueError:
@@ -335,5 +337,6 @@ class TenantRepository:
         messages = self._own(ConversationMessage, botId=contact.botId, contactId=contact._uuid).order_by("sentAt")
         return [{"direction": message.direction, "messageId": message.messageId, "channel": message.channel,
                  "sentAt": message.sentAt.replace(tzinfo=timezone.utc), "intent": message.intent,
+                 "inReplyTo": message.inReplyTo,
                  "text": self._cipher.decrypt("Message.text", message.text),
                  "attachments": list(message.attachments)} for message in messages]
