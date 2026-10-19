@@ -38,7 +38,7 @@ no entra en una traza (RS19).*
 
 | Span | Servicio | Padre |
 |---|---|---|
-| `http.request` | Webhook y API de gestión, uno por petición | Ninguno: empieza la traza |
+| `http.request` | Webhook y API de gestión, uno por petición, salvo `/health`: Docker lo llama cada 30 s y su traza no dice nada | Ninguno: empieza la traza |
 | `ingest.notification` | Ingesta, uno por evento de `WEBHOOK` | El `traceparent` del evento |
 | `ingest.message` | Ingesta, uno por mensaje | `ingest.notification` |
 | `ingest.answer` | Ingesta, uno por respuesta de `RESPUESTAS` | El `traceparent` de la respuesta |
@@ -78,11 +78,30 @@ Los spans se exportan por OTLP/HTTP solo si `OTEL_EXPORTER_OTLP_ENDPOINT` dice a
 resto de las variables `OTEL_EXPORTER_OTLP_*`. Si no está, los spans se crean pero no salen del proceso. El contexto
 sigue viajando con cada evento, y quien trace después lo recibe.
 
-**Hoy no hay dónde verlas:** Yggdrasil tiene métricas (Mimir) y alertas, pero ningún colector de trazas. El
-compose solo nombra cada servicio con `OTEL_SERVICE_NAME`: `gateway-webhook`, `gateway-management` y
-`gateway-ingest`.
+**Van a Saga**, el Grafana Tempo de Yggdrasil (ADR-0008 de Yggdrasil). Guarda 15 días en el SSD de midgard y se
+consulta desde Odín, la fuente de datos `Saga`.
+
+- **Cómo llegan:** en el compose, los tres servicios entran en la red externa `yggdrasil_saga` y envían a
+  `http://saga:4318`. Esa red solo lleva a Saga, no a Mimir ni a Odín. El webhook está expuesto a internet y no entra
+  en `heimdall`.
+- **Cómo se llaman:** cada servicio se identifica con `OTEL_SERVICE_NAME`: `gateway-webhook`, `gateway-management` y
+  `gateway-ingest`.
+- **Si Saga no responde:** el exportador trabaja en segundo plano, por lotes, y no frena ninguna petición. Los spans
+  que no puede entregar se pierden y deja un aviso en el log. Yggdrasil avisa con `SagaCaida`.
+- **Requisito de arranque:** Yggdrasil tiene que estar levantado antes que el gateway, porque la red la crea su
+  compose.
 
 ## Probado en midgard (2026-10-19)
+
+Con Saga desplegada (Yggdrasil 0.5.14) y el compose de esta rama:
+
+- Una notificación firmada dejó en Saga una traza con tres spans y dos servicios: `http.request` en
+  `gateway-webhook`, y `ingest.notification` → `ingest.message` en `gateway-ingest`.
+- Cada span llevaba solo atributos de la lista.
+- La traza duró 3,2 s, con la ingesta incluida; el webhook respondió antes.
+- Ninguno de los tres servicios dejó avisos en el log.
+
+Antes, sin destino de exportación:
 
 Con la imagen `i5-3f80052`, sin destino de exportación, se envió una notificación firmada al webhook:
 

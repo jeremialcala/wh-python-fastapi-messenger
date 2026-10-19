@@ -110,8 +110,9 @@ async def interceptor(request: Request, call_next):
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
     # A span per request, started here and not taken from the caller: the trace of a notification starts at the
-    # webhook. What it says of the request is what the log line says, set once the route is known.
-    with tracing.span("http.request", kind=tracing.SpanKind.SERVER) as current:
+    # webhook. What it says of the request is what the log line says, set once the route is known. Not the health
+    # check: Docker calls it every 30 s on each service, and a trace of it says nothing.
+    with tracing.span("http.request", kind=tracing.SpanKind.SERVER, traced=request.url.path != "/health") as current:
         try:
             request.state.event_id = None
             response = await call_next(request)

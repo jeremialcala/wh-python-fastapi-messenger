@@ -117,11 +117,16 @@ def _parent(traceparent_header: str | None):
 
 
 @contextmanager
-def span(name: str, parent: str | None = None, kind: SpanKind = SpanKind.INTERNAL, **attributes):
+def span(name: str, parent: str | None = None, kind: SpanKind = SpanKind.INTERNAL, traced: bool = True,
+         **attributes):
     """
         A span, current while the block runs. `parent` is a traceparent that came with an event: the span goes on
-        with that trace. Without it, it is a child of the current span, or the start of a trace.
+        with that trace. Without it, it is a child of the current span, or the start of a trace. With `traced`
+        false there is no span at all, and the block runs the same.
     """
+    if not traced:
+        yield _NoSpan()
+        return
     tracer = provider().get_tracer("gateway")
     context = _parent(parent)
     with tracer.start_as_current_span(name, context=context, kind=kind, attributes=_filtered(attributes),
@@ -148,6 +153,16 @@ class _Span:
         """A failure the block handled itself: said by its kind, as the logs do."""
         self.set(**{"error.type": kind})
         self._current.set_status(Status(StatusCode.ERROR))
+
+
+class _NoSpan:
+    """What a block that is not traced gets: it takes the same calls and keeps nothing."""
+
+    def set(self, **attributes) -> None:
+        pass
+
+    def failed(self, kind: str) -> None:
+        pass
 
 
 def traceparent() -> str | None:
