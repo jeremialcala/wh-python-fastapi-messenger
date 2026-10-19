@@ -330,7 +330,7 @@ BODIES = {
     ("POST", "/contacts/search"): {"waId": WA_ID},
     ("POST", "/clients"): {"name": "globex", "signingKey": public_part(new_signing_key())},
     ("POST", "/clients/{client_id}/keys"): {"signingKey": public_part(new_signing_key())},
-    ("POST", "/clients/{client_id}/service-keys"): {"signingKey": public_part(new_signing_key())},
+    ("POST", "/clients/{client_id}/service-keys"): {"signingKey": public_part(new_signing_key()), "worker": "notifier"},
 }
 
 

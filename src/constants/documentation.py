@@ -33,14 +33,19 @@ JWE encrypted to the gateway, valid once and for 60 seconds at most.
 
 ### The response engine
 
-* /chat/{bot_id}/tokens: @GET the Meta tokens of a chatbot. Only for the engine, with the key it holds for the
-  client that owns the chatbot. It also reads the rules and the tools of that chatbot, and nothing else.
+Each worker of the engine holds its own key for each client, and the key says which routes it reaches: the
+notifier, the Meta tokens; the coordinator, the rules, the tools and the last turns of a conversation; the
+classifier, the responder and the evaluator, the rules; the link, the tools. All of them read /gateway/keys.
+
+* /chat/{bot_id}/tokens: @GET the Meta tokens of a chatbot. Only for the notifier, with the key it holds for the
+  client that owns the chatbot.
+* /chat/{bot_id}/contacts/{contact_id}/turns: @GET the last 10 turns of a conversation, for the coordinator.
 
 ### The operator
 
 * /clients: @POST registers a client, @GET lists them; /clients/{client_id} takes one off with @DELETE.
-* /clients/{client_id}/keys: the keys a client signs with; /clients/{client_id}/service-keys, the keys the
-  response engine signs with for that client.
+* /clients/{client_id}/keys: the keys a client signs with; /clients/{client_id}/service-keys, the keys each
+  worker of the response engine signs with for that client, with the worker that signs with each.
 
 ### Any caller
 

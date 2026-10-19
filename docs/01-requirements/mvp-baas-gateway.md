@@ -164,7 +164,7 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | AB18 | Dos mensajes seguidos de la misma persona se procesan en paralelo y se responden en orden inverso, o con el contexto del otro | RNF08 | Pendiente |
 | AB19 | Un dato personal viaja en un atributo de una traza, o en un evento del bus sin protección, y lo lee quien tiene acceso al colector o al bus | RS19 | Cubierto en las trazas (I5): lista cerrada de atributos con su forma, sin instrumentación automática y sin excepciones en los spans, comprobado por `tests/unit/test_traces.py`. En el bus, el contenido sigue en claro, como en la cola (RS08) |
 | AB20 | Un servicio comprometido publica en un sujeto ajeno, por ejemplo mensajes como si vinieran del webhook, o lee uno que no le toca | RS20 | Pendiente |
-| AB21 | La credencial robada de un worker alcanza rutas que ese worker no necesita, por ejemplo los tokens de Meta desde el clasificador | RS21 | Parcial: el motor tiene una clave por cliente, no por worker (ADR-0016) |
+| AB21 | La credencial robada de un worker alcanza rutas que ese worker no necesita, por ejemplo los tokens de Meta desde el clasificador | RS21 | Mitigado en la API (I6a): cada clave dice su worker y alcanza solo sus rutas; las claves sin worker siguen, con aviso, hasta que el motor se parta |
 | AB22 | La conversación exportada, o el contexto de una conversación, llega a otro cliente o a otra conversación | RS01, RF14 | Pendiente |
 
 ## Requisitos funcionales
@@ -319,7 +319,7 @@ OWASP Top 10 en su edición 2025.
 | RS18 | El `bot_id` identifica pero no autoriza: ninguna configuración de un bot se entrega solo por conocerlo | Construido: toda la configuración exige el token del cliente dueño del bot; las únicas rutas que funcionan solo con el `bot_id` son las del webhook, que se autentican con la firma y el token de verificación de Meta | V4.2 | A01 |
 | RS19 | Ni las trazas ni los eventos del bus llevan más datos personales que los necesarios: ningún atributo de un span contiene números, texto de mensajes ni nada que mande el llamante, como en los logs (RS07); el contenido de los mensajes en el bus se protege como en la cola (RS08) | Pendiente | V7.1, V8.3 | A09 |
 | RS20 | Cada servicio entra al bus con su propio usuario, por TLS, y solo publica y consume en sus sujetos | Pendiente (R8 del plan) | V4.1, V9.2 | A01 |
-| RS21 | Cada worker del motor tiene su propia credencial, que dice qué rutas de la API de gestión alcanza: el notificador, los tokens de Meta; el clasificador y el coordinador, reglas y herramientas (D3) | Parcial: una clave del motor por cliente que alcanza las cuatro rutas del motor ([ADR-0016](../00-project/adr/0016-credencial-del-motor-por-cliente.md)) | V4.1, V4.2 | A01 |
+| RS21 | Cada worker del motor tiene su propia credencial, que dice qué rutas de la API de gestión alcanza: el notificador, los tokens de Meta; el clasificador y el coordinador, reglas y herramientas (D3) | Construido en la API (I6a, [ADR-0022](../00-project/adr/0022-una-credencial-por-worker.md)): una clave por cliente y por worker, con sus rutas. Pendientes: el comando que registra las seis claves (I6b) y los usuarios de Bifröst por worker (I6c) | V4.1, V4.2 | A01 |
 
 ## Threat assessment inicial
 

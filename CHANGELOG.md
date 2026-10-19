@@ -8,6 +8,20 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I6a: una credencial por worker del motor ([ADR-0022](docs/00-project/adr/0022-una-credencial-por-worker.md), R5,
+  RS21, AB21, T29).
+  - **Cada clave del motor dice de qué worker es:** `classifier`, `coordinator`, `link`, `responder`, `evaluator`
+    o `notifier`. Lo dice el registro, no el token.
+  - **Cada worker alcanza solo sus rutas** (`WORKER_ROUTES`):
+    - el notificador, los tokens de Meta;
+    - el coordinador, las reglas, las herramientas y las vueltas;
+    - el clasificador, el de respuesta y el evaluador, las reglas;
+    - el de enlace, las herramientas;
+    - todos, las claves públicas del gateway.
+    Una ruta nueva nace cerrada para todos.
+  - **Dos claves como máximo por worker y cliente**, para rotar sin corte. El límite se comprueba en la propia
+    actualización.
+  - **El log dice el worker** en cada entrega de tokens y de vueltas, y en cada ruta denegada.
 - Las trazas van a **Saga**, el Grafana Tempo de Yggdrasil (ADR-0008 de Yggdrasil).
   - **Cómo llegan:** los tres servicios entran en la red externa `yggdrasil_saga` y envían a `http://saga:4318`.
   - **Qué alcanzan:** esa red solo lleva a Saga, ni a Mimir ni a Odín.
@@ -154,6 +168,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   Instagram se conecta con Facebook Login a través de la página del cliente.
 
 ### Cambiado
+- **Incompatible para la API de gestión (I6a):**
+  - **`POST /clients/{client_id}/service-keys` exige el campo `worker`.** Sin él, o con uno que no existe, responde
+    `422`.
+  - **`serviceKeys`, en `GET /keys` y `GET /clients`, pasa a ser una lista de `{"kid", "worker"}`**, en lugar de una
+    lista de `kid`.
+  - **Las claves del motor registradas antes no tienen worker** (`"worker": null`). Siguen alcanzando las cinco rutas
+    del motor, vueltas incluidas, hasta que el motor se parta en workers. Cada uso deja un aviso en el log.
 - RNF01 tiene cifra: 250 ms de mediana y menos de un 1 % por encima de 1 s. Es un objetivo propio: la documentación
   actual de Meta no publica ninguna; la cifra viene de la guía de 360dialog.
 - **Incompatible para el despliegue:** el webhook y la API de gestión son dos servicios, de la misma imagen y en dos

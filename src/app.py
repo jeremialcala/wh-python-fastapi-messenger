@@ -15,7 +15,7 @@ from auth.principal import Principal, authenticate
 from auth.tokens import InvalidToken
 from classes import (BotCredentialsRequest, BotResponse, ChatbotPhoneRequest, ChatbotRequest, ClientRequest,
                      ContactSearchRequest, IntentRequest, OwnedKeyRequest, ResponseData, RulesRequest,
-                     SigningKeyRequest)
+                     ServiceKeyRequest, SigningKeyRequest)
 from constants import DESCRIPTION, SUMMARY, TAGS_METADATA, TITLE
 from controller import (ctr_add_own_signing_key, ctr_add_phone_chatbot, ctr_add_service_key, ctr_add_signing_key,
                         ctr_create_chatbot, ctr_create_chatbot_rules, ctr_create_intent, ctr_delete_chatbot,
@@ -25,7 +25,7 @@ from controller import (ctr_add_own_signing_key, ctr_add_phone_chatbot, ctr_add_
                         ctr_get_intents, ctr_last_turns, ctr_list_clients, ctr_list_contacts, ctr_register_client,
                         ctr_remove_service_key, ctr_remove_signing_key, ctr_search_contacts, ctr_set_bot_credentials,
                         ctr_update_intent)
-from enums import Role
+from enums import Role, Worker
 from repository import TenantRepository, erasures
 from service import METHODS, build, log, settings
 from utils import describe
@@ -47,16 +47,26 @@ bearer = HTTPBearer(auto_error=False, bearerFormat="JWE",
                                 "(RSA-OAEP-256, A256CBC-HS512). It lasts 60 seconds at most and is valid once.")
 
 
-# Everything the response engine may call with the key it holds for a client. A route that is not here is
-# closed to it, and so is any route added later until it is written down here.
-SERVICE_ROUTES = {
-    ("GET", "/gateway/keys"),
-    ("GET", "/chat/{bot_id}/rules"),
-    ("GET", "/chat/{bot_id}/tools"),
-    ("GET", "/chat/{bot_id}/tokens"),
-    # The coordinator, when its context is gone (RF15). ADR-0022 narrows it to the coordinator's own key in I6.
-    ("GET", "/chat/{bot_id}/contacts/{contact_id}/turns"),
+GATEWAY_KEYS_ROUTE = ("GET", "/gateway/keys")
+RULES = ("GET", "/chat/{bot_id}/rules")
+TOOLS = ("GET", "/chat/{bot_id}/tools")
+TOKENS = ("GET", "/chat/{bot_id}/tokens")
+# The coordinator's, when its context is gone (RF15).
+TURNS = ("GET", "/chat/{bot_id}/contacts/{contact_id}/turns")
+
+# What each worker of the response engine may call with the key it holds for a client (ADR-0022). A route that
+# is not here is closed to every worker, and so is any route added later until it is written down here.
+WORKER_ROUTES = {
+    Worker.CLASSIFIER: {GATEWAY_KEYS_ROUTE, RULES},
+    Worker.COORDINATOR: {GATEWAY_KEYS_ROUTE, RULES, TOOLS, TURNS},
+    Worker.LINK: {GATEWAY_KEYS_ROUTE, TOOLS},
+    Worker.RESPONDER: {GATEWAY_KEYS_ROUTE, RULES},
+    Worker.EVALUATOR: {GATEWAY_KEYS_ROUTE, RULES},
+    Worker.NOTIFIER: {GATEWAY_KEYS_ROUTE, TOKENS},
 }
+# Everything the engine reaches with some key. The keys registered before keys had a worker (ADR-0016) reach all
+# of it until the engine moves to one key per worker; then they are taken out.
+SERVICE_ROUTES = set().union(*WORKER_ROUTES.values())
 
 
 async def get_principal(request: Request,
@@ -72,10 +82,17 @@ async def get_principal(request: Request,
         log.warning(f"Rejected a request: {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="HTTP_401_UNAUTHORIZED",
                             headers={"WWW-Authenticate": "Bearer"}) from None
-    route = (METHODS.get(request.method), getattr(request.scope.get("route"), "path", None))
-    if principal.role is Role.SERVICE and route not in SERVICE_ROUTES:
-        log.warning(f"The response engine was denied a route with its key for client {principal.client_id}")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
+    if principal.role is Role.SERVICE:
+        route = (METHODS.get(request.method), getattr(request.scope.get("route"), "path", None))
+        if route not in WORKER_ROUTES.get(principal.worker, SERVICE_ROUTES):
+            log.warning(f"The response engine was denied a route with its key for client {principal.client_id}, "
+                        f"worker {principal.worker_name}")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="HTTP_403_FORBIDDEN")
+        if principal.worker is None:
+            # A warning, so that it is kept at the level production logs at: it is how the keys still to be
+            # taken out are found.
+            log.warning(f"The response engine used key {principal.kid} of client {principal.client_id}, which has "
+                        f"no worker: register one per worker (ADR-0022)")
     return principal
 
 
@@ -378,10 +395,13 @@ async def add_client_key(client_id: str, key: SigningKeyRequest, _operator: Prin
 
 
 @app.post(path="/clients/{client_id}/service-keys", tags=["Clients"], response_model=ResponseData)
-async def add_service_key(client_id: str, key: SigningKeyRequest, _operator: Principal = Depends(require_operator)):
+async def add_service_key(client_id: str, key: ServiceKeyRequest, _operator: Principal = Depends(require_operator)):
     """
-        The operator lets the response engine act for a client: it registers the public key the engine signs
-        with for that client. With it the engine reaches the chatbots of that client and of nobody else.
+        The operator lets a worker of the response engine act for a client: it registers the public key that
+        worker signs with for that client. With it the worker reaches the chatbots of that client and of nobody
+        else, and only the routes of that worker: the notifier, the Meta tokens; the coordinator, the rules,
+        the tools and the last turns; the classifier, the responder and the evaluator, the rules; the link,
+        the tools. Two keys at most per worker and client, to rotate without a gap.
     """
     return await ctr_add_service_key(client_id, key)
 

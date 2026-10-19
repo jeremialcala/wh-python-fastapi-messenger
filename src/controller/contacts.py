@@ -103,7 +103,8 @@ async def ctr_last_turns(repo: TenantRepository, bot_id: str, contact_id: str, e
         contact = repo.get_contact(bot_id, contact_id)
         turns = repo.last_turns(contact)
         log.warning(f"Last turns of contact {contact._uuid} of chatbot {contact.botId} handed to the response engine: "
-                    f"client {engine.client_id}, key {engine.kid}, {len(turns)} messages")
+                    f"client {engine.client_id}, key {engine.kid}, worker {engine.worker_name}, "
+                    f"{len(turns)} messages")
         return {"uuid": str(contact._uuid), "botId": str(contact.botId), "messages": turns}
 
     response = _read(CONTACT_NOT_FOUND, read)

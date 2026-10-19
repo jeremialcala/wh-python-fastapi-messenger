@@ -178,7 +178,7 @@ Campos de `ChatbotRequest`: `name`, `role`, `description`, `tone`.
 | `GET`  | `/chat/{bot_id}/phones?environment=` | Lista los números del bot; con `environment` devuelve el más reciente de ese entorno. |
 | `GET`  | `/chat/{bot_id}/info` | Devuelve la información guardada del bot (`chatbot_info()`) y su token de verificación. De las credenciales de Meta solo dice cuáles están cargadas. |
 | `PUT`  | `/chat/{bot_id}/credentials` | Carga o rota las credenciales de Meta del bot (`BotCredentialsRequest`: `facebookToken`, `whatsappToken`, `appSecret`). No las devuelve. |
-| `GET`  | `/chat/{bot_id}/tokens` | Los tokens de Meta del bot, **solo para el motor de respuestas**, con la clave que tiene para el cliente dueño del bot. Cada entrega queda en el log. |
+| `GET`  | `/chat/{bot_id}/tokens` | Los tokens de Meta del bot, **solo para el notificador del motor de respuestas**, con la clave que tiene para el cliente dueño del bot. Cada entrega queda en el log. |
 | `GET`  | `/chat/{bot_id}/rules` | Construye y devuelve el system prompt del LLM a partir de la persona del bot y sus reglas. |
 | `POST` | `/chat/{bot_id}/rules` | Añade una o varias reglas al bot (`RulesRequest.rules: list[str]`). |
 
@@ -380,7 +380,7 @@ Se configura en [src/logging_config.yaml](src/logging_config.yaml) y lo aplica a
 | Todo lo que no es el webhook ni `/health` | Token en `Authorization: Bearer`: un JWT firmado por el cliente (`ES256`) dentro de un JWE cifrado para el gateway (`RSA-OAEP-256`, `A256CBC-HS512`). Dura 60 segundos como máximo y vale una vez. `401` si no es válido, sin decir por qué. |
 | Rutas de un cliente (`/bot`, `/chat/{bot_id}/...`) | El token dice quién es; solo alcanza lo suyo. Lo ajeno responde `404`, igual que lo inexistente. |
 | Registro de clientes (`/clients`) | Solo el operador, que también da de baja a un cliente con `DELETE /clients/{client_id}`. `403` para cualquier otro cliente. |
-| Motor de respuestas | Una clave por cliente, que registra el operador en `/clients/{client_id}/service-keys`. Con ella el motor lee las reglas, las herramientas y los tokens de los bots de ese cliente, y nada más: cualquier otra ruta le responde `403`. Ver [autenticacion.md](docs/03-implementation/autenticacion.md). |
+| Motor de respuestas | Una clave por cliente y por worker, que registra el operador en `/clients/{client_id}/service-keys` diciendo de qué worker es. Cada worker alcanza solo sus rutas en los bots de ese cliente: el notificador, los tokens de Meta; el coordinador, las reglas, las herramientas y las vueltas; el resto, las reglas o las herramientas. Cualquier otra ruta le responde `403`. Ver [autenticacion.md](docs/03-implementation/autenticacion.md). |
 | Datos en reposo | Números de teléfono, tokens de Meta, App Secret y token de verificación, cifrados con una clave por cliente (AES-256-GCM). La clave maestra no sale del servicio de claves. Ver [cifrado-de-datos.md](docs/03-implementation/cifrado-de-datos.md). |
 | `GET /chat/{bot_id}` (verificación) | `hub.verify_token` comparado en tiempo constante con el `verifyToken` del bot. `403` si no coincide. |
 | `POST /chat/{bot_id}` (notificaciones) | `X-Hub-Signature-256`: HMAC-SHA256 del cuerpo crudo con el App Secret de Meta como clave. `403` si no coincide, sin leer nada del cuerpo. |
