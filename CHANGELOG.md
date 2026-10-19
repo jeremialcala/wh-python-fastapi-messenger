@@ -8,6 +8,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- D6a: las respuestas del motor, en el historial (ADR-0017, RF14).
+  - **Qué lee:** el worker de ingesta lee también `RESPUESTAS`, con el consumidor `historial` de Bifröst, en un
+    bucle propio.
+  - **Qué guarda:** cada `RespuestaEnviada` (contrato v2), como mensaje de salida del contacto. Lleva en `inReplyTo`
+    el mensaje al que responde y el texto cifrado; de cada adjunto, solo el tipo. La misma respuesta publicada dos
+    veces se guarda una vez.
+  - **Cuándo la descarta:** si su contacto ya no existe.
+  - **Cuándo espera:** si no responden la base o Andvari.
+  - **Probado** contra NATS en el CI y contra el Bifröst real en midgard.
 - I4b: el worker de ingesta, y el webhook que solo publica (ADR-0021).
   - **El worker de ingesta** es `ingest.py`, el servicio `ingest` del compose. Lee `WEBHOOK` con el consumidor
     `ingesta` de Bifröst y trata las notificaciones una a una. Con cada mensaje:

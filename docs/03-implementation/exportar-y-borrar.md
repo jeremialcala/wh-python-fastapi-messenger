@@ -60,11 +60,13 @@ Cada mensaje de `messages` lleva estos campos:
 - `channel`;
 - `sentAt`: la hora, con zona;
 - `intent`;
+- `inReplyTo`: en una respuesta, el identificador de Meta del mensaje al que responde;
 - `text`: descifrado;
 - `attachments`: solo el tipo de cada adjunto.
 
-**El historial lo escribe el worker de ingesta** ([ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md),
-desde I4b). Se guarda en la colección `messages`:
+**El historial lo escribe el worker de ingesta** ([ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md)).
+Los mensajes entrantes llegan desde I4b y las respuestas del motor, desde D6a. Cada respuesta lleva en `inReplyTo` el
+mensaje al que responde. Todo se guarda en la colección `messages`:
 
 - **El texto va cifrado** con la clave de datos del cliente, ligado al campo `Message.text`.
 - **Quien escribe se guarda como el `uuid` del contacto,** nunca como su número.
