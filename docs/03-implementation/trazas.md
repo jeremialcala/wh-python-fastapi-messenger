@@ -38,7 +38,7 @@ no entra en una traza (RS19).*
 
 | Span | Servicio | Padre |
 |---|---|---|
-| `http.request` | Webhook y API de gestión, uno por petición | Ninguno: empieza la traza |
+| `http.request` | Webhook y API de gestión, uno por petición, salvo `/health`: Docker lo llama cada 30 s y su traza no dice nada | Ninguno: empieza la traza |
 | `ingest.notification` | Ingesta, uno por evento de `WEBHOOK` | El `traceparent` del evento |
 | `ingest.message` | Ingesta, uno por mensaje | `ingest.notification` |
 | `ingest.answer` | Ingesta, uno por respuesta de `RESPUESTAS` | El `traceparent` de la respuesta |
@@ -92,6 +92,16 @@ consulta desde Odín, la fuente de datos `Saga`.
   compose.
 
 ## Probado en midgard (2026-10-19)
+
+Con Saga desplegada (Yggdrasil 0.5.14) y el compose de esta rama:
+
+- Una notificación firmada dejó en Saga una traza con tres spans y dos servicios: `http.request` en
+  `gateway-webhook`, y `ingest.notification` → `ingest.message` en `gateway-ingest`.
+- Cada span llevaba solo atributos de la lista.
+- La traza duró 3,2 s, con la ingesta incluida; el webhook respondió antes.
+- Ninguno de los tres servicios dejó avisos en el log.
+
+Antes, sin destino de exportación:
 
 Con la imagen `i5-3f80052`, sin destino de exportación, se envió una notificación firmada al webhook:
 

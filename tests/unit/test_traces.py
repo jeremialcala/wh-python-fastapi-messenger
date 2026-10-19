@@ -241,3 +241,19 @@ def test_an_attribute_kept_out_leaves_its_key_in_the_log_never_its_value(spans, 
 
 def test_outside_a_span_there_is_no_context_to_hand_on():
     assert tracing.traceparent() is None
+
+
+def test_the_health_check_is_not_traced(spans):
+    """Docker calls it every 30 s on each service: a trace of it would only fill Saga."""
+    assert META.get("/health").status_code == 200
+    assert HTTP.get("/health").status_code == 200
+
+    assert by_name(spans, "http.request") == []
+
+
+def test_a_block_that_is_not_traced_runs_the_same_and_keeps_nothing(spans):
+    with tracing.span("test.untraced", traced=False, **{"gateway.channel": "whatsapp"}) as current:
+        current.set(**{"gateway.messages": 1})
+        current.failed("ValueError")
+
+    assert spans.get_finished_spans() == ()
