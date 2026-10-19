@@ -111,7 +111,25 @@ Si cae a mitad de una notificación, el evento se reentrega entero, y el paso 1 
   respuesta en `RESPUESTAS`. En el disco mecánico de midgard son unas 22 escrituras por segundo; el SSD que Jeremi
   tiene para midgard lo sube mucho (se mide al instalarlo).
 
+## Construido (I3 e I4, 2026-10-19)
+
+- **Un cambio respecto del orden de arriba: la ingesta publica el mensaje antes de guardarlo en el historial**, no
+  después.
+  - Con el orden original, un corte entre los dos pasos dejaba el mensaje en el historial sin haberse publicado. En
+    la siguiente entrega, el paso 1 lo saltaba y se perdía.
+  - Con este orden, el corte repite la publicación, y Bifröst la descarta por `Nats-Msg-Id` si llega dentro de su
+    ventana. El motor ya tenía que tolerar un duplicado.
+  - Lo fija `tests/unit/test_ingestion.py`.
+  - Lo aprobó Jeremi el 2026-10-19 («De acuerdo con el cambio en el orden que se publique antes de guardar»).
+- **Mientras el motor lea Hermod, la ingesta envía también el sobre v1 a la cola `llm`.** Lo hace la ingesta y no el
+  webhook, para que el motor no reciba cada mensaje dos veces.
+- **Sin bus, el webhook ejecuta la ingesta él mismo**, sobre el evento que habría publicado. Solo ocurre en desarrollo
+  y en las pruebas: fuera de desarrollo, el webhook no arranca sin `NATS_URL`.
+- **Medido en midgard:** el webhook responde en 8,3 ms de mediana, frente a los 185 ms de I1 con un contacto conocido
+  y los 415 ms con uno nuevo. La ingesta trata 2,1 notificaciones por segundo
+  ([medición](../../04-testing/medicion-webhook-i1.md)).
+
 ## Condiciones de revisión
 
-- La mediana del webhook medida en I1 pasa de 250 ms con Bifröst en el camino.
+- La mediana del webhook medida en I1 pasa de 250 ms con Bifröst en el camino. Medida con I4: 8,3 ms.
 - Hay que guardar el evento más de 7 días.

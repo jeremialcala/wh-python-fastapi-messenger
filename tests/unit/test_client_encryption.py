@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 import app as app_module
 import webhook as webhook_module
-import controller.messages as messages
+import controller.ingestion as ingestion
 from classes import ChatBot, ChatbotPhone, Client, Contact
 from crypto.fields import ClientCipher, NotEncrypted, is_encrypted, normalize_number
 from migrations import assign_operator_client, encrypt_client_data
@@ -50,7 +50,7 @@ def queue(monkeypatch):
     async def capture(queue, message):
         sent.append(json.loads(message.to_json()))
 
-    monkeypatch.setattr(messages, "send_message_to_queue", capture)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", capture)
     return sent
 
 
@@ -286,9 +286,9 @@ def test_the_message_for_the_engine_still_carries_the_number(http, bot_id, queue
     assert queue[0]["jwe_body"]["contact"] == {"name": "Ana", "waId": WA_ID}
 
 
-def test_a_contact_is_found_again_by_its_number(http, bot_id, queue):
+def test_a_contact_is_found_again_by_its_number(http, bot_id, queue, another):
     notify(http, bot_id, WHATSAPP)
-    notify(http, bot_id, WHATSAPP)
+    notify(http, bot_id, another(WHATSAPP))
 
     assert Contact.objects.count() == 1 and len(queue) == 2
 
@@ -476,11 +476,12 @@ def test_what_is_not_encrypted_does_not_need_the_key_service(http, caller, bot_i
     assert http.get("/health").status_code == 200
 
 
-def test_a_key_already_open_keeps_the_webhook_working_while_the_service_is_down(http, bot_id, queue, key_service):
+def test_a_key_already_open_keeps_the_webhook_working_while_the_service_is_down(http, bot_id, queue, key_service,
+                                                                               another):
     notify(http, bot_id, WHATSAPP)
     key_service.down = True
 
-    assert (notify(http, bot_id, WHATSAPP).status_code, len(queue)) == (200, 2)
+    assert (notify(http, bot_id, another(WHATSAPP)).status_code, len(queue)) == (200, 2)
 
 
 def test_a_message_is_not_lost_when_the_key_goes_between_the_signature_and_the_contact(http, bot_id, queue,

@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 import webhook as webhook_module
 import controller.amqp_broker as broker
+import controller.ingestion as ingestion
 import controller.messages as messages
 from classes import FacebookRequest
 from controller import BrokerUnavailable
@@ -197,14 +198,14 @@ def test_health_answers_without_token_nor_database(client):
 
 @pytest.fixture
 def whatsapp_message(monkeypatch):
-    monkeypatch.setattr(messages, "ctr_identify_contact_by_wa_id",
+    monkeypatch.setattr(ingestion, "ctr_identify_contact_by_wa_id",
                         AsyncMock(return_value=SimpleNamespace(firstName="Ana", waId="584120000000")))
     return FacebookRequest(**WHATSAPP_PAYLOAD)
 
 
 def test_processing_waits_for_the_broker(whatsapp_message, monkeypatch):
     send = AsyncMock()
-    monkeypatch.setattr(messages, "send_message_to_queue", send)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", send)
 
     asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot=SimpleNamespace(uuid=BOT_ID, clientId=BOT_ID)))
 
@@ -213,7 +214,7 @@ def test_processing_waits_for_the_broker(whatsapp_message, monkeypatch):
 
 
 def test_processing_does_not_swallow_a_broker_failure(whatsapp_message, monkeypatch):
-    monkeypatch.setattr(messages, "send_message_to_queue", AsyncMock(side_effect=BrokerUnavailable("llm")))
+    monkeypatch.setattr(ingestion, "send_message_to_queue", AsyncMock(side_effect=BrokerUnavailable("llm")))
 
     with pytest.raises(BrokerUnavailable):
         asyncio.run(messages.ctr_process_messages(req=whatsapp_message, _bot=SimpleNamespace(uuid=BOT_ID, clientId=BOT_ID)))

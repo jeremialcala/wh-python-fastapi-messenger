@@ -11,9 +11,14 @@
 El gateway publica eventos con un puerto, `EventPublisher` (`src/bus`), que no dice qué bus hay detrás. Su adaptador
 es `NatsPublisher`, sobre NATS JetStream, es decir Bifröst.
 
-**Desde I3 publica el webhook**, y es por ahora el único que lo hace. Ver
-[El evento del webhook](#el-evento-del-webhook-i3). Hasta I4 sigue mandando además un sobre por mensaje a la cola
-`llm` de Hermod, que es lo que lee el motor. Hermod se retira cuando el motor lea de Bifröst.
+**Publican el webhook, desde I3, y el worker de ingesta, desde I4.**
+
+- El webhook publica cada notificación en `WEBHOOK` y no hace nada más
+  ([El evento del webhook](#el-evento-del-webhook-i3)).
+- El worker la consume, identifica a quien escribe y publica cada mensaje en `MENSAJES`
+  ([El worker de ingesta](#el-worker-de-ingesta-i4)).
+- Mientras el motor siga leyendo la cola `llm` de Hermod, el worker le manda allí también el sobre v1. Hermod se
+  retira cuando el motor lea de Bifröst.
 
 ## Qué garantiza
 
@@ -65,12 +70,10 @@ Qué responde el webhook:
 - Si Bifröst no acusa el evento, el webhook responde `503` y no manda nada a Hermod: Meta reenvía la notificación.
 - Si Bifröst acusa el evento pero después falla Hermod, el webhook también responde `503`. El reenvío de Meta lo
   descarta Bifröst por `Nats-Msg-Id`, si llega dentro de los 2 minutos de la ventana.
-- Sin `NATS_URL`, el webhook funciona como antes de I3.
+- Desde I4, eso es todo lo que hace. Fuera de desarrollo, el webhook no arranca sin `NATS_URL`. En desarrollo y en
+  las pruebas, sin bus, ejecuta él mismo la ingesta del evento antes de responder.
 
-Nadie consume todavía el stream `WEBHOOK`. Lo hará el worker de ingesta de I4, que es también cuando el webhook
-deja de buscar el contacto y de publicar en Hermod.
-
-### Medido en midgard (2026-10-19)
+### Medido en midgard con I3 (2026-10-19)
 
 Se usó la instancia de medición de [I1](../04-testing/medicion-webhook-i1.md), con la imagen `i3-70d07d1` y el
 compose de esta rama. El script es el mismo de I1. Las imágenes se alternaron sobre el mismo despliegue: I3, I1, I3.
@@ -86,6 +89,41 @@ compose de esta rama. El script es el mismo de I1. Las imágenes se alternaron s
   Es la cola que forman los procesos bloqueados por pymongo (H14). No se ve que I3 lo empeore.
 - **Las 610 notificaciones de cada pasada quedaron como 610 eventos en `WEBHOOK`**, uno por notificación. Al terminar
   se purgaron el stream y la cola `llm`.
+
+## El worker de ingesta (I4)
+
+`src/ingest.py`, el servicio `ingest` del compose, contenedor `bots-ingest`. Lee `WEBHOOK` con el consumidor durable
+`ingesta` de Bifröst, que solo enlaza: su usuario no puede crear consumidores. Trata las notificaciones una detrás
+de otra, en orden, con `controller/ingestion.py`. Con cada mensaje de la notificación hace esto:
+
+1. **Si ya está en el historial, lo salta.** Es Meta reenviándolo.
+2. **Identifica al contacto** o lo guarda, como lo hacía el webhook. En Messenger, con la Graph API.
+3. **Lo publica**, en dos sitios:
+   - como `MensajeIdentificado` en la partición de su conversación,
+     `gateway.message.<partición>.<botId>.<contactId>`, con `Nats-Msg-Id` igual a `<botId>:<messageId>` y el
+     `traceparent` del evento;
+   - como sobre v1 en la cola `llm` de Hermod, para el motor que todavía la lee.
+4. **Lo guarda en el historial.**
+
+**Publicar va antes que guardar.** Así un corte entre los dos pasos repite una publicación, que el bus descarta por
+`Nats-Msg-Id` dentro de su ventana, y nunca pierde ninguna. Al revés, un mensaje guardado y sin publicar se saltaría
+en la siguiente entrega y se perdería. Es un cambio de orden respecto de ADR-0021, que guardaba antes de publicar;
+la ADR lo recoge. El motor tiene que tolerar un duplicado de todas formas.
+
+| Qué pasa | Qué hace con el evento |
+|---|---|
+| Todos sus mensajes tratados | Lo confirma, y sale de la cola de trabajo |
+| No responden la base, Andvari, Bifröst o Hermod | No lo confirma. Bifröst lo reentrega con su espera creciente (30 s, 1 min, 5 min, 15 min, 30 min, 1 h…) mientras lo guarde, 7 días |
+| Un mensaje falla por sí mismo | Lo deja en el log y sigue con los demás |
+| No es JSON, es de otra versión o su bot ya no existe | Lo descarta (`term`) y lo deja en el log |
+| Falla de un modo que no se conoce | No lo confirma: mejor reintentar que perderlo |
+
+Está sano mientras siga pidiendo eventos. Toca `/tmp/ingest-alive` al menos cada 5 s, y el healthcheck del compose
+mira la antigüedad del fichero. Usa `ingesta.env` de Bifröst: su usuario solo puede leer su consumidor y publicar
+en `gateway.message.>`.
+
+Ritmo medido en midgard: 2,1 notificaciones de un mensaje por segundo, porque cada una hace varios viajes seguidos a
+Atlas ([medición](../04-testing/medicion-webhook-i1.md#lo-que-cuesta-ahora-el-worker-de-ingesta)).
 
 ## Medido contra Bifröst (2026-10-19)
 

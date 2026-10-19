@@ -15,6 +15,7 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
+import controller.ingestion as ingestion
 import controller.messages as messages
 from classes import FacebookRequest
 
@@ -48,9 +49,9 @@ def published(monkeypatch):
         captured.append({"queue": queue, "body": json.loads(message.to_json())})
 
     contact = SimpleNamespace(firstName="Ana", waId="584120000000", fbId="123456789")
-    monkeypatch.setattr(messages, "send_message_to_queue", capture)
-    monkeypatch.setattr(messages, "ctr_identify_contact_by_wa_id", AsyncMock(return_value=contact))
-    monkeypatch.setattr(messages, "ctr_identify_fb_contact", AsyncMock(return_value=contact))
+    monkeypatch.setattr(ingestion, "send_message_to_queue", capture)
+    monkeypatch.setattr(ingestion, "ctr_identify_contact_by_wa_id", AsyncMock(return_value=contact))
+    monkeypatch.setattr(ingestion, "ctr_identify_fb_contact", AsyncMock(return_value=contact))
 
     def run(payload):
         captured.clear()

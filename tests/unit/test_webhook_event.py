@@ -19,9 +19,9 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 import bus
 import controller.facebook as facebook
-import controller.messages as messages
+import controller.ingestion as ingestion
 import webhook as webhook_module
-from classes import ChatBot
+from classes import ChatBot, Contact, ConversationMessage
 from controller.incoming import IncomingMessage
 from controller.webhook_event import event_message_id
 from repository import TenantRepository
@@ -102,7 +102,7 @@ def queue(monkeypatch):
 
     async def publish(queue, message):
         sent.append(json.loads(message.to_json()))
-    monkeypatch.setattr(messages, "send_message_to_queue", publish)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", publish)
     return sent
 
 
@@ -168,10 +168,13 @@ def test_the_event_says_when_it_was_received_with_its_time_zone(bot, bifrost, qu
     assert re.search(r"\+00:00$", bifrost.events[0].payload["receivedAt"])
 
 
-def test_until_i4_the_envelopes_still_go_to_hermod_as_well(bot, bifrost, queue):
-    notify(bot.uuid, whatsapp(value("wamid.A", "wamid.B")))
+def test_with_the_bus_the_webhook_only_publishes(bot, bifrost, queue):
+    """Who wrote, the history and the queue of the engine are the ingestion worker's (ADR-0021, I4)."""
+    assert notify(bot.uuid, whatsapp(value("wamid.A", "wamid.B"))).status_code == 200
 
-    assert [envelope["messageId"] for envelope in queue] == ["wamid.A", "wamid.B"]
+    assert len(bifrost.events) == 1
+    assert queue == []
+    assert Contact.objects.count() == ConversationMessage.objects.count() == 0
 
 
 # --- What is not published -------------------------------------------------------------------------------------------
@@ -190,17 +193,19 @@ def test_an_echo_of_the_page_is_not_published(bot, bifrost, queue):
     assert bifrost.events == []
 
 
-def test_without_a_bus_the_webhook_works_as_before(bot, queue):
+def test_without_a_bus_the_webhook_ingests_the_notification_itself(bot, queue):
+    """Development and the tests: the same ingestion as the worker's, before answering."""
     assert not bus.configured()
 
     assert notify(bot.uuid, whatsapp(value("wamid.A"))).status_code == 200
 
     assert [envelope["messageId"] for envelope in queue] == ["wamid.A"]
+    assert Contact.objects.count() == ConversationMessage.objects.count() == 1
 
 
 # --- When the bus does not keep it -----------------------------------------------------------------------------------
 
-def test_an_event_the_bus_does_not_keep_is_a_503_and_nothing_goes_to_hermod(bot, bifrost, queue):
+def test_an_event_the_bus_does_not_keep_is_a_503(bot, bifrost, queue):
     bifrost.refuse = True
 
     assert notify(bot.uuid, whatsapp(value("wamid.A"))).status_code == 503

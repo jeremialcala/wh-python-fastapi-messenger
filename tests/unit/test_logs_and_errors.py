@@ -23,7 +23,7 @@ import service
 import webhook as webhook_module
 import controller.clients as clients_controller
 import controller.facebook as facebook
-import controller.messages as messages
+import controller.ingestion as ingestion
 from auth.client import new_signing_key, public_part
 from classes import ChatBot, Contact
 from controller import BrokerUnavailable
@@ -76,7 +76,7 @@ def queue(monkeypatch):
     async def capture(queue, message):
         sent.append(json.loads(message.to_json()))
 
-    monkeypatch.setattr(messages, "send_message_to_queue", capture)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", capture)
     return sent
 
 
@@ -234,15 +234,15 @@ def test_what_the_graph_api_answers_does_not_reach_the_log(http, caller, logged,
     assert [contact.firstName for contact in Contact.objects] == [None]
 
 
-def test_a_failure_of_the_broker_is_logged_by_its_kind(http, caller, logged, monkeypatch):
+def test_a_failure_of_the_broker_is_logged_by_its_kind(http, caller, logged, monkeypatch, another):
     made = set_up(http, caller)
 
     async def down(queue, message):
         raise BrokerUnavailable("amqp://user:broker-password-marker@broker-host-marker")
 
-    monkeypatch.setattr(messages, "send_message_to_queue", down)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", down)
 
-    assert notify(http, made["bot"], WHATSAPP).status_code == 503
+    assert notify(http, made["bot"], another(WHATSAPP)).status_code == 503
     for sent in (*SENT, "broker-password-marker", "broker-host-marker"):
         assert sent not in logged()
 
@@ -388,7 +388,7 @@ def test_the_text_of_a_failure_is_neither_answered_nor_logged(http, operator, lo
         assert part not in logged()
 
 
-def test_a_failure_while_a_message_is_processed_is_logged_by_its_kind(http, caller, logged, monkeypatch):
+def test_a_failure_while_a_message_is_processed_is_logged_by_its_kind(http, caller, logged, monkeypatch, another):
     made = set_up(http, caller)
 
     def fails(*args, **kwargs):
@@ -396,7 +396,7 @@ def test_a_failure_while_a_message_is_processed_is_logged_by_its_kind(http, call
 
     monkeypatch.setattr(TenantRepository, "find_contact_by_wa_id", fails)
 
-    notify(http, made["bot"], WHATSAPP)
+    notify(http, made["bot"], another(WHATSAPP))
 
     assert "RuntimeError at " in logged()
     for part in (LEAK, "failure-text-marker", *SENT):

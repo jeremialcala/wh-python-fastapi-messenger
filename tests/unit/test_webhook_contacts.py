@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 import webhook as webhook_module
 import controller.facebook as facebook
-import controller.messages as messages
+import controller.ingestion as ingestion
 from classes import ChatBot, Contact
 from repository import TenantRepository
 
@@ -39,7 +39,7 @@ MESSENGER = {"object": "page", "entry": [{"id": "1", "time": 1760000000000, "mes
 @pytest.fixture
 def queue(monkeypatch):
     send = AsyncMock()
-    monkeypatch.setattr(messages, "send_message_to_queue", send)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", send)
     return send
 
 
@@ -105,9 +105,9 @@ def test_what_the_graph_api_leaves_out_stays_empty(owner, bot, queue, monkeypatc
 
 
 @pytest.mark.parametrize("payload", [WHATSAPP, MESSENGER], ids=["whatsapp", "messenger"])
-def test_a_known_contact_is_not_stored_again(bot, queue, graph_api, payload):
+def test_a_known_contact_is_not_stored_again(bot, queue, graph_api, payload, another):
     notify(bot.uuid, payload)
-    notify(bot.uuid, payload)
+    notify(bot.uuid, another(payload))
 
     assert Contact.objects.count() == 1
     assert queue.await_count == 2
