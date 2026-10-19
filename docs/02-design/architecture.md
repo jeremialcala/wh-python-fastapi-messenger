@@ -485,7 +485,7 @@ después de que Meta recibiera su `200` (T27), y Gjallarhorn avisa mucho antes, 
 | I2 | Puerto de publicación sobre NATS | ADR-0019 | **Hecho** (2026-10-19): `EventPublisher` y `NatsPublisher`, una conexión por proceso; contra Bifröst, 2,1 ms de mediana por evento de 1 KB, frente a los 8,3 ms de Hermod con conexión por mensaje ([guía](../03-implementation/bus-de-eventos.md)) |
 | I3 | Contrato v2 y publicación de un evento por notificación | ADR-0021, `asyncapi-v2.yaml` | **Hecho** (2026-10-19): el webhook publica `EventoWebhook` en `webhook.meta.<canal>` y, hasta I4, sigue enviando los sobres v1 a Hermod; añade unos 4 ms ([guía](../03-implementation/bus-de-eventos.md#el-evento-del-webhook-i3)) |
 | I4 | Worker de ingesta, historial y webhook que solo publica | ADR-0017, ADR-0021 | **Hecho** (2026-10-19), en dos partes: I4a, el historial; I4b, el worker de ingesta y el webhook que solo publica. El webhook pasa de 185 ms a 8,3 ms de mediana; la ingesta trata 2,1 notificaciones por segundo ([guía](../03-implementation/bus-de-eventos.md#el-worker-de-ingesta-i4)) |
-| I5 | OpenTelemetry con la regla de los logs | — | Pendiente |
+| I5 | OpenTelemetry con la regla de los logs | — | **Hecho** (2026-10-19): spans en los tres servicios y una traza del webhook al motor, con la regla de los logs; sin colector todavía ([guía](../03-implementation/trazas.md)) |
 | I6 | Una credencial por worker | ADR-0022 | Pendiente |
 | I7 | Destinos de los intents | — | Pendiente |
 | I8 | Instagram | — | Pendiente |

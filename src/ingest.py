@@ -30,6 +30,7 @@ import nats.errors
 
 import bus
 import service  # Settings, logging, the key service and the publisher of this process.
+import tracing
 from controller.ingestion import RETRY_LATER, Unprocessable, ingest_notification, ingest_reply
 from utils import configure_logging, describe
 
@@ -144,6 +145,7 @@ async def main() -> None:
     finally:
         await connection.drain()
         await bus.close()
+        tracing.shutdown()
 
 
 if __name__ == "__main__":

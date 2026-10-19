@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 import bus
+import tracing
 from bus.nats_jetstream import NatsPublisher
 from classes import ResponseData, Settings
 from constants import APPLICATION_JSON, CONTACT, CONTENT_TYPE, PROCESSING_TIME, TERMS
@@ -21,6 +22,8 @@ from repository import data_keys
 from utils import BodySizeLimit, configure_logging, describe
 
 settings = Settings()
+# Before anything opens a span. The name comes from OTEL_SERVICE_NAME, set per service in the compose.
+tracing.configure()
 log = logging.getLogger(settings.environment)
 
 # The key service is only reached when a data key is needed: a service starts without it, and until it answers
@@ -72,6 +75,23 @@ def request_line(request: Request) -> str:
     return " ".join([METHODS.get(request.method, "OTHER"), route, *identifiers])
 
 
+# The identifiers in an address that a span may carry, each under its name in the trace.
+SPAN_IDENTIFIERS = {"bot_id": "gateway.bot_id", "contact_id": "gateway.contact_id", "client_id": "gateway.client_id"}
+
+
+def request_attributes(request: Request) -> dict:
+    """What the span of a request says of it: the same as its log line, and nothing the caller wrote."""
+    attributes = {"http.request.method": METHODS.get(request.method, "OTHER"),
+                  "http.route": getattr(request.scope.get("route"), "path", "no route")}
+    for name, value in request.scope.get("path_params", {}).items():
+        if name in SPAN_IDENTIFIERS:
+            try:
+                attributes[SPAN_IDENTIFIERS[name]] = str(UUID(value))
+            except (ValueError, TypeError, AttributeError):
+                continue
+    return attributes
+
+
 async def invalid_request(_request: Request, error: RequestValidationError):
     """
         Says where a request is wrong and why, never with what: by default the answer repeats what was sent,
@@ -89,16 +109,21 @@ async def interceptor(request: Request, call_next):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         headers={CONTENT_TYPE: APPLICATION_JSON}
     )
-    try:
-        request.state.event_id = None
-        response = await call_next(request)
-    except Exception as e:
-        log.error(describe(e))
-    finally:
-        process_time = "{:f}".format(time.time() - s_time)
-        response.headers[PROCESSING_TIME] = str(process_time)
-        # The one line a request leaves, written once it is known which route it was.
-        log.info(f"{request_line(request)} code:{response.status_code} time: {process_time}")
+    # A span per request, started here and not taken from the caller: the trace of a notification starts at the
+    # webhook. What it says of the request is what the log line says, set once the route is known.
+    with tracing.span("http.request", kind=tracing.SpanKind.SERVER) as current:
+        try:
+            request.state.event_id = None
+            response = await call_next(request)
+        except Exception as e:
+            log.error(describe(e))
+            current.failed(type(e).__name__)
+        finally:
+            process_time = "{:f}".format(time.time() - s_time)
+            response.headers[PROCESSING_TIME] = str(process_time)
+            # The one line a request leaves, written once it is known which route it was.
+            log.info(f"{request_line(request)} code:{response.status_code} time: {process_time}")
+            current.set(**request_attributes(request), **{"http.response.status_code": response.status_code})
     return response
 
 
@@ -115,7 +140,7 @@ def build(**metadata) -> FastAPI:
     service = FastAPI(
         **documentation(settings.environment),
         on_startup=[configure_logging],
-        on_shutdown=[bus.close],
+        on_shutdown=[bus.close, tracing.shutdown],
         version=settings.version,
         terms_of_service=TERMS,
         contact=CONTACT,

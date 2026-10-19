@@ -154,7 +154,8 @@ def test_the_worker_ingests_what_the_webhook_published_with_the_users_bifrost_gi
     identified = kept(url, "MENSAJES")
     assert [m.headers["Nats-Msg-Id"] for m in identified] == [f"{bot.uuid}:wamid.A", f"{bot.uuid}:wamid.B"]
     assert {m.subject.rsplit(".", 2)[1:] == [str(bot.uuid), str(contact._uuid)] for m in identified} == {True}
-    assert identified[0].headers["traceparent"] == "00-" + "a" * 32 + "-" + "b" * 16 + "-01"
+    # The trace of the event goes on, from a span of the ingestion.
+    assert identified[0].headers["traceparent"].split("-")[1] == "a" * 32
     assert [envelope["messageId"] for envelope in queue] == ["wamid.A", "wamid.B"]
     assert ConversationMessage.objects.count() == 2
 

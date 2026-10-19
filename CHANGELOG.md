@@ -8,6 +8,24 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I5: trazas con OpenTelemetry y la regla de los logs (R4, RNF09, RS19, T28).
+  - **Una traza por mensaje,** del webhook al motor:
+    - un span por petición en el webhook y en la gestión;
+    - el evento de `WEBHOOK` lleva el contexto de la petición;
+    - la ingesta lo retoma en `ingest.notification` y en un `ingest.message` por mensaje;
+    - cada mensaje identificado sale con el contexto de su span;
+    - las respuestas y los avisos de supresión se trazan igual.
+  - **La regla de los logs:**
+    - un span solo admite una lista cerrada de atributos, cada uno con la forma de su valor: identificadores del
+      servicio, rutas declaradas, sujetos, recuentos y palabras fijas;
+    - no se instrumenta ninguna biblioteca por su cuenta, porque guardarían la URL con su query string y la IP de
+      quien llama;
+    - ninguna excepción se guarda en un span.
+  - **Exportación:** por OTLP/HTTP solo si hay `OTEL_EXPORTER_OTLP_ENDPOINT`; sin él, las trazas no salen del
+    proceso. El compose nombra cada servicio con `OTEL_SERVICE_NAME`.
+  - **Dependencias:** OpenTelemetry SDK 1.45.0, porque la 1.45.1 aún no tenía dos semanas.
+  - **Probado** en midgard: el evento y su mensaje identificado comparten traza.
+  - **Guía:** `docs/03-implementation/trazas.md`.
 - D6c: avisos de supresión al motor (ADR-0017, RF15).
   - **Qué se publica:** después de cada borrado, la API de gestión publica en `SUPRESIONES` un `Supresion` del
     contrato v2 por cada cosa borrada, solo con identificadores. En un contacto, va un aviso por cada copia de esa

@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 import bus
+import tracing
 from classes import ChatBot, Contact, MessageBody, QueueMessage, Settings
 from classes.entity_conversation_message import INCOMING, OUTGOING
 from crypto.key_service import KeyServiceUnavailable
@@ -150,12 +151,12 @@ def identified_event(event: dict, item: dict, contact: Contact, message: Incomin
     }
 
 
-async def _publish(event: dict, item: dict, contact: Contact, message: IncomingMessage, trace: str | None) -> None:
+async def _publish(event: dict, item: dict, contact: Contact, message: IncomingMessage) -> None:
     if bus.configured():
         await bus.publisher().publish(
             f"gateway.message.{partition(event['botId'], contact._uuid)}.{event['botId']}.{contact._uuid}",
             json.dumps(identified_event(event, item, contact, message), separators=(",", ":")).encode("utf-8"),
-            f"{event['botId']}:{item['messageId']}", headers={"traceparent": trace or traceparent()})
+            f"{event['botId']}:{item['messageId']}", headers={"traceparent": traceparent()})
     body = MessageBody(botId=event["botId"], clientId=event["clientId"], type=_KINDS[event["channel"]],
                        contact={"name": contact.firstName, ("waId" if event["channel"] == "whatsapp" else "fbId"):
                                 message.sender},
@@ -173,32 +174,48 @@ async def ingest_notification(event: dict, trace: str | None = None, bot: ChatBo
         RETRY_LATER when it has to wait. A message that fails by itself is left in the log and the rest go on.
         Says how many messages were ingested, skipped as already seen, and failed. The webhook, which has just
         found the chatbot, passes it along so that it is not looked for again.
+
+        `trace` is the traceparent the event came with: the ingestion goes on with that trace, and each message
+        identified leaves with it. Without it, the trace is the current one.
     """
-    if not isinstance(event, dict) or event.get("schemaVersion") != SCHEMA_VERSION:
-        raise Unprocessable("not an event of version 2")
-    try:
-        repo = TenantRepository(UUID(event["clientId"]))
-        bot = bot or repo.get_bot(event["botId"])
-    except (NotFound, KeyError, ValueError, TypeError):
-        raise Unprocessable("for a chatbot that does not exist") from None
-    except Exception as e:
-        if database_failed(e):
-            raise DatabaseUnavailable(type(e).__name__) from None
-        raise
-    received_at = datetime.fromisoformat(event["receivedAt"])
-    outcome = {"ingested": 0, "seen": 0, "failed": 0}
-    for item in event["messages"]:
+    with tracing.span("ingest.notification", parent=trace, kind=tracing.SpanKind.CONSUMER,
+                      **{"messaging.system": "nats", "messaging.destination.name": "WEBHOOK"}) as current:
+        if not isinstance(event, dict) or event.get("schemaVersion") != SCHEMA_VERSION:
+            raise Unprocessable("not an event of version 2")
+        try:
+            repo = TenantRepository(UUID(event["clientId"]))
+            bot = bot or repo.get_bot(event["botId"])
+        except (NotFound, KeyError, ValueError, TypeError):
+            raise Unprocessable("for a chatbot that does not exist") from None
+        except Exception as e:
+            if database_failed(e):
+                raise DatabaseUnavailable(type(e).__name__) from None
+            raise
+        current.set(**{"gateway.bot_id": str(bot.uuid), "gateway.client_id": str(bot.clientId),
+                       "gateway.channel": event.get("channel"), "gateway.messages": len(event["messages"])})
+        received_at = datetime.fromisoformat(event["receivedAt"])
+        outcome = {"ingested": 0, "seen": 0, "failed": 0}
+        for item in event["messages"]:
+            outcome[await _ingest_message(repo, bot, event, item, received_at)] += 1
+        return outcome
+
+
+async def _ingest_message(repo: TenantRepository, bot: ChatBot, event: dict, item: dict, received_at) -> str:
+    """One message of the notification, in a span of its own. Says whether it was ingested, seen or failed."""
+    with tracing.span("ingest.message", **{"gateway.bot_id": str(bot.uuid)}) as current:
         try:
             if repo.has_message(bot.uuid, INCOMING, item["messageId"]):
-                outcome["seen"] += 1
-                continue
+                current.set(**{"gateway.outcome": "seen"})
+                return "seen"
             message = incoming(event["channel"], item)
             contact = await _identify(event["channel"], message, bot)
-            await _publish(event, item, contact, message, trace)
+            await _publish(event, item, contact, message)
+            current.set(**{"gateway.contact_id": str(contact._uuid)})
             text, attachments, sent_at = what_was_said(event["channel"], message.content)
             repo.record_message(contact, INCOMING, item["messageId"], event["channel"], sent_at or received_at,
                                 text=text, attachments=attachments)
-            outcome["ingested"] += 1
+            current.set(**{"gateway.outcome": "ingested"})
+            return "ingested"
         except RETRY_LATER:
             raise
         except Exception as e:
@@ -207,8 +224,9 @@ async def ingest_notification(event: dict, trace: str | None = None, bot: ChatBo
                 raise DatabaseUnavailable(type(e).__name__) from None
             # A message that fails by itself would fail again, and must not take the rest of the notification with it.
             log.error(f"A message for chatbot {bot.uuid} could not be ingested: {describe(e)}")
-            outcome["failed"] += 1
-    return outcome
+            current.failed(type(e).__name__)
+            current.set(**{"gateway.outcome": "failed"})
+            return "failed"
 
 
 async def ingest_reply(event: dict, trace: str | None = None) -> dict:
@@ -216,7 +234,18 @@ async def ingest_reply(event: dict, trace: str | None = None) -> dict:
         Stores in the history what the engine's notifier sent and Meta accepted: one RespuestaEnviada of RESPUESTAS
         (asyncapi-v2.yaml), as an answer of the contact it went to. Raises Unprocessable for one that can never be
         stored, a contact deleted in the meantime included: its conversation went with it. Says whether it was new.
+        It goes on with the trace of the answer, `trace`, which the engine started with the message it answers.
     """
+    with tracing.span("ingest.answer", parent=trace, kind=tracing.SpanKind.CONSUMER,
+                      **{"messaging.system": "nats", "messaging.destination.name": "RESPUESTAS"}) as current:
+        stored = await _store_reply(event)
+        current.set(**{"gateway.bot_id": event.get("botId"), "gateway.client_id": event.get("clientId"),
+                       "gateway.contact_id": event.get("contactId"),
+                       "gateway.outcome": "stored" if stored["stored"] else "seen"})
+        return stored
+
+
+async def _store_reply(event: dict) -> dict:
     if not isinstance(event, dict) or event.get("schemaVersion") != SCHEMA_VERSION:
         raise Unprocessable("not an answer of version 2")
     try:

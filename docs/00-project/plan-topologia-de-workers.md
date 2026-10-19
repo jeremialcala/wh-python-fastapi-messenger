@@ -220,7 +220,7 @@ flowchart LR
     I3["I3 Contrato v2 y un evento por notificacion (R3), hecho"] --> I4
     I4["I4 Worker de ingesta y webhook que solo publica (R1), hecho"] --> I5
     I4 --> I8
-    I5["I5 OpenTelemetry con la regla de los logs (R4)"]
+    I5["I5 OpenTelemetry con la regla de los logs (R4), hecho"]
     I6["I6 Credencial por worker (R5)"]
     I7["I7 Destinos de los intents (R6)"]
     I8["I8 Canal de Instagram (R7)"]
