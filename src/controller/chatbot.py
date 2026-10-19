@@ -21,7 +21,6 @@ __all__ = ["ctr_create_chatbot", "ctr_get_chatbot_from_uuid", "ctr_add_phone_cha
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
-B_INST, E_INST = "[INST]", "[/INST]"
 B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
 B_SEN, E_SEN = "<s>", "</s>"
 

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import logging
 
 from jwcrypto import jwk
 from jwcrypto.common import json_decode
@@ -9,7 +8,6 @@ from classes import Settings
 __all__ = ["get_private_key_pem", "get_private_key", "get_public_key"]
 
 settings = Settings()
-log = logging.getLogger(settings.environment)
 
 
 def get_private_key_pem(_uuid: str):
