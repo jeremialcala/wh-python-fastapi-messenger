@@ -8,6 +8,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I1 hecho el 2026-10-19: medido el webhook actual en midgard, contra Atlas y Hermod reales, con notificaciones de
+  WhatsApp sintéticas y firmadas. Con un contacto conocido responde en 185 ms de mediana y cumple RNF01; con uno
+  nuevo tarda 415 ms, y con 4 notificaciones a la vez, de 357 a 472 ms. Ninguno de los dos cumple. Publicar en Hermod
+  cuesta 8 ms: el resto es Atlas. Es la línea base de I2 e I4. El script es `tests/performance/measure_webhook.py` y
+  el resultado está en `docs/04-testing/medicion-webhook-i1.md`.
 - El almacén de Bifröst está en el SSD de midgard (2026-10-19): el acuse de un mensaje de 1 KB baja de 44,5 ms a
   2,2 ms de mediana, y el de una notificación de 3 MB de 196 ms a 69 ms. Sin el SSD, Bifröst no arranca, y el disco
   queda vigilado. El resto de los servicios se moverá tras unos días de vigilancia (ADR-0020).
