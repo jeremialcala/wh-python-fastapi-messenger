@@ -8,6 +8,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- Diseño del refactor (Gate 1, en revisión): `architecture.md` 0.3.0 con el objetivo (C4 Container con webhook,
+  ingesta, gestión, Bifröst y el bucket de contexto; secuencia de la notificación con sus fallos; ciclo de vida de un
+  evento en `WEBHOOK`; qué tiene cada servicio; brecha por incrementos) y `threat-model.md` 0.3.0 con el DFD del
+  objetivo y las amenazas T22–T31.
+- Lo que llega de Meta espera en Bifröst 7 días como máximo, lo mismo que reintenta Meta (decisión del 2026-10-18,
+  ADR-0021).
 - ADR-0021 y ADR-0022, propuestas para el Gate 1 del refactor. ADR-0021 (D2): el webhook solo comprueba la firma y
   publica un evento por mensaje, y responde `200` con el acuse de Bifröst; un worker de ingesta identifica al
   contacto, guarda el historial, deduplica los reintentos de Meta y publica en la partición de la conversación.

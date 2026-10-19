@@ -30,7 +30,7 @@ channels:
     address: 'webhook.meta.{canal}'
     description: >-
       Stream `WEBHOOK`. Lo que Meta firmó, verificado y sin identificar. Cola de trabajo: el evento se borra al
-      confirmarlo la ingesta, y caduca a las 24 horas como mucho (ADR-0021).
+      confirmarlo la ingesta, y caduca a los 7 días como mucho, lo que reintenta Meta (ADR-0021).
     parameters:
       canal:
         $ref: '#/components/parameters/canal'

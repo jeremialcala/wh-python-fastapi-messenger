@@ -57,7 +57,7 @@ Hechos comprobados en la documentación de NATS el 2026-10-18:
 
 | Stream | Sujetos | Quién publica | Quién consume | Retención |
 |---|---|---|---|---|
-| `WEBHOOK` | `webhook.meta.whatsapp`, `.messenger` e `.instagram` | El webhook: cada mensaje verificado, tal como lo firmó Meta | El worker de ingesta | Cola de trabajo (se borra al confirmarse), y 24 horas como máximo (RNF05) |
+| `WEBHOOK` | `webhook.meta.whatsapp`, `.messenger` e `.instagram` | El webhook: cada mensaje verificado, tal como lo firmó Meta | El worker de ingesta | Cola de trabajo (se borra al confirmarse), y **7 días** como máximo: lo que reintenta Meta en WhatsApp. Decidido el 2026-10-18 ([ADR-0021](0021-el-webhook-solo-publica.md)) |
 | `MENSAJES` | `gateway.message.<partición>.<botId>.<contactId>` | El worker de ingesta: el mensaje identificado | Los workers del motor, una partición por consumidor | 24 horas como máximo |
 | `RESPUESTAS` | `engine.reply.sent.<botId>` | El notificador del motor, cuando Meta acepta un envío | El worker de ingesta, para el historial | 24 horas como máximo |
 | `SUPRESIONES` | `gateway.contact.erased`, `gateway.bot.erased`, `gateway.client.erased` | La API de gestión | El coordinador, para borrar el contexto | 7 días |

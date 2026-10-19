@@ -46,8 +46,8 @@ Ninguno de ellos impide NATS, que es un binario de Go sin requisitos de AVX2.
 - **Recursos:** 384 MB de RAM y media CPU como tope del contenedor.
 - **Secretos en Andvari:** las credenciales de cada servicio, la clave de cifrado del almacén y la clave privada de
   la CA de Bifröst.
-- **Respaldos: ninguno del almacén.** Los streams guardan como mucho 24 horas, o 7 días las supresiones, y el
-  contexto se rehace desde el historial. Sí se respaldan la configuración y la CA, que están en el repositorio.
+- **Respaldos: ninguno del almacén.** Los streams guardan como mucho 7 días, y el contexto se rehace desde el
+  historial. Sí se respaldan la configuración y la CA, que están en el repositorio.
 
 No se calcula la matriz de rendimiento por dólar. Como en ADR-0008, el candidato usa hardware que ya existe, con
 coste marginal nulo, y se aplica la regla de proporcionalidad. Tampoco se buscaron precios de un servicio gestionado,
