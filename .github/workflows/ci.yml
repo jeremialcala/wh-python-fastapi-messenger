@@ -44,6 +44,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The event bus, the same version as Bifröst and set up like it. Not a service container: those take no
+      # arguments, and NATS needs its configuration file, which only exists once the repository is checked out.
+      - name: NATS JetStream
+        run: |
+          docker run -d --name nats -p 4222:4222 -p 8222:8222 \
+            -v "$PWD/tests/integration/nats-test.conf:/etc/nats/test.conf:ro" \
+            nats:2.14.8-alpine@sha256:f9512b17aae6d41b6a615a7afad7b328633639ddae025744623e69b26fe686be \
+            -c /etc/nats/test.conf
+          for _ in $(seq 1 30); do
+            curl -fs "http://127.0.0.1:8222/healthz?js-enabled-only=true" && exit 0
+            sleep 1
+          done
+          docker logs nats
+          exit 1
+
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -62,6 +77,9 @@ jobs:
           OPENBAO_TEST_REQUIRED: "1"
           RABBITMQ_TEST_ADDR: 127.0.0.1:5672
           RABBITMQ_TEST_REQUIRED: "1"
+          NATS_TEST_ADDR: 127.0.0.1:4222
+          NATS_TEST_MONITOR: 127.0.0.1:8222
+          NATS_TEST_REQUIRED: "1"
 
   image:
     runs-on: ubuntu-latest

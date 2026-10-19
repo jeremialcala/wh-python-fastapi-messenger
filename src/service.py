@@ -12,6 +12,8 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+import bus
+from bus.nats_jetstream import NatsPublisher
 from classes import ResponseData, Settings
 from constants import APPLICATION_JSON, CONTACT, CONTENT_TYPE, PROCESSING_TIME, TERMS
 from crypto.key_service import OpenBaoKeyService
@@ -27,6 +29,14 @@ if not settings.andvari_addr.startswith("https://") and settings.environment != 
     raise ValueError("ANDVARI_ADDR must be an https address")
 data_keys.configure(OpenBaoKeyService(settings.andvari_addr, settings.andvari_role_id,
                                       settings.andvari_secret_id_file, settings.andvari_ca_file))
+
+# The event bus, the same way: one connection per process, opened the first time an event is published. Until it
+# answers, publishing gets a 503.
+if settings.nats_url:
+    if not settings.nats_url.startswith("tls://") and settings.environment != "development":
+        raise ValueError("NATS_URL must be a tls:// address")
+    bus.configure(NatsPublisher(settings.nats_url, settings.nats_user, settings.nats_password, settings.nats_ca,
+                                settings.nats_inbox_prefix))
 
 # No request may be larger than this: it is the largest notification Meta sends, and nothing a client sends comes
 # close.
@@ -105,6 +115,7 @@ def build(**metadata) -> FastAPI:
     service = FastAPI(
         **documentation(settings.environment),
         on_startup=[configure_logging],
+        on_shutdown=[bus.close],
         version=settings.version,
         terms_of_service=TERMS,
         contact=CONTACT,
