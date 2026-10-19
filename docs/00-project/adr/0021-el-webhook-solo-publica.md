@@ -120,6 +120,7 @@ Si cae a mitad de una notificación, el evento se reentrega entero, y el paso 1 
   - Con este orden, el corte repite la publicación, y Bifröst la descarta por `Nats-Msg-Id` si llega dentro de su
     ventana. El motor ya tenía que tolerar un duplicado.
   - Lo fija `tests/unit/test_ingestion.py`.
+  - Lo aprobó Jeremi el 2026-10-19 («De acuerdo con el cambio en el orden que se publique antes de guardar»).
 - **Mientras el motor lea Hermod, la ingesta envía también el sobre v1 a la cola `llm`.** Lo hace la ingesta y no el
   webhook, para que el motor no reciba cada mensaje dos veces.
 - **Sin bus, el webhook ejecuta la ingesta él mismo**, sobre el evento que habría publicado. Solo ocurre en desarrollo
