@@ -120,8 +120,10 @@ entonces del tamaño de la notificación, no del número de mensajes. Medido ese
 | 1 MB | 134 ms | 467 ms |
 | 3 MB, lo más que envía Meta | 196 ms | 385 ms |
 
-Hasta la notificación más grande cabe en los 250 ms de mediana y por debajo de 1 s. El disco sigue limitando el bus a
-unas 22 escrituras por segundo: Jeremi tiene un SSD para midgard (HP S700), que se medirá al instalarlo.
+Hasta la notificación más grande cabe en los 250 ms de mediana y por debajo de 1 s.
+
+**Con el almacén en el SSD (2026-10-19, [ADR-0020](0020-placement-de-bifrost.md)):** el acuse de 1 KB baja a 2,2 ms de
+mediana (p99 9,7 ms) y el de 3 MB a 69 ms. El techo del bus deja de ser el disco.
 
 ## Alternativas consideradas
 
