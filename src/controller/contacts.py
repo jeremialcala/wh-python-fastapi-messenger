@@ -19,6 +19,7 @@ from enums import Status
 from repository import NotFound, RegisterUnavailable, TenantRepository
 
 from .answers import answer
+from .erasure_notices import CHATBOT, CONTACT, announce
 
 __all__ = ["ctr_list_contacts", "ctr_search_contacts", "ctr_export_contact", "ctr_last_turns", "ctr_delete_contact",
            "ctr_delete_chatbot"]
@@ -112,6 +113,7 @@ async def ctr_last_turns(repo: TenantRepository, bot_id: str, contact_id: str, e
 
 async def ctr_delete_contact(repo: TenantRepository, bot_id: str, contact_id: str) -> JSONResponse:
     try:
+        bot_uuid, copies = repo.contact_copies(bot_id, contact_id)
         deleted = repo.delete_contact(bot_id, contact_id)
     except NotFound:
         return answer(status.HTTP_404_NOT_FOUND, CONTACT_NOT_FOUND)
@@ -120,6 +122,8 @@ async def ctr_delete_contact(repo: TenantRepository, bot_id: str, contact_id: st
     # A warning, so that it is kept at the level production logs at: a deletion cannot be undone.
     log.warning(f"Client {repo.client_id} deleted contact {UUID(contact_id)} of chatbot {UUID(bot_id)}: "
                 f"{deleted} stored")
+    # Each copy of that person has a context of its own in the engine.
+    await announce(CONTACT, repo.client_id, bot_uuid, copies)
     return answer(status.HTTP_200_OK, data={"uuid": str(UUID(contact_id)), "deleted": deleted})
 
 
@@ -131,4 +135,5 @@ async def ctr_delete_chatbot(repo: TenantRepository, bot_id: str) -> JSONRespons
     except RegisterUnavailable as e:
         return _not_written_down(e)
     log.warning(f"Client {repo.client_id} deleted chatbot {UUID(bot_id)}: {deleted}")
+    await announce(CHATBOT, repo.client_id, UUID(bot_id))
     return answer(status.HTTP_200_OK, data={"uuid": str(UUID(bot_id)), "deleted": deleted})

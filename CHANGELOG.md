@@ -8,6 +8,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- D6c: avisos de supresión al motor (ADR-0017, RF15).
+  - **Qué se publica:** después de cada borrado, la API de gestión publica en `SUPRESIONES` un `Supresion` del
+    contrato v2 por cada cosa borrada, solo con identificadores. En un contacto, va un aviso por cada copia de esa
+    persona en el bot.
+  - **Para qué:** el coordinador borra con ellos el contexto que guarda.
+  - **Si el bus no lo acepta:** el borrado no se deshace ni falla. Queda en el log, y el contexto caduca solo en 24
+    horas.
+  - **Despliegue:** el compose le da a la gestión su usuario `gestion` de Bifröst, la red `bifrost` y la CA.
+  - **Probado** contra NATS en el CI y contra el Bifröst real en midgard.
 - D6b: `GET /chat/{bot_id}/contacts/{contact_id}/turns`, las 10 últimas vueltas de una conversación (RF15,
   ADR-0017), para que el coordinador del motor rehaga su contexto cuando no lo tiene.
   - **Qué devuelve:** desde el décimo mensaje del contacto contando por el final, todo lo que vino después, en los

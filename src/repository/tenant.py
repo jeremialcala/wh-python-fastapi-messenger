@@ -283,10 +283,10 @@ class TenantRepository:
             raise NotFound(contact_id)
         return contact
 
-    def delete_contact(self, bot_id, contact_id) -> dict:
+    def contact_copies(self, bot_id, contact_id) -> tuple[UUID, list[UUID]]:
         """
-            Deletes a contact of a chatbot. Two first messages arriving at once can store the same person twice,
-            and deleting one would leave the other: every document of that person for that chatbot goes.
+            The chatbot of a contact and every contact of that same person in it. Two first messages arriving at once
+            can store the same person twice: deleting one would leave the other.
         """
         contact = self.get_contact(bot_id, contact_id)
         same = Q(_uuid=contact._uuid)
@@ -294,9 +294,13 @@ class TenantRepository:
             same |= Q(waIdIndex=contact.waIdIndex)
         if contact.fbId:
             same |= Q(fbId=contact.fbId)
-        copies = [copy._uuid for copy in self._own(Contact, botId=contact.botId).filter(same)]
-        erasures.record(erasures.CONTACT, self.client_id, bot_id=contact.botId, contacts=copies)
-        return self.erase_contacts(contact.botId, copies)
+        return contact.botId, [copy._uuid for copy in self._own(Contact, botId=contact.botId).filter(same)]
+
+    def delete_contact(self, bot_id, contact_id) -> dict:
+        """Deletes a contact of a chatbot: every document of that person for that chatbot goes."""
+        bot_uuid, copies = self.contact_copies(bot_id, contact_id)
+        erasures.record(erasures.CONTACT, self.client_id, bot_id=bot_uuid, contacts=copies)
+        return self.erase_contacts(bot_uuid, copies)
 
     # --- History ----------------------------------------------------------------------------------------------------
 

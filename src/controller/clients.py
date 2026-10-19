@@ -18,6 +18,8 @@ from enums import Status
 from repository import (Conflict, NotFound, RegisterUnavailable, add_service_key, add_signing_key, delete_client,
                         get_client, list_clients, register_client, remove_service_key, remove_signing_key)
 
+from .erasure_notices import CLIENT, announce
+
 __all__ = ["ctr_register_client", "ctr_list_clients", "ctr_get_client", "ctr_add_signing_key",
            "ctr_add_own_signing_key", "ctr_remove_signing_key", "ctr_gateway_keys", "ctr_delete_client", "ctr_add_service_key",
            "ctr_remove_service_key"]
@@ -169,6 +171,7 @@ async def ctr_delete_client(client_id) -> ResponseData:
                             detail="HTTP_503_SERVICE_UNAVAILABLE") from None
     # A warning, so that it is kept at the level production logs at: a deletion cannot be undone.
     log.warning(f"Client deleted: {client.uuid} with {deleted}")
+    await announce(CLIENT, client.uuid)
     return ResponseData(data={"uuid": str(client.uuid), "deleted": deleted})
 
 

@@ -114,6 +114,28 @@ configuración de cada bot con los endpoints de siempre.
 Un mensaje puede estar en camino mientras se borra su bot. Lo que se intenta guardar para un bot que ya no existe
 se descarta en el momento, y un cambio sobre un documento ya borrado no lo devuelve a la base.
 
+## El aviso al motor
+
+El contexto de cada conversación lo guarda el coordinador del motor en Bifröst, no el gateway. Por eso, después de
+cada borrado, la API de gestión lo anuncia en el stream `SUPRESIONES` (ADR-0017, RF15). Lo publica con su usuario de
+Bifröst, `gestion`, que no puede publicar nada más.
+
+| Se borra | Sujeto | Avisos |
+|---|---|---|
+| Un contacto | `gateway.contact.erased` | Uno por cada copia de esa persona en el bot, porque cada una tiene su contexto |
+| Un bot | `gateway.bot.erased` | Uno |
+| Un cliente | `gateway.client.erased` | Uno |
+
+- **Cada aviso es un `Supresion` del contrato v2**, y solo lleva identificadores: su `uuid` (que es también el
+  `Nats-Msg-Id`), qué se borró, el cliente, el bot, el contacto y cuándo.
+- **Un aviso que el bus no acepta no deshace ni hace fallar el borrado.** Deja una línea en el log, y el contexto
+  del que hablaba caduca solo a las 24 horas de su último mensaje.
+- **Lo que no se borra no se anuncia.** Ni lo que no existía, ni lo que no se pudo apuntar en el registro de
+  supresiones.
+- **Sin bus, en desarrollo, no se anuncia nada.**
+
+Probado en midgard contra el Bifröst real (2026-10-19): borrar un contacto por la API dejó un aviso en `SUPRESIONES`.
+
 ## Lo que el borrado no alcanza
 
 Borrar aquí quita los datos de la base en uso. No llega a:
@@ -190,6 +212,5 @@ Messenger. No es todavía la auditoría por cliente que pide RS14.
 - **Caducidad de los contactos.** El máximo de 12 meses sin actividad de la
   [clasificación de datos](../00-project/data-classification.md) no se aplica: el contacto no guarda cuándo
   escribió por última vez.
-- **Avisar al motor de respuestas** de que un contacto, un bot o un cliente se han borrado.
 - **Repetir los borrados por sí solo.** Tras una restauración hay que ejecutar el comando: nada lo detecta.
 - **Destruir la clave de un cliente de forma que alcance a los respaldos.** Descartado en ADR-0014.
