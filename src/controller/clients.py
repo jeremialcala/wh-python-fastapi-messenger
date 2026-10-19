@@ -14,7 +14,7 @@ from auth.principal import Principal
 from auth.tokens import InvalidToken
 from auth.gateway_keys import GatewayKeys
 from classes import Client, ClientRequest, OwnedKeyRequest, ResponseData, ServiceKeyRequest, Settings, SigningKeyRequest
-from enums import Status
+from enums import Status, Worker
 from repository import (Conflict, NotFound, RegisterUnavailable, add_service_key, add_signing_key, delete_client,
                         get_client, list_clients, register_client, remove_service_key, remove_signing_key)
 
@@ -144,8 +144,11 @@ async def ctr_add_service_key(client_id, request: ServiceKeyRequest) -> Response
         raise _not_found() from None
     except Conflict as e:
         raise _conflict(e) from None
+    # The name the log writes is the enum's own, not the one that came in the request: the same text, but nothing
+    # the caller wrote reaches the log.
+    worker = next(known for known in Worker if known is request.worker)
     # A warning, so that it is kept at the level production logs at: it opens a client's chatbots to the engine.
-    log.warning(f"Service key {key['kid']} of worker {request.worker.value} added to client {client.uuid}")
+    log.warning(f"Service key {key['kid']} of worker {worker.value} added to client {client.uuid}")
     return ResponseData(data=client_info(client))
 
 

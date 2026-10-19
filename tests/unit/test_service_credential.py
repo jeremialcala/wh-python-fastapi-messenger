@@ -648,7 +648,9 @@ def test_a_worker_rotates_its_key_without_a_gap(http, operator, acme, bot):
 
     assert [http.get(f"/chat/{bot}/tokens", headers=key.auth).status_code for key in (old, new)] == [200, 200]
 
-    assert http.delete(f"/clients/{acme.client_id}/service-keys/{old.kid}", headers=operator.auth).status_code == 200
+    taken_out = http.delete(f"/clients/{acme.client_id}/service-keys/{old.kid}", headers=operator.auth)
+
+    assert taken_out.status_code == 200
     assert [http.get(f"/chat/{bot}/tokens", headers=key.auth).status_code for key in (old, new)] == [401, 200]
 
 
