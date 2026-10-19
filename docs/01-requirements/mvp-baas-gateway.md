@@ -162,7 +162,7 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | AB16 | Alguien captura un JWE de autenticación válido y lo reenvía, o fabrica uno con la clave pública del gateway | RS02 | Construido |
 | AB17 | Meta entrega la misma notificación dos veces (reintenta 7 días en WhatsApp y 36 horas en Instagram) y el bot responde dos veces | RNF04 | Parcial: cada evento lleva el identificador de Meta; falta que alguien deduplique |
 | AB18 | Dos mensajes seguidos de la misma persona se procesan en paralelo y se responden en orden inverso, o con el contexto del otro | RNF08 | Pendiente |
-| AB19 | Un dato personal viaja en un atributo de una traza, o en un evento del bus sin protección, y lo lee quien tiene acceso al colector o al bus | RS19 | Pendiente |
+| AB19 | Un dato personal viaja en un atributo de una traza, o en un evento del bus sin protección, y lo lee quien tiene acceso al colector o al bus | RS19 | Cubierto en las trazas (I5): lista cerrada de atributos con su forma, sin instrumentación automática y sin excepciones en los spans, comprobado por `tests/unit/test_traces.py`. En el bus, el contenido sigue en claro, como en la cola (RS08) |
 | AB20 | Un servicio comprometido publica en un sujeto ajeno, por ejemplo mensajes como si vinieran del webhook, o lee uno que no le toca | RS20 | Pendiente |
 | AB21 | La credencial robada de un worker alcanza rutas que ese worker no necesita, por ejemplo los tokens de Meta desde el clasificador | RS21 | Parcial: el motor tiene una clave por cliente, no por worker (ADR-0016) |
 | AB22 | La conversación exportada, o el contexto de una conversación, llega a otro cliente o a otra conversación | RS01, RF14 | Pendiente |
@@ -199,7 +199,7 @@ los tokens se cargan a mano en la base, el motor clasifica el mensaje pero nadie
 | RNF06 | El servicio arranca solo tras un apagón del servidor | Pendiente: no hay unidad de arranque para el gateway |
 | RNF07 | Disponibilidad del webhook: sin cifra comprometida mientras el servidor no tenga UPS. Se mide desde el primer despliegue | Sin medir |
 | RNF08 | Los mensajes de una misma conversación (bot y remitente) se procesan en el orden en que llegaron, también con varios consumidores por etapa: cada evento lleva una clave de orden y el bus la respeta | Pendiente (R3 del plan) |
-| RNF09 | Cada mensaje se puede seguir de un servicio a otro: cada evento lleva el contexto de traza W3C (`traceparent`) y cada servicio emite sus spans con OpenTelemetry | Pendiente (R4 del plan) |
+| RNF09 | Cada mensaje se puede seguir de un servicio a otro: cada evento lleva el contexto de traza W3C (`traceparent`) y cada servicio emite sus spans con OpenTelemetry | Construido en el gateway (I5, [trazas](../03-implementation/trazas.md)): cada servicio emite sus spans y cada evento lleva el `traceparent` del span que lo publica. Probado en midgard: el evento de `WEBHOOK` y el mensaje identificado comparten traza. Falta dónde verlas: no hay colector |
 
 ## Trazabilidad de requisitos
 
