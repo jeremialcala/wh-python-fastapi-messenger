@@ -49,9 +49,17 @@ class Feed:
     ingest: Callable[[dict, str | None], Awaitable[dict]]
 
 
-# Looked up when they are used, so that a test can replace what they call.
-NOTIFICATIONS = Feed("WEBHOOK", "ingesta", lambda event, trace: ingest_notification(event, trace))
-ANSWERS = Feed("RESPUESTAS", "historial", lambda event, trace: ingest_reply(event, trace))
+async def _notification(event: dict, trace: str | None) -> dict:
+    # Looked up here when it is called, not when the Feed is made, so that a test can replace it in this module.
+    return await ingest_notification(event, trace)
+
+
+async def _answer(event: dict, trace: str | None) -> dict:
+    return await ingest_reply(event, trace)
+
+
+NOTIFICATIONS = Feed("WEBHOOK", "ingesta", _notification)
+ANSWERS = Feed("RESPUESTAS", "historial", _answer)
 FEEDS = (NOTIFICATIONS, ANSWERS)
 
 
