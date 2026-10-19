@@ -2,7 +2,7 @@
 import logging
 from asyncio import ensure_future
 from datetime import datetime
-from uuid import uuid4, UUID
+from uuid import uuid4
 from mongoengine import *
 from enums import Status
 from .tool_settings import Settings

@@ -15,6 +15,8 @@ from repository import TenantRepository, database_failed
 from utils import describe
 from .events import ctr_notify_action
 
+__all__ = ["ctr_get_contact_from_facebook_id", "ctr_identify_fb_contact", "ctr_identify_contact_by_wa_id"]
+
 settings = Settings()
 log = logging.getLogger(settings.environment)
 

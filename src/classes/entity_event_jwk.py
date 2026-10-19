@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
-from datetime import datetime
-from uuid import uuid4, UUID
 from mongoengine import *
-from enums import Status
 from .tool_settings import Settings
 
 

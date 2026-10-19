@@ -6,7 +6,6 @@ from uuid import uuid4, UUID
 from mongoengine import *
 from enums import Status
 from .tool_settings import Settings
-from .entity_jwk import Jwk
 
 settings = Settings()
 log = logging.getLogger(settings.environment)

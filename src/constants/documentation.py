@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+__all__ = ["TITLE", "SUMMARY", "TERMS", "DESCRIPTION", "WEBHOOK_DESCRIPTION", "TAGS_METADATA", "CONTACT"]
+
 TITLE = "Facebook Messenger Webhook Manager"
 
 SUMMARY = "Controls the Facebook Messenger Lifecycle"

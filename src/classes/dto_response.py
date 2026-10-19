@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
-import json
 from datetime import datetime
 
-from bson import ObjectId
 from pydantic import BaseModel, Field
 from .dto_chatbot import ChatbotRequest
 
