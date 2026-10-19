@@ -78,9 +78,18 @@ Los spans se exportan por OTLP/HTTP solo si `OTEL_EXPORTER_OTLP_ENDPOINT` dice a
 resto de las variables `OTEL_EXPORTER_OTLP_*`. Si no está, los spans se crean pero no salen del proceso. El contexto
 sigue viajando con cada evento, y quien trace después lo recibe.
 
-**Hoy no hay dónde verlas:** Yggdrasil tiene métricas (Mimir) y alertas, pero ningún colector de trazas. El
-compose solo nombra cada servicio con `OTEL_SERVICE_NAME`: `gateway-webhook`, `gateway-management` y
-`gateway-ingest`.
+**Van a Saga**, el Grafana Tempo de Yggdrasil (ADR-0008 de Yggdrasil). Guarda 15 días en el SSD de midgard y se
+consulta desde Odín, la fuente de datos `Saga`.
+
+- **Cómo llegan:** en el compose, los tres servicios entran en la red externa `yggdrasil_saga` y envían a
+  `http://saga:4318`. Esa red solo lleva a Saga, no a Mimir ni a Odín. El webhook está expuesto a internet y no entra
+  en `heimdall`.
+- **Cómo se llaman:** cada servicio se identifica con `OTEL_SERVICE_NAME`: `gateway-webhook`, `gateway-management` y
+  `gateway-ingest`.
+- **Si Saga no responde:** el exportador trabaja en segundo plano, por lotes, y no frena ninguna petición. Los spans
+  que no puede entregar se pierden y deja un aviso en el log. Yggdrasil avisa con `SagaCaida`.
+- **Requisito de arranque:** Yggdrasil tiene que estar levantado antes que el gateway, porque la red la crea su
+  compose.
 
 ## Probado en midgard (2026-10-19)
 

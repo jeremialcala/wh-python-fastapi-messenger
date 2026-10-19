@@ -8,6 +8,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- Las trazas van a **Saga**, el Grafana Tempo de Yggdrasil (ADR-0008 de Yggdrasil).
+  - **Cómo llegan:** los tres servicios entran en la red externa `yggdrasil_saga` y envían a `http://saga:4318`.
+  - **Qué alcanzan:** esa red solo lleva a Saga, ni a Mimir ni a Odín.
+  - **Requisito de arranque:** Yggdrasil tiene que estar levantado antes que el gateway.
 - I5: trazas con OpenTelemetry y la regla de los logs (R4, RNF09, RS19, T28).
   - **Una traza por mensaje,** del webhook al motor:
     - un span por petición en el webhook y en la gestión;
