@@ -22,9 +22,9 @@ import pytest
 from nats.js.api import RetentionPolicy, StreamConfig
 
 import bus
-BusUnavailable = bus.BusUnavailable
 from bus.nats_jetstream import NatsPublisher
 
+BusUnavailable = bus.BusUnavailable
 ADDRESS = os.environ.get("NATS_TEST_ADDR")
 MONITOR = os.environ.get("NATS_TEST_MONITOR")
 STREAM = "WEBHOOK"

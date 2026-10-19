@@ -159,7 +159,7 @@ def test_an_event_the_bus_does_not_acknowledge_is_unavailable(failure, monkeypat
         FakeClient.made[0].refuse = failure
         await publisher.publish("webhook.meta.whatsapp", b"{}", "bot:wamid.ONE")
 
-    with pytest.raises(BusUnavailable) as raised:
+    with pytest.raises(bus.BusUnavailable) as raised:
         asyncio.run(refused())
     # Only the kind of failure: the text of these can carry the address of the bus.
     assert str(raised.value) == type(failure).__name__
