@@ -39,9 +39,13 @@ gestión ([ADR-0018](0018-webhook-y-gestion-por-separado.md)), y el bus es NATS 
 
 1. **Comprueba la firma**, con el bot y su App Secret. Los dos se guardan en memoria, el bot 30 segundos (#29) y la
    clave de datos del cliente cinco minutos, así que casi siempre no cuesta ningún viaje.
-2. **Lee la notificación y publica un evento por mensaje** en `webhook.meta.<canal>`. Cada evento lleva el
-   identificador de Meta en `Nats-Msg-Id` y el contexto de traza (`traceparent`).
-3. **Responde `200` cuando Bifröst acusa todos los eventos** de la notificación.
+2. **Lee la notificación y, si trae algún mensaje de una persona, la publica como un solo evento** en
+   `webhook.meta.<canal>`, con todos sus mensajes. Los acuses de entrega y de lectura y los ecos no se publican, como
+   hoy. El evento lleva en `Nats-Msg-Id` el bot y un resumen de los identificadores de Meta de sus mensajes, y el
+   contexto de traza (`traceparent`). Un evento por notificación, y no por mensaje, lo decidió Jeremi el 2026-10-19:
+   en el disco de midgard cada escritura cuesta un `fsync` de unos 45 ms, y una notificación de diez mensajes no
+   cabría en el plazo (ver ADR-0019).
+3. **Responde `200` cuando Bifröst acusa el evento.**
 
 No escribe en la base ni llama a la Graph API.
 
@@ -53,27 +57,29 @@ No escribe en la base ni llama a la Graph API.
 | Firmado, pero no se entiende o es de un objeto que no se atiende | `200` y aviso en el log |
 | Firmado, con mensajes incompletos entre otros que están bien | `200`; se publican los que están bien |
 | No responden la base o Andvari al buscar el bot o abrir su App Secret | `503` |
-| Bifröst no acusa algún evento | `503`. Meta reenvía la notificación entera, y lo ya publicado se descarta por `Nats-Msg-Id` si llega dentro de 2 minutos |
+| Firmado, sin ningún mensaje de una persona (acuses, ecos) | `200`, sin publicar nada |
+| Bifröst no acusa el evento | `503`. Meta reenvía la notificación; si el primer evento sí llegó a guardarse, el segundo se descarta por `Nats-Msg-Id` dentro de 2 minutos, y si no, la ingesta lo reconoce por el historial |
 
 ### El worker de ingesta
 
-Es un servicio nuevo del gateway, de la misma imagen. Consume el stream `WEBHOOK` con confirmación explícita y, por
-cada evento:
+Es un servicio nuevo del gateway, de la misma imagen. Consume el stream `WEBHOOK` con confirmación explícita. Cada
+evento es una notificación, y la ingesta trata cada uno de sus mensajes por orden:
 
-1. Comprueba en el historial si el mensaje ya se recibió, por bot e identificador de Meta. Si ya está, lo confirma
-   sin hacer nada más: es un reintento de Meta.
+1. Comprueba en el historial si el mensaje ya se recibió, por bot e identificador de Meta. Si ya está, pasa al
+   siguiente: es un reintento de Meta.
 2. Identifica o crea el contacto, como hoy, con la Graph API en Messenger e Instagram.
 3. Guarda el mensaje en el historial ([ADR-0017](0017-contexto-de-conversacion-e-historial.md)).
 4. Publica el mensaje identificado en la partición de su conversación (`gateway.message.<partición>.<bot>.<contacto>`).
-5. Confirma el evento.
+5. Cuando ha tratado todos los mensajes de la notificación, confirma el evento.
 
-Si cae entre la publicación y la confirmación, el evento se reentrega y el paso 1 lo reconoce.
+Si cae a mitad de una notificación, el evento se reentrega entero, y el paso 1 salta los mensajes que ya trató.
 
 | Situación en la ingesta | Qué hace |
 |---|---|
 | No responden la base, Andvari o Bifröst | No confirma: el evento se reentrega con una espera creciente, hasta que caduca en el stream |
 | La Graph API no da el perfil | Sigue sin el nombre, como hoy |
-| El mensaje falla por sí mismo, o el bot ya no existe | Lo da por terminado y lo deja en el log |
+| Un mensaje falla por sí mismo | Lo deja en el log y sigue con los demás de la notificación |
+| El bot ya no existe | Da el evento por terminado y lo deja en el log |
 
 ## Alternativas consideradas
 
@@ -98,7 +104,12 @@ Si cae entre la publicación y la confirmación, el evento se reentrega y el pas
   caché.
 - **La deduplicación tiene un sitio:** el historial (paso 1 de la ingesta). El motor sigue teniendo que tolerar un
   duplicado entre la publicación y la confirmación.
-- **El contrato cambia** a la versión 2 (`asyncapi-v2.yaml`).
+- **El contrato cambia** a la versión 2 (`asyncapi-v2.yaml`): `WEBHOOK` lleva notificaciones, con entre 1 y 1000
+  mensajes; `MENSAJES`, un mensaje identificado cada uno.
+- **El techo del bus lo pone el disco:** cada mensaje cuesta dos escrituras con `fsync` (su notificación en
+  `WEBHOOK`, compartida con los demás mensajes de la notificación, y el mensaje identificado en `MENSAJES`), más la
+  respuesta en `RESPUESTAS`. En el disco mecánico de midgard son unas 22 escrituras por segundo; el SSD que Jeremi
+  tiene para midgard lo sube mucho (se mide al instalarlo).
 
 ## Condiciones de revisión
 

@@ -8,6 +8,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- El webhook publicará cada notificación como un solo evento, con sus mensajes, y la ingesta los separa (decisión
+  del 2026-10-19, ADR-0021 y contrato v2). En el disco de midgard cada escritura cuesta un `fsync` de unos 45 ms; con
+  un evento por notificación, hasta los 3 MB que envía Meta caben en 196 ms de mediana. Bifröst admite ya 4 MB por
+  mensaje. ADR-0019 y ADR-0020 quedan aceptadas sin condición.
 - I0 hecho el 2026-10-19: Bifröst (NATS 2.14.8) desplegado en midgard con sus cuatro streams, dos consumidores, el
   bucket de contexto y un usuario por servicio (repositorio local `Projects/bifrost`). Medido en su disco mecánico: el
   acuse con `fsync` en cada escritura tarda 44,5 ms de mediana por mensaje, frente a 0,42 ms con la configuración por

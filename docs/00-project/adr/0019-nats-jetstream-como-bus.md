@@ -1,6 +1,6 @@
 # ADR-0019: NATS JetStream es el bus de eventos entre el gateway y los workers del motor
 
-* **Estado:** accepted (con condición, 2026-10-18)
+* **Estado:** accepted
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -11,7 +11,7 @@
 * **Controles OWASP afectados:** A01 (cada servicio solo publica y consume lo suyo), A04 (datos personales en el bus y
   en disco), A08 (integridad entre servicios), A10 (duplicados, desorden y pérdida)
 
-Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor, **con una condición**: que en I0 el `fsync` en cada escritura quepa en el plazo del webhook (RNF01) en el disco de midgard. Si no se cumple, vuelve a `proposed` con la salida que dice la propia ADR.
+Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor, con una condición que se cumplió el 2026-10-19: con un evento por notificación, el acuse cabe en el plazo del webhook también con la notificación más grande que envía Meta (ver «Medido en I0»).
 
 Propuesta como entregable del Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), paso 2). Decisión D1 del 2026-10-18.
 
@@ -59,7 +59,7 @@ Hechos comprobados en la documentación de NATS el 2026-10-18:
 
 | Stream | Sujetos | Quién publica | Quién consume | Retención |
 |---|---|---|---|---|
-| `WEBHOOK` | `webhook.meta.whatsapp`, `.messenger` e `.instagram` | El webhook: cada mensaje verificado, tal como lo firmó Meta | El worker de ingesta | Cola de trabajo (se borra al confirmarse), y **7 días** como máximo: lo que reintenta Meta en WhatsApp. Decidido el 2026-10-18 ([ADR-0021](0021-el-webhook-solo-publica.md)) |
+| `WEBHOOK` | `webhook.meta.whatsapp`, `.messenger` e `.instagram` | El webhook: cada notificación verificada que trae algún mensaje de una persona, como un solo evento ([ADR-0021](0021-el-webhook-solo-publica.md)) | El worker de ingesta | Cola de trabajo (se borra al confirmarse), y **7 días** como máximo: lo que reintenta Meta en WhatsApp. Decidido el 2026-10-18 ([ADR-0021](0021-el-webhook-solo-publica.md)) |
 | `MENSAJES` | `gateway.message.<partición>.<botId>.<contactId>` | El worker de ingesta: el mensaje identificado | Los workers del motor, una partición por consumidor | 24 horas como máximo |
 | `RESPUESTAS` | `engine.reply.sent.<botId>` | El notificador del motor, cuando Meta acepta un envío | El worker de ingesta, para el historial | 24 horas como máximo |
 | `SUPRESIONES` | `gateway.contact.erased`, `gateway.bot.erased`, `gateway.client.erased` | La API de gestión | El coordinador, para borrar el contexto | 7 días |
@@ -69,8 +69,9 @@ gate.
 
 ### Duplicados y orden
 
-- **`Nats-Msg-Id` = bot e identificador de Meta.** Así una publicación repetida del propio gateway se descarta en
-  JetStream.
+- **`Nats-Msg-Id`:** en `WEBHOOK`, el bot y un resumen de los identificadores de Meta de los mensajes de la
+  notificación; en `MENSAJES`, el bot y el identificador de Meta del mensaje. Así una publicación repetida del propio
+  gateway se descarta en JetStream.
 - **Los reintentos de Meta duran días, no minutos:** 7 días en WhatsApp, 36 horas en Instagram. Esos duplicados los
   detiene el índice único del historial ([ADR-0017](0017-contexto-de-conversacion-e-historial.md)), no el bus.
 - **El orden por conversación** sale de la clave en el sujeto: la ingesta publica en la partición que le toca a cada
@@ -106,9 +107,21 @@ Una notificación con varios mensajes paga el `fsync` de cada uno, y publicarlos
 | 10 | 356 ms (máx. 634) | 390 ms (máx. 945) |
 
 **Para una notificación de un mensaje, que es lo habitual, cabe en RNF01 con holgura.** Con cinco mensajes ya ronda
-los 250 ms, y Meta agrupa hasta 1000 cuando hay mucho tráfico. Además, el disco limita el bus a unas 22 escrituras por
-segundo. Queda pendiente de decidir: publicar un evento por notificación en vez de uno por mensaje, lo que deja un solo
-`fsync` sea cual sea el número de mensajes (cambia ADR-0021 y el contrato v2), o un SSD en midgard, o las dos cosas.
+los 250 ms, y Meta agrupa hasta 1000 cuando hay mucho tráfico.
+
+**Decidido el 2026-10-19: un evento por notificación** ([ADR-0021](0021-el-webhook-solo-publica.md)). El acuse depende
+entonces del tamaño de la notificación, no del número de mensajes. Medido ese día en Bifröst, con `max_payload` en
+4 MB:
+
+| Evento | Mediana | Máximo |
+|---|---|---|
+| 1 KB, una notificación típica | 44,5 ms | 57 ms |
+| 64 KB | 44,6 ms | 56 ms |
+| 1 MB | 134 ms | 467 ms |
+| 3 MB, lo más que envía Meta | 196 ms | 385 ms |
+
+Hasta la notificación más grande cabe en los 250 ms de mediana y por debajo de 1 s. El disco sigue limitando el bus a
+unas 22 escrituras por segundo: Jeremi tiene un SSD para midgard (HP S700), que se medirá al instalarlo.
 
 ## Alternativas consideradas
 
