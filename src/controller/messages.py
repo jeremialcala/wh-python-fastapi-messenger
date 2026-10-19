@@ -5,6 +5,7 @@ from collections import Counter
 from inspect import currentframe
 from uuid import uuid4, UUID
 
+import bus
 from classes import ChatBot
 from classes import Settings, FacebookRequest, MessageBody, QueueMessage
 from enums import Status
@@ -15,6 +16,7 @@ from crypto.key_service import KeyServiceUnavailable
 from .amqp_broker import send_message_to_queue, BrokerUnavailable
 from .facebook import ctr_identify_fb_contact, ctr_identify_contact_by_wa_id
 from .incoming import READERS, WHATSAPP, IncomingMessage, incoming_messages
+from .webhook_event import publish_notification
 
 __all__ = ["ctr_process_messages", "DatabaseUnavailable", "RETRY_LATER"]
 
@@ -32,7 +34,7 @@ class DatabaseUnavailable(Exception):
 # What Meta is asked to deliver again, with a 503: something the service needs is not there, and it will be.
 # Nothing else gets anything but a 200: a notification that fails by itself would fail the same way next time,
 # and Meta stops delivering to a webhook that keeps failing.
-RETRY_LATER = (BrokerUnavailable, KeyServiceUnavailable, DatabaseUnavailable)
+RETRY_LATER = (BrokerUnavailable, bus.BusUnavailable, KeyServiceUnavailable, DatabaseUnavailable)
 
 
 async def _contact(message: IncomingMessage, channel: str, _bot: ChatBot, eventId: str = None) -> dict:
@@ -85,6 +87,11 @@ async def ctr_process_messages(req: FacebookRequest, _bot: ChatBot, eventId: str
     log.info(f"Messages to queue from this notification: {len(incoming)}")
     if left_out:
         log.warning(f"Messages of a notification for chatbot {_bot.uuid} were left out: {dict(Counter(left_out))}")
+
+    # The whole notification as one event on Bifröst, before anything else: it is what Meta is answered by from I4
+    # on (ADR-0021). Until then the envelopes still go to Hermod below, for the response engine that reads them.
+    if incoming and bus.configured():
+        await publish_notification(req.object, _bot, incoming)
 
     # One envelope per message: the identifier Meta gave it is what the response engine deduplicates by.
     for message in incoming:

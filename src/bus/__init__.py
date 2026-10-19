@@ -11,7 +11,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-__all__ = ["BusUnavailable", "EventPublisher", "Published", "configure", "publisher", "close"]
+__all__ = ["BusUnavailable", "EventPublisher", "Published", "configure", "configured", "publisher", "close"]
 
 
 class BusUnavailable(Exception):
@@ -31,10 +31,12 @@ class Published:
 
 class EventPublisher(Protocol):
 
-    async def publish(self, subject: str, payload: bytes, message_id: str) -> Published:
+    async def publish(self, subject: str, payload: bytes, message_id: str,
+                      headers: dict[str, str] | None = None) -> Published:
         """
-            Publishes the event and returns once the bus has written it. The same message_id published again within
-            the bus's window is not kept twice: the answer says it was a duplicate. Raises BusUnavailable.
+            Publishes the event, with its headers, and returns once the bus has written it. The same message_id
+            published again within the bus's window is not kept twice: the answer says it was a duplicate. Raises
+            BusUnavailable.
         """
 
     async def close(self) -> None:
@@ -48,6 +50,11 @@ def configure(publisher: EventPublisher | None) -> None:
     """Sets the publisher of this process. Done once, when the service starts."""
     global _publisher
     _publisher = publisher
+
+
+def configured() -> bool:
+    """Whether this process has a publisher: without NATS_URL it has none."""
+    return _publisher is not None
 
 
 def publisher() -> EventPublisher:
