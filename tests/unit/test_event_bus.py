@@ -11,7 +11,6 @@ import pytest
 
 import bus
 import bus.nats_jetstream as nats_jetstream
-from bus import BusUnavailable, Published
 from bus.nats_jetstream import NatsPublisher
 
 
@@ -65,7 +64,7 @@ def test_an_event_goes_with_its_message_id_and_waits_for_the_acknowledgement():
     subject, payload, headers, timeout = FakeClient.made[0].published[0]
     assert (subject, payload, headers) == ("webhook.meta.whatsapp", b"{}", {"Nats-Msg-Id": "bot:wamid.ONE"})
     assert timeout == nats_jetstream.ACK_TIMEOUT
-    assert published == Published(stream="WEBHOOK", sequence=7, duplicate=False)
+    assert published == bus.Published(stream="WEBHOOK", sequence=7, duplicate=False)
 
 
 def test_an_event_without_a_message_id_is_not_published():
@@ -129,7 +128,7 @@ def test_a_bus_that_cannot_be_reached_is_unavailable_and_not_tried_again_at_once
 
     async def twice():
         for _ in range(2):
-            with pytest.raises(BusUnavailable):
+            with pytest.raises(bus.BusUnavailable):
                 await publisher.publish("webhook.meta.whatsapp", b"{}", "bot:wamid.ONE")
     asyncio.run(twice())
 
@@ -141,7 +140,7 @@ def test_a_bus_that_cannot_be_reached_is_unavailable_and_not_tried_again_at_once
 def test_once_the_wait_is_over_the_bus_is_tried_again(monkeypatch):
     FakeClient.unreachable = True
     publisher = NatsPublisher("nats://bus")
-    with pytest.raises(BusUnavailable):
+    with pytest.raises(bus.BusUnavailable):
         publish(publisher)
     monkeypatch.setattr(nats_jetstream, "RETRY_AFTER", 0)
     FakeClient.unreachable = False
@@ -175,7 +174,7 @@ def test_a_duplicate_is_reported_as_kept_once():
         FakeClient.made[0].outcome = SimpleNamespace(stream="WEBHOOK", seq=3, duplicate=True)
         return await publisher.publish("webhook.meta.whatsapp", b"{}", "bot:wamid.ONE")
 
-    assert asyncio.run(duplicate()) == Published(stream="WEBHOOK", sequence=3, duplicate=True)
+    assert asyncio.run(duplicate()) == bus.Published(stream="WEBHOOK", sequence=3, duplicate=True)
 
 
 def test_closing_lets_go_of_the_connection():
