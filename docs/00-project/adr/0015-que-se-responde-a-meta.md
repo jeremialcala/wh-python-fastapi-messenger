@@ -11,7 +11,7 @@
 
 Aceptada el 2026-10-13.
 
-> **Propuesta la sustitución de su tabla por la de [ADR-0021](0021-el-webhook-solo-publica.md)** (2026-10-18): los fallos de la base al identificar el contacto los reintenta la ingesta, no Meta. Lo demás sigue.
+> **Su tabla la sustituye la de [ADR-0021](0021-el-webhook-solo-publica.md)**, aceptada el 2026-10-18; lo construido la sigue hasta I4: los fallos de la base al identificar el contacto los reintenta la ingesta, no Meta. Lo demás sigue.
 
 ## Contexto
 

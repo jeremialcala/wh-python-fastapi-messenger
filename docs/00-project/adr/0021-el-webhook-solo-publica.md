@@ -1,6 +1,6 @@
 # ADR-0021: El webhook solo comprueba la firma y publica; la ingesta identifica al contacto
 
-* **Estado:** proposed
+* **Estado:** accepted
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -12,7 +12,9 @@
 * **Controles OWASP afectados:** A04 (disponibilidad del webhook), A08 (integridad de lo que se publica), A10
   (fallos, duplicados y pérdida)
 
-Propuesta para el Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), R1). Decisión D2 del 2026-10-18.
+Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor. Se construye en I3 e I4.
+
+Propuesta como entregable del Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), R1). Decisión D2 del 2026-10-18.
 
 ## Contexto
 

@@ -11,7 +11,7 @@
 
 Aceptada el 2026-10-13.
 
-> **Propuesta su ampliación en [ADR-0022](0022-una-credencial-por-worker.md)** (2026-10-18): una clave por cliente y por worker, cada una con sus rutas.
+> **Ampliada por [ADR-0022](0022-una-credencial-por-worker.md)**, aceptada el 2026-10-18: una clave por cliente y por worker, cada una con sus rutas.
 
 ## Contexto
 

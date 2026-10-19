@@ -8,6 +8,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- Gate 1 del refactor aprobado el 2026-10-18: arquitectura y threat model 0.3.0 y el contrato del bus 2.0.0 en
+  `approved`; ADR-0021 y ADR-0022 aceptadas; ADR-0017, ADR-0019 y ADR-0020 aceptadas con la condición de que I0
+  confirme en el NATS de midgard la caducidad del bucket de contexto y el coste del `fsync`. ADR-0006 queda sustituida
+  por ADR-0021.
 - Diseño del refactor (Gate 1, en revisión): `architecture.md` 0.3.0 con el objetivo (C4 Container con webhook,
   ingesta, gestión, Bifröst y el bucket de contexto; secuencia de la notificación con sus fallos; ciclo de vida de un
   evento en `WEBHOOK`; qué tiene cada servicio; brecha por incrementos) y `threat-model.md` 0.3.0 con el DFD del

@@ -1,6 +1,6 @@
 # ADR-0020: Placement de despliegue — Bifröst, el NATS JetStream, corre en midgard
 
-* **Estado:** proposed
+* **Estado:** accepted (con condición, 2026-10-18)
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -9,7 +9,9 @@
 * **Supersede:** —
 * **Controles OWASP afectados:** A02 (configuración del host y del contenedor), A04 (datos personales en disco)
 
-Propuesta para el Gate 1 del refactor, con [ADR-0019](0019-nats-jetstream-como-bus.md). El nombre lo eligió Jeremi
+Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor, **con una condición**: la misma que ADR-0019: el `fsync` en el disco de midgard, medido en I0. Si no se cumple, vuelve a `proposed` con la salida que dice la propia ADR.
+
+Propuesta como entregable del Gate 1 del refactor, con [ADR-0019](0019-nats-jetstream-como-bus.md). El nombre lo eligió Jeremi
 el 2026-10-18: Bifröst, el puente que une los mundos, que en el mito guarda Heimdall.
 
 ## Contexto

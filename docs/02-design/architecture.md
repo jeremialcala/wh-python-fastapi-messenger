@@ -1,6 +1,6 @@
 # Diseño del sistema — Gateway BaaS de mensajería
 
-* **Estado:** review (objetivo del refactor sobre la línea base aprobada en el Gate 1)
+* **Estado:** approved (Gate 1 del refactor, 2026-10-18)
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design

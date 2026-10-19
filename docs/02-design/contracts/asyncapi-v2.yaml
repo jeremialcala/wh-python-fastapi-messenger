@@ -1,5 +1,5 @@
 # Contrato AsyncAPI del bus de eventos, versión 2 (fase 02-design, Gate 1 del refactor).
-# Estado: proposed (2026-10-18). Versión: 2.0.0.
+# Estado: approved (Gate 1 del refactor, 2026-10-18). Versión: 2.0.0.
 #
 # Es el objetivo: lo que se publica en Bifröst (NATS JetStream) cuando se construyan R1, R2 y R3 del plan
 # (ADR-0019, ADR-0021). El contrato construido sigue siendo asyncapi.yaml, la versión 1 de la cola `llm` de

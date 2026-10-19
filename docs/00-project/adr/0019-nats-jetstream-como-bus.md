@@ -1,6 +1,6 @@
 # ADR-0019: NATS JetStream es el bus de eventos entre el gateway y los workers del motor
 
-* **Estado:** proposed
+* **Estado:** accepted (con condición, 2026-10-18)
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -11,7 +11,9 @@
 * **Controles OWASP afectados:** A01 (cada servicio solo publica y consume lo suyo), A04 (datos personales en el bus y
   en disco), A08 (integridad entre servicios), A10 (duplicados, desorden y pérdida)
 
-Propuesta para el Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), paso 2). Decisión D1 del 2026-10-18.
+Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor, **con una condición**: que en I0 el `fsync` en cada escritura quepa en el plazo del webhook (RNF01) en el disco de midgard. Si no se cumple, vuelve a `proposed` con la salida que dice la propia ADR.
+
+Propuesta como entregable del Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), paso 2). Decisión D1 del 2026-10-18.
 
 ## Contexto
 

@@ -17,7 +17,7 @@ y ADR-0002 a ADR-0012 en `accepted`.
 | Contratos | [`openapi.yaml`](../../docs/02-design/contracts/openapi.yaml), generado de la aplicación, y [`asyncapi.yaml`](../../docs/02-design/contracts/asyncapi.yaml); ocho pruebas en `tests/contract` |
 | Patrones por amenaza | Tabla de patrones en `architecture.md`, ordenada por DREAD |
 
-## Refactor de la topología de workers (2026-10-18): en revisión
+## Refactor de la topología de workers: aprobado el 2026-10-18
 
 El refactor reabre el diseño como cambios sobre esta línea base ([plan](../../docs/00-project/plan-topologia-de-workers.md),
 paso 2).
@@ -30,9 +30,12 @@ paso 2).
 | Contratos | `asyncapi-v2.yaml`, con su prueba de coherencia; los dos OpenAPI, generados de los dos servicios |
 | Patrones por amenaza | Siete patrones nuevos en `architecture.md`, para T22–T31 |
 
-Para aprobarlo: aceptar ADR-0017, ADR-0019, ADR-0020, ADR-0021 y ADR-0022. ADR-0017, ADR-0019 y ADR-0020 dependen
-de comprobaciones en un NATS real (la caducidad del bucket y el `fsync` en el disco de midgard), que se hacen en I0:
-se pueden aceptar con esa condición o después de I0.
+**Aprobado el 2026-10-18 por Jeremi Alcala**, con las cinco casillas cumplidas también para los cambios:
+arquitectura, threat model y `asyncapi-v2.yaml` en `approved`. ADR-0021 y ADR-0022 quedan aceptadas. ADR-0017,
+ADR-0019 y ADR-0020 se aceptan **con condición**: que I0 confirme en el NATS de midgard que el bucket de contexto
+renueva su caducidad en cada escritura y que el `fsync` en cada escritura cabe en el plazo del webhook. Si no, vuelven
+a `proposed` con la salida que dice cada una. ADR-0006 queda sustituida por ADR-0021, y ADR-0016 ampliada por
+ADR-0022. No se corta versión: la `0.4.0` es del Gate 3 del refactor.
 
 ## Qué significa este cierre
 

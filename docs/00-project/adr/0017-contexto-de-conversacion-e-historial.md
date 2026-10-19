@@ -1,6 +1,6 @@
 # ADR-0017: El historial de cada conversación se guarda en el gateway y su contexto vive 24 horas en NATS
 
-* **Estado:** proposed
+* **Estado:** accepted (con condición, 2026-10-18)
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -11,7 +11,9 @@
 * **Controles OWASP afectados:** A01 (acceso solo del cliente dueño y del worker que lo necesita), A02 (cifrado del
   contenido con una clave por cliente), A04 (retención y supresión), A09 (constancia de lo suprimido)
 
-Propuesta para el Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), paso 2).
+Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor, **con una condición**: que en el NATS de I0 cada escritura renueve las 24 horas de su clave. Si no se cumple, vuelve a `proposed` con la salida que dice la propia ADR.
+
+Propuesta como entregable del Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), paso 2).
 
 ## Contexto
 
