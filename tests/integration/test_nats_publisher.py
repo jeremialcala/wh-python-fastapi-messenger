@@ -64,6 +64,7 @@ def stream(url):
         try:
             await js.delete_stream(STREAM)
         except nats.js.errors.NotFoundError:
+            # Stream may not exist yet; ignore to keep setup idempotent.
             pass
         await js.add_stream(config)
     run(_admin(url, create))
