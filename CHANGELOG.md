@@ -8,6 +8,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I4a, el historial de cada conversación (ADR-0017, RF14), en la colección `messages`:
+  - **Contenido de cada mensaje:** el contacto por su `uuid`, nunca por el número; el texto cifrado con la clave del
+    cliente; de cada adjunto, solo el tipo; y caducidad a los 12 meses de guardarse.
+  - **Un solo registro por mensaje.** La clave primaria es el bot, el sentido y el identificador de Meta, así que un
+    reintento de Meta no se guarda dos veces, y esa garantía no depende de un índice.
+  - **Exportación y borrado.** `GET /chat/{bot_id}/contacts/{contact_id}` exporta la conversación con el contacto.
+    Se borra con el contacto, el bot y el cliente, y también al repetir los borrados del registro de supresiones.
+    Las respuestas de borrado cuentan ahora también los `messages`.
+  - Todavía no lo escribe nadie: lo hará el worker de ingesta (I4b).
 - I3 hecho el 2026-10-19: el webhook publica en Bifröst cada notificación firmada que trae mensajes de personas como
   un solo `EventoWebhook` del contrato v2, en `webhook.meta.whatsapp` o `webhook.meta.messenger` (ADR-0021).
   - `Nats-Msg-Id` es el bot más el SHA-256 de los identificadores de Meta, y cada evento lleva su `traceparent`.

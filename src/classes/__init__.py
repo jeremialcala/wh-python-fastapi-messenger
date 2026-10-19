@@ -5,6 +5,7 @@ from .entity_seen_token import SeenToken
 from .entity_chatbot import ChatBot
 from .entity_chatbot_phones import ChatbotPhone
 from .entity_contact import Contact
+from .entity_conversation_message import ConversationMessage
 from .entity_amqp_message import QueueMessage
 from .entity_event import Event
 from .entity_event_action import EventAction
