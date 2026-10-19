@@ -11,7 +11,6 @@ import pytest
 
 import bus
 import bus.nats_jetstream as nats_jetstream
-from bus.nats_jetstream import NatsPublisher
 
 
 class FakeClient:
@@ -59,7 +58,7 @@ def publish(publisher, message_id="bot:wamid.ONE"):
 
 
 def test_an_event_goes_with_its_message_id_and_waits_for_the_acknowledgement():
-    published = publish(NatsPublisher("nats://bus"))
+    published = publish(nats_jetstream.NatsPublisher("nats://bus"))
 
     subject, payload, headers, timeout = FakeClient.made[0].published[0]
     assert (subject, payload, headers) == ("webhook.meta.whatsapp", b"{}", {"Nats-Msg-Id": "bot:wamid.ONE"})
@@ -69,13 +68,13 @@ def test_an_event_goes_with_its_message_id_and_waits_for_the_acknowledgement():
 
 def test_an_event_without_a_message_id_is_not_published():
     with pytest.raises(ValueError):
-        publish(NatsPublisher("nats://bus"), message_id="")
+        publish(nats_jetstream.NatsPublisher("nats://bus"), message_id="")
 
     assert FakeClient.made == []
 
 
 def test_the_connection_is_kept_for_the_next_event():
-    publisher = NatsPublisher("nats://bus")
+    publisher = nats_jetstream.NatsPublisher("nats://bus")
 
     async def two():
         await publisher.publish("webhook.meta.whatsapp", b"1", "bot:wamid.ONE")
@@ -87,7 +86,7 @@ def test_the_connection_is_kept_for_the_next_event():
 
 
 def test_the_webhook_connects_with_its_user_and_its_own_prefix_of_reply_subjects():
-    publish(NatsPublisher("nats://bus", "webhook", "secret", inbox_prefix="_INBOX_webhook"))
+    publish(nats_jetstream.NatsPublisher("nats://bus", "webhook", "secret", inbox_prefix="_INBOX_webhook"))
 
     options = FakeClient.made[0].options
     assert (options["user"], options["password"], options["inbox_prefix"]) == ("webhook", "secret", "_INBOX_webhook")
@@ -96,13 +95,13 @@ def test_the_webhook_connects_with_its_user_and_its_own_prefix_of_reply_subjects
 
 
 def test_tls_is_used_for_a_tls_address_only():
-    assert NatsPublisher("tls://bifrost:4222")._tls() is not None
-    assert NatsPublisher("nats://127.0.0.1:4222")._tls() is None
+    assert nats_jetstream.NatsPublisher("tls://bifrost:4222")._tls() is not None
+    assert nats_jetstream.NatsPublisher("nats://127.0.0.1:4222")._tls() is None
 
 
 def test_a_new_event_loop_gets_a_new_connection():
     """A connection belongs to the event loop that opened it: one opened by another loop cannot be used."""
-    publisher = NatsPublisher("nats://bus")
+    publisher = nats_jetstream.NatsPublisher("nats://bus")
 
     publish(publisher)
     publish(publisher)
@@ -111,7 +110,7 @@ def test_a_new_event_loop_gets_a_new_connection():
 
 
 def test_a_closed_connection_is_opened_again():
-    publisher = NatsPublisher("nats://bus")
+    publisher = nats_jetstream.NatsPublisher("nats://bus")
 
     async def after_closing():
         await publisher.publish("webhook.meta.whatsapp", b"1", "bot:wamid.ONE")
@@ -124,7 +123,7 @@ def test_a_closed_connection_is_opened_again():
 
 def test_a_bus_that_cannot_be_reached_is_unavailable_and_not_tried_again_at_once():
     FakeClient.unreachable = True
-    publisher = NatsPublisher("nats://bus")
+    publisher = nats_jetstream.NatsPublisher("nats://bus")
 
     async def twice():
         for _ in range(2):
@@ -139,7 +138,7 @@ def test_a_bus_that_cannot_be_reached_is_unavailable_and_not_tried_again_at_once
 
 def test_once_the_wait_is_over_the_bus_is_tried_again(monkeypatch):
     FakeClient.unreachable = True
-    publisher = NatsPublisher("nats://bus")
+    publisher = nats_jetstream.NatsPublisher("nats://bus")
     with pytest.raises(bus.BusUnavailable):
         publish(publisher)
     monkeypatch.setattr(nats_jetstream, "RETRY_AFTER", 0)
@@ -153,7 +152,7 @@ def test_once_the_wait_is_over_the_bus_is_tried_again(monkeypatch):
 @pytest.mark.parametrize("failure", [nats.errors.TimeoutError(), nats.errors.NoRespondersError(),
                                      nats.errors.OutboundBufferLimitError(), asyncio.TimeoutError(), OSError()])
 def test_an_event_the_bus_does_not_acknowledge_is_unavailable(failure, monkeypatch):
-    publisher = NatsPublisher("nats://bus")
+    publisher = nats_jetstream.NatsPublisher("nats://bus")
 
     async def refused():
         await publisher._connect()
@@ -167,7 +166,7 @@ def test_an_event_the_bus_does_not_acknowledge_is_unavailable(failure, monkeypat
 
 
 def test_a_duplicate_is_reported_as_kept_once():
-    publisher = NatsPublisher("nats://bus")
+    publisher = nats_jetstream.NatsPublisher("nats://bus")
 
     async def duplicate():
         await publisher._connect()
@@ -178,7 +177,7 @@ def test_a_duplicate_is_reported_as_kept_once():
 
 
 def test_closing_lets_go_of_the_connection():
-    publisher = NatsPublisher("nats://bus")
+    publisher = nats_jetstream.NatsPublisher("nats://bus")
 
     async def publish_and_close():
         await publisher.publish("webhook.meta.whatsapp", b"{}", "bot:wamid.ONE")
@@ -195,7 +194,7 @@ def test_without_a_configured_publisher_there_is_none_to_use_and_nothing_to_clos
 
 
 def test_the_configured_publisher_is_the_one_used_and_closed():
-    publisher = NatsPublisher("nats://bus")
+    publisher = nats_jetstream.NatsPublisher("nats://bus")
     bus.configure(publisher)
 
     async def use_and_close():
