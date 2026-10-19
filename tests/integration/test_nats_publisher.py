@@ -22,7 +22,7 @@ import pytest
 from nats.js.api import RetentionPolicy, StreamConfig
 
 import bus
-from bus import BusUnavailable
+BusUnavailable = bus.BusUnavailable
 from bus.nats_jetstream import NatsPublisher
 
 ADDRESS = os.environ.get("NATS_TEST_ADDR")
