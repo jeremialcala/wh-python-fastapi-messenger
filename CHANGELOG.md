@@ -8,6 +8,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I3 hecho el 2026-10-19: el webhook publica en Bifröst cada notificación firmada que trae mensajes de personas como
+  un solo `EventoWebhook` del contrato v2, en `webhook.meta.whatsapp` o `webhook.meta.messenger` (ADR-0021).
+  - `Nats-Msg-Id` es el bot más el SHA-256 de los identificadores de Meta, y cada evento lleva su `traceparent`.
+  - Si Bifröst no acusa el evento, Meta recibe `503` y no se manda nada a Hermod.
+  - Hasta I4 los sobres v1 siguen yendo a Hermod; sin `NATS_URL` el webhook funciona como antes.
+  - El compose mete al webhook en la red `bifrost` con su fichero de credenciales.
+  - El evento que construye el código se valida contra `asyncapi-v2.yaml`.
+  - Medido en midgard: le añade unos 4 ms al webhook.
 - I2 hecho el 2026-10-19: el puerto `EventPublisher` y su adaptador `NatsPublisher` sobre Bifröst (`src/bus`, `nats-py`
   2.16.0).
   - Una conexión por proceso, `Nats-Msg-Id` en cada evento y espera del acuse del stream.
