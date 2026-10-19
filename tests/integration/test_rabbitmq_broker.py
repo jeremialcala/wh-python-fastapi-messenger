@@ -29,6 +29,7 @@ from jsonschema import Draft202012Validator
 
 import webhook as webhook_module
 import controller.amqp_broker as broker
+import controller.ingestion as ingestion
 import controller.messages as messages
 from classes import ChatBot, QueueMessage
 from controller import BrokerUnavailable
@@ -170,7 +171,7 @@ def test_nobody_listening_at_the_address_is_reported_as_unavailable(rabbit, queu
 
 def test_a_signed_notification_with_two_messages_ends_up_as_two_envelopes_in_the_queue(rabbit, queue, register,
                                                                                          monkeypatch):
-    monkeypatch.setattr(messages, "QUEUE", queue)
+    monkeypatch.setattr(ingestion, "QUEUE", queue)
     owner = TenantRepository(register("acme").client_id)
     bot = owner.add_bot(ChatBot(name="Bot", role="Sales Assistant", description="A test chatbot", tone="helpful"))
     payload = {"object": "whatsapp_business_account", "entry": [{"id": "1", "changes": [{"field": "messages", "value": {

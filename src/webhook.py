@@ -11,6 +11,7 @@ from inspect import currentframe
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
 
+import bus
 from classes import ChatBot, FacebookRequest
 from constants import HUB_CHALLENGE, HUB_MODE, HUB_SIGNATURE, HUB_VERIFY_TOKEN, SUBSCRIBE, WEBHOOK_DESCRIPTION
 from controller import RETRY_LATER, ctr_process_messages
@@ -20,6 +21,11 @@ from crypto.key_service import KeyServiceUnavailable
 from repository import BotSecrets, NotFound, TenantRepository, database_failed, find_webhook_bot
 from service import build, log, settings
 from utils import describe, is_valid_signature, looks_like_signature, secrets_match
+
+# The webhook only publishes (ADR-0021): without the bus, nothing would identify, store or queue what Meta sends.
+# Only development ingests in the webhook itself.
+if not bus.configured() and settings.environment != "development":
+    raise ValueError("The webhook needs NATS_URL")
 
 
 def database_unavailable(error: Exception) -> HTTPException:

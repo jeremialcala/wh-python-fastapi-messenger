@@ -196,7 +196,7 @@ def test_meta_is_asked_to_send_the_notification_again_if_one_of_its_messages_was
     assert identifiers(queue) == ["wamid.A"]
 
 
-def test_the_notification_sent_again_repeats_the_identifier_the_engine_deduplicates_by(bot, queue):
+def test_the_notification_sent_again_only_hands_over_what_was_not_handed_over(bot, queue):
     notification = whatsapp(value("wamid.A", "wamid.B"))
     queue.fail_at = 2
     notify(bot.uuid, copy.deepcopy(notification))
@@ -204,6 +204,5 @@ def test_the_notification_sent_again_repeats_the_identifier_the_engine_deduplica
 
     assert notify(bot.uuid, notification).status_code == 200
 
-    assert identifiers(queue) == ["wamid.A", "wamid.A", "wamid.B"]
-    first, again, _ = queue.sent
-    assert first["_uuid"] != again["_uuid"]
+    # wamid.A was handed over and stored in the history the first time: sent again, it is not handed over twice.
+    assert identifiers(queue) == ["wamid.A", "wamid.B"]

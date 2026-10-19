@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 import webhook as webhook_module
 import controller.amqp_broker as broker
+import controller.ingestion as ingestion
 import controller.messages as messages
 from classes import FacebookRequest
 from controller import BrokerUnavailable
@@ -197,7 +198,7 @@ def test_health_answers_without_token_nor_database(client):
 
 @pytest.fixture
 def whatsapp_message(monkeypatch):
-    monkeypatch.setattr(messages, "ctr_identify_contact_by_wa_id",
+    monkeypatch.setattr(ingestion, "ctr_identify_contact_by_wa_id",
                         AsyncMock(return_value=SimpleNamespace(firstName="Ana", waId="584120000000")))
     return FacebookRequest(**WHATSAPP_PAYLOAD)
 

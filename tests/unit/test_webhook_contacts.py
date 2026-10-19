@@ -105,9 +105,9 @@ def test_what_the_graph_api_leaves_out_stays_empty(owner, bot, queue, monkeypatc
 
 
 @pytest.mark.parametrize("payload", [WHATSAPP, MESSENGER], ids=["whatsapp", "messenger"])
-def test_a_known_contact_is_not_stored_again(bot, queue, graph_api, payload):
+def test_a_known_contact_is_not_stored_again(bot, queue, graph_api, payload, another):
     notify(bot.uuid, payload)
-    notify(bot.uuid, payload)
+    notify(bot.uuid, another(payload))
 
     assert Contact.objects.count() == 1
     assert queue.await_count == 2

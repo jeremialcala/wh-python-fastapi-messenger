@@ -240,3 +240,27 @@ def operator():
 
     key = new_signing_key()
     return Caller(add_signing_key(operator_client().uuid, public_signing_key(public_part(key))), key)
+
+
+@pytest.fixture
+def another():
+    """
+        Returns a function that gives a copy of a notification with new identifiers of Meta: the next message of
+        the same person. The same notification sent twice is Meta sending it again, and the history skips it.
+    """
+    import copy
+    from uuid import uuid4
+
+    def renamed(payload: dict) -> dict:
+        fresh = copy.deepcopy(payload)
+        suffix = uuid4().hex[:8]
+        for entry in fresh.get("entry", []):
+            for change in entry.get("changes", []):
+                for message in change.get("value", {}).get("messages", []):
+                    message["id"] = f"{message.get('id')}.{suffix}"
+            for event in entry.get("messaging", []):
+                if isinstance(event.get("message"), dict):
+                    event["message"]["mid"] = f"{event['message'].get('mid')}.{suffix}"
+        return fresh
+
+    return renamed

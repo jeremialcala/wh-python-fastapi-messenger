@@ -475,7 +475,9 @@ def test_once_the_database_is_back_the_same_notification_is_queued(http, bot, qu
 
 
 def test_a_failure_of_the_database_halfway_asks_for_the_whole_notification_again(http, bot, queue, monkeypatch):
-    """What was already queued is queued again: the response engine tells them apart by the identifier of Meta."""
+    """
+        What was already queued is in the history and is not queued again: only the rest of the notification is.
+    """
     find = TenantRepository.find_contact_by_wa_id
     down = [True]
 
@@ -492,7 +494,7 @@ def test_a_failure_of_the_database_halfway_asks_for_the_whole_notification_again
     down[0] = False
 
     assert notify(http, bot, whatsapp(ANA, LUIS, EVA)).status_code == 200
-    assert queued(queue) == [f"wamid.{ANA}", f"wamid.{ANA}", f"wamid.{LUIS}", f"wamid.{EVA}"]
+    assert queued(queue) == [f"wamid.{ANA}", f"wamid.{LUIS}", f"wamid.{EVA}"]
 
 
 def test_the_webhook_is_not_verified_while_the_database_is_not_there(http, bot, monkeypatch):
@@ -537,7 +539,7 @@ def test_a_message_that_fails_by_itself_does_not_take_the_others_with_it(http, b
 
     assert response.status_code == 200
     assert queued(queue) == [f"wamid.{ANA}", f"wamid.{EVA}"]
-    assert f"A message for chatbot {bot} could not be processed: {type(failure).__name__} at " in caplog.text
+    assert f"A message for chatbot {bot} could not be ingested: {type(failure).__name__} at " in caplog.text
     assert "failure-marker" not in caplog.text
 
 
@@ -580,11 +582,11 @@ def test_the_envelope_of_a_message_without_the_name_keeps_the_contract(http, bot
     assert [error.message for error in contract.iter_errors(queue[0])] == []
 
 
-def test_the_graph_api_is_not_asked_again_for_somebody_already_stored(http, bot, queue, no_profile):
+def test_the_graph_api_is_not_asked_again_for_somebody_already_stored(http, bot, queue, no_profile, another):
     notify(http, bot, messenger())
     asked = no_profile.asked
 
-    assert notify(http, bot, messenger()).status_code == 200
+    assert notify(http, bot, another(messenger())).status_code == 200
     assert no_profile.asked == asked == 1
     assert len(queue) == 2 and Contact.objects.count() == 1
 
