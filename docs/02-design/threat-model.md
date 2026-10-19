@@ -1,12 +1,12 @@
 # Threat model — Gateway BaaS de mensajería
 
-* **Estado:** approved (Gate 1, 2026-10-12)
-* **Fecha:** 2026-10-12
+* **Estado:** review (amenazas del refactor sobre la línea base aprobada en el Gate 1)
+* **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
-* **Versión:** 0.2.0
+* **Versión:** 0.3.0
 * **Gate:** 1
-* **Alcance:** el gateway, su cola en Hermod, su base en MongoDB Atlas, el túnel y el despliegue; el motor de respuestas solo en su frontera con el gateway
+* **Alcance:** el gateway (webhook, ingesta y gestión), su cola en Hermod y, en el objetivo, su bus en Bifröst con el bucket de contexto, su base en MongoDB Atlas, el túnel y el despliegue; el motor de respuestas solo en su frontera con el gateway
 * **Metodología:** STRIDE por elemento del DFD + DREAD para priorizar
 * **Clasificación de datos (ref):** [`docs/00-project/data-classification.md`](../00-project/data-classification.md)
 
@@ -44,6 +44,39 @@ flowchart LR
 red Docker privada del broker; TB4 = servidor ↔ Atlas; TB5 = gateway ↔ motor de respuestas; TB6 = motor ↔ LLM. Las
 líneas discontinuas son flujos del diseño que hoy no existen.*
 
+### DFD del objetivo del refactor
+
+```mermaid
+flowchart LR
+    META([Meta]) -->|"R1 notificacion firmada"| CF([Cloudflare edge])
+    ATK([Atacante]) -->|"R1 HTTPS"| CF
+    CF -->|"R2 tunel, solo el webhook"| WH
+    subgraph SRV [TB2: servidor midgard]
+      WH[Webhook] -->|"R3 evento, usuario webhook"| BUS
+      subgraph TB7 [TB7: red Docker bifrost, TLS y un usuario por servicio]
+        BUS[(Bifrost: streams en disco cifrado)]
+        KV[(KV contexto)]
+      end
+      BUS -->|"R4 evento"| ING[Worker de ingesta]
+      ING -->|"R5 mensaje identificado"| BUS
+      GES[API de gestion] -->|"R9 supresiones"| BUS
+      AND[Andvari]
+    end
+    WH -.->|"R6 App Secret"| AND
+    ING -->|"R7 TLS: contacto e historial"| DB[(MongoDB Atlas)]
+    GES -->|TLS| DB
+    BUS -->|"R8 mensajes por particion"| MOTOR([Workers del motor])
+    MOTOR -->|"R10 contexto cifrado"| KV
+    MOTOR -->|"R11 configuracion, una clave por worker"| GES
+    MOTOR -->|"R12 respuesta enviada"| BUS
+    WH -.->|"R13 spans"| OTEL([Colector de trazas])
+    ING -.-> OTEL
+    MOTOR -.-> OTEL
+```
+*Eje comportamiento · DFD STRIDE · Gate 1 del refactor. Frontera nueva TB7: la red de Bifröst, donde cada servicio
+entra con su usuario y sus sujetos. Las trazas (R13) cruzan hacia un colector que todavía no está decidido. Los
+flujos R* se analizan en T22–T31.*
+
 ## Análisis STRIDE
 
 | ID | Elemento | STRIDE | Amenaza | Control | Estado | Traza |
@@ -51,7 +84,7 @@ líneas discontinuas son flujos del diseño que hoy no existen.*
 | T1 | Flujo 2/3 | S | Un tercero envía una notificación falsa para inyectar mensajes en la cola | Firma `X-Hub-Signature-256` sobre el cuerpo crudo, con el App Secret del bot; sin secreto se rechaza | Construido | RS03, ADR-0004, ADR-0007 |
 | T2 | Gateway, flujo 9 | E, I | Un cliente lee o modifica bots, contactos o credenciales de otro usando su UUID | `clientId` en cada documento y capa de repositorio que lo exige; lo ajeno responde `404` | Construido | RS01, ADR-0012 |
 | T3 | Base, flujo 5 | I | Una copia de la base expone números, tokens de Meta y App Secret | Cifrado de esos campos con la clave de datos del cliente e índice ciego para buscar por número | Construido | RS05, RS06, ADR-0010 |
-| T4 | Flujo 3 | I, E | La gestión o la documentación de la API quedan alcanzables desde internet | El túnel publica solo `/chat/<uuid>`; el contenedor escucha en loopback | Pendiente: sin desplegar | RS09, ADR-0008 |
+| T4 | Flujo 3 | I, E | La gestión o la documentación de la API quedan alcanzables desde internet | El webhook y la gestión son dos servicios y el túnel publica solo el del webhook; los dos escuchan en loopback; la documentación solo en `development` | Construido sin desplegar (ADR-0018) | RS09, ADR-0008, ADR-0018 |
 | T5 | Flujo 2/3, 9 | S | Fuerza bruta contra el token de verificación o las credenciales de gestión | Comparación en tiempo constante del token de verificación; para la gestión no hay secreto que adivinar, sino una firma `ES256`; límite de tasa en el borde | Parcial: falta el límite de tasa | RS02, RS04, RS10 |
 | T6 | Gateway | I | Los logs contienen números, nombres y contenido de mensajes | Sin datos personales en ningún nivel de log | Construido: nada de lo que envía quien llama, ni de lo que Meta envía sobre una persona, se escribe en el log; de un fallo, su tipo y su línea, nunca su texto. Lo comprueba `tests/unit/test_logs_and_errors.py` | RS07 |
 | T7 | Flujo 2/3, 6 | T | Una notificación legítima se entrega o se reenvía dos veces y se procesa dos veces | Identificador de Meta en el sobre y deduplicación en el motor durante 24 horas | Parcial: el gateway publica el identificador de Meta en `messageId`; el motor no deduplica todavía | RNF04, ADR-0011 |
@@ -69,6 +102,16 @@ líneas discontinuas son flujos del diseño que hoy no existen.*
 | T19 | Flujo 11/12 | T, E | Un commit malicioso en `main` se construye y se despliega solo | `main` solo admite pull requests, desde ramas permitidas; las pruebas condicionan la imagen; rollback si falla la sonda de vida | Construido; el despliegue en el servidor está sin ejercitar | RF11, ADR-0008 |
 | T20 | Gateway | R | No se puede saber qué cliente hizo qué | Registro de eventos de seguridad atribuido al cliente autenticado | Parcial: se registran los rechazos, y cada borrado queda en el log y en el registro de supresiones | RS14 |
 | T21 | Flujo 2/3 | D, T | Un cuerpo malformado o enorme provoca errores o consume memoria | Esquema estricto de la notificación y límite de tamaño | Construido en el servicio: ninguna petición pasa de 3 MiB, el cuerpo del webhook no se lee sin firma válida, y una notificación tiene que traer su tipo y sus entradas. El límite en el borde sigue sin desplegar | RS11, ADR-0015 |
+| T22 | Bifröst, R3/R5/R9/R12 | S, T | Un servicio comprometido publica en un sujeto ajeno, por ejemplo mensajes como si los hubiera verificado el webhook, o lee uno que no le toca | Un usuario por servicio con lista `allow` de sus sujetos, TLS y credenciales en Andvari | Pendiente | RS20, ADR-0019 |
+| T23 | Bifröst | I | Una copia del disco de midgard expone los eventos, con el contenido de los mensajes y los números | Almacén cifrado con `encryption_key` en Andvari; cola de trabajo que borra al confirmar; 7 días como máximo | Pendiente | RS08, ADR-0019, ADR-0020 |
+| T24 | Bifröst, R3 | D | Bifröst cae o se llena el disco, y el webhook no puede publicar | El webhook responde `503` y Meta reenvía; `max_file_store` acotado; Gjallarhorn vigila Bifröst | Pendiente | RNF02, ADR-0020, ADR-0021 |
+| T25 | Bifröst | T, D | Un corte de luz pierde mensajes que el webhook ya confirmó a Meta | `sync_interval: always`: `fsync` antes de cada acuse | Pendiente | ADR-0019 |
+| T26 | Ingesta, R4/R8 | T | Meta reintenta un mensaje ya procesado, o dos mensajes de una conversación se procesan a la vez y se responden al revés | Índice único del historial por bot, sentido e identificador de Meta; 16 particiones por conversación con un mensaje en vuelo | Pendiente | RNF04, RNF08, ADR-0017, ADR-0021 |
+| T27 | Ingesta, R7 | D | La base cae más tiempo del que el bus guarda los eventos, y se pierden mensajes por los que Meta ya recibió `200` | Retención de 7 días en `WEBHOOK`, la misma que reintenta Meta; alerta a los 15 minutos sin confirmar | Pendiente | ADR-0021 |
+| T28 | R13 | I | Un dato personal viaja en un atributo de una traza y lo lee quien tiene acceso al colector | Las trazas siguen la regla de los logs, con una prueba como la de los logs | Pendiente | RS19 |
+| T29 | Gestión, R11 | E, I | La credencial robada de un worker alcanza rutas que ese worker no necesita, como los tokens de Meta | Una clave por cliente y por worker, con sus rutas | Pendiente | RS21, ADR-0022 |
+| T30 | Gestión, KV | I | La conversación exportada, o el contexto, llega a otro cliente o a otra conversación | `clientId` en el historial y capa de repositorio; clave del contexto con cliente, bot y contacto; clave de Transit derivada por cliente | Pendiente | RS01, RF14, ADR-0012, ADR-0017 |
+| T31 | KV | I | Quien lea el bucket de contexto lee el resumen y las últimas vueltas | Cifrado con una clave de Transit propia del coordinador; solo su usuario alcanza `$KV.contexto.>` | Pendiente | RS20, ADR-0017 |
 
 ## Amenazas priorizadas (DREAD)
 
@@ -97,10 +140,22 @@ Puntuación de 1 a 10 por criterio, con los controles tal como están **hoy**. L
 | T20 | Sin auditoría por cliente | 5 | 9 | 2 | 6 | 3 | 5,0 |
 | T1 | Notificación falsa | 7 | 2 | 2 | 6 | 5 | 4,4 |
 | T16 | Mensaje perdido | 5 | 2 | 2 | 5 | 3 | 3,4 |
+| T22 | Sujeto ajeno en el bus | 8 | 6 | 4 | 9 | 4 | 6,2 |
+| T23 | Copia del disco del bus | 8 | 6 | 3 | 9 | 4 | 6,0 |
+| T25 | Acusados perdidos en un corte | 6 | 7 | 2 | 7 | 4 | 5,2 |
+| T26 | Duplicados y desorden | 4 | 9 | 5 | 6 | 6 | 6,0 |
+| T27 | Caída larga de la base | 5 | 3 | 2 | 8 | 3 | 4,2 |
+| T28 | Datos en trazas | 6 | 8 | 4 | 8 | 4 | 6,0 |
+| T29 | Credencial de worker | 9 | 6 | 4 | 7 | 4 | 6,0 |
+| T30 | Historial a quien no es | 8 | 5 | 4 | 6 | 4 | 5,4 |
+| T31 | Lectura del contexto | 7 | 5 | 3 | 7 | 3 | 5,0 |
+| T24 | Bifröst caído o lleno | 4 | 6 | 3 | 8 | 5 | 5,2 |
 
 T2 y T4 puntúan tan alto porque dependen de algo que todavía no existe: con un solo operador y la gestión en red
 privada ninguna de las dos se puede explotar, pero bastan un segundo cliente o una regla de túnel mal puesta. T1 y
-T16 quedan al final porque sus controles están construidos y probados.
+T16 quedan al final porque sus controles están construidos y probados. T22 a T31 son las amenazas del refactor,
+puntuadas con los controles del diseño sin construir; T26 es casi seguro sin ellos, con reintentos de días y ocho
+workers asíncronos.
 
 ```mermaid
 quadrantChart
@@ -125,6 +180,11 @@ quadrantChart
     T19 despliegue: [0.15, 0.9]
     T1 notificacion falsa: [0.12, 0.66]
     T16 mensaje perdido: [0.1, 0.45]
+    T22 sujeto ajeno: [0.4, 0.8]
+    T26 duplicados y desorden: [0.75, 0.45]
+    T28 datos en trazas: [0.6, 0.62]
+    T29 credencial de worker: [0.42, 0.84]
+    T27 caida larga de la base: [0.2, 0.55]
 ```
 *Eje trazabilidad · DREAD · Gate 1.*
 
@@ -165,6 +225,10 @@ Orden de construcción que se desprende de la prioridad:
 5. **Higiene**: logs sin datos personales (T6), errores sin detalles (T18), esquema estricto (T21), cadena de
    suministro (T14), validación de destinos de los intents (T11).
 
+Para el refactor, en el orden de los incrementos del plan: Bifröst con sus usuarios, TLS, cifrado y `fsync` (T22,
+T23, T25, en I0); la ingesta con el historial, la deduplicación y las particiones (T26, T27, T30, en I3 e I4); las
+trazas (T28, en I5); y una credencial por worker (T29, en I6).
+
 ## Verificación prevista (Gate 3)
 
 | Amenaza | Prueba |
@@ -177,3 +241,8 @@ Orden de construcción que se desprende de la prioridad:
 | T8 | Ya cubierta por `tests/unit/test_authentication.py`: caducado, con `aud` ajeno, con `jti` repetido, con algoritmo no permitido, firmado con otra clave o en nombre de otro cliente; todos rechazados, y cada uno por la comprobación que le toca |
 | T6 | Procesar un mensaje en nivel `DEBUG` y comprobar que el log no contiene el número ni el texto |
 | Contratos | `tests/contract`: el OpenAPI versionado coincide con la aplicación, y el mensaje real de la cola cumple el AsyncAPI |
+| T22 | Con el usuario de cada servicio, publicar en un sujeto ajeno y suscribirse a uno ajeno: Bifröst lo rechaza |
+| T25 | Cortar la luz, o matar el contenedor, con publicaciones en curso: tras volver, ningún evento acusado falta |
+| T26 | Publicar dos veces el mismo mensaje con días de diferencia: un solo mensaje en el historial y en `MENSAJES`; dos mensajes seguidos de una conversación llegan al motor en orden |
+| T28 | Procesar un mensaje con la traza activa y comprobar que ningún atributo lleva el número ni el texto |
+| Contratos v2 | `tests/contract/test_bus_contract.py` mantiene coherente `asyncapi-v2.yaml`; al construir I3, el mensaje real se valida contra él |

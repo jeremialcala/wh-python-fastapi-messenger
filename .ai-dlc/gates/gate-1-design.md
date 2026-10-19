@@ -17,6 +17,23 @@ y ADR-0002 a ADR-0012 en `accepted`.
 | Contratos | [`openapi.yaml`](../../docs/02-design/contracts/openapi.yaml), generado de la aplicación, y [`asyncapi.yaml`](../../docs/02-design/contracts/asyncapi.yaml); ocho pruebas en `tests/contract` |
 | Patrones por amenaza | Tabla de patrones en `architecture.md`, ordenada por DREAD |
 
+## Refactor de la topología de workers (2026-10-18): en revisión
+
+El refactor reabre el diseño como cambios sobre esta línea base ([plan](../../docs/00-project/plan-topologia-de-workers.md),
+paso 2).
+
+| Criterio | Evidencia del refactor |
+|---|---|
+| Arquitectura C4 | `architecture.md` 0.3.0, "Objetivo del refactor": Container con los tres servicios del gateway, Bifröst y el bucket de contexto; secuencia de la notificación con sus fallos; ciclo de vida de un evento en `WEBHOOK`; qué tiene cada servicio; brecha por incrementos |
+| Threat model | `threat-model.md` 0.3.0: DFD del objetivo con la frontera TB7 (Bifröst), y T22–T31 con STRIDE, DREAD y su verificación prevista |
+| ADRs | ADR-0017 a ADR-0022 (la 0018, aceptada; las demás, propuestas) |
+| Contratos | `asyncapi-v2.yaml`, con su prueba de coherencia; los dos OpenAPI, generados de los dos servicios |
+| Patrones por amenaza | Siete patrones nuevos en `architecture.md`, para T22–T31 |
+
+Para aprobarlo: aceptar ADR-0017, ADR-0019, ADR-0020, ADR-0021 y ADR-0022. ADR-0017, ADR-0019 y ADR-0020 dependen
+de comprobaciones en un NATS real (la caducidad del bucket y el `fsync` en el disco de midgard), que se hacen en I0:
+se pueden aceptar con esa condición o después de I0.
+
 ## Qué significa este cierre
 
 El gate aprueba el **diseño**, no su construcción. La sección "Brecha entre lo construido y el diseño" de

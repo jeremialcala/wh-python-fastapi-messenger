@@ -87,10 +87,11 @@ Si cae entre la publicación y la confirmación, el evento se reentrega y el pas
   y en I1.
 - **Una caída de la base ya no la reintenta Meta, sino la ingesta.** Meta reintenta 7 días en WhatsApp. La ingesta
   solo reintenta mientras el evento siga en el stream `WEBHOOK`.
-- **Hay que decidir cuánto guarda el stream `WEBHOOK`.** Propuesta: **24 horas**, lo que RNF05 permite para un
-  mensaje en el bus. Con eso, una caída de Atlas de más de un día, con midgard encendido, pierde los mensajes
-  recibidos al principio de la caída. Gjallarhorn avisa en cuanto haya eventos sin confirmar de más de 15 minutos.
-  La alternativa es 7 días, lo mismo que reintenta Meta, a cambio de tener datos personales en el bus una semana.
+- **El stream `WEBHOOK` guarda 7 días**, lo mismo que reintenta Meta en WhatsApp. Lo decidió Jeremi el 2026-10-18,
+  frente a las 24 horas que proponía esta ADR. Una caída de Atlas tiene así el mismo margen que antes, a cambio de
+  que, mientras dura, los mensajes sin procesar esperen en el bus hasta una semana. En condiciones normales la
+  ingesta los confirma en segundos y se borran. Gjallarhorn avisa en cuanto haya eventos sin confirmar de más de 15
+  minutos.
 - **Desaparece RD-05 en el webhook:** ya no tiene llamadas bloqueantes por cada mensaje, salvo al buscar el bot sin
   caché.
 - **La deduplicación tiene un sitio:** el historial (paso 1 de la ingesta). El motor sigue teniendo que tolerar un
@@ -100,4 +101,4 @@ Si cae entre la publicación y la confirmación, el evento se reentrega y el pas
 ## Condiciones de revisión
 
 - La mediana del webhook medida en I1 pasa de 250 ms con Bifröst en el camino.
-- Hay que guardar el evento más de 24 horas.
+- Hay que guardar el evento más de 7 días.

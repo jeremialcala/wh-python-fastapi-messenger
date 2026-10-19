@@ -1,13 +1,13 @@
 # Diseño del sistema — Gateway BaaS de mensajería
 
-* **Estado:** approved (Gate 1, 2026-10-12)
-* **Fecha:** 2026-10-12
+* **Estado:** review (objetivo del refactor sobre la línea base aprobada en el Gate 1)
+* **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
-* **Versión:** 0.2.0
+* **Versión:** 0.3.0
 * **Gate:** 1
 * **Estilo arquitectónico:** monolito modular en capas (rutas → controladores → entidades), con puertos y adaptadores como objetivo para las piezas nuevas
-* **ADRs relacionadas:** ADR-0002 a ADR-0012, en [`docs/00-project/adr/`](../00-project/adr/)
+* **ADRs relacionadas:** ADR-0002 a ADR-0022, en [`docs/00-project/adr/`](../00-project/adr/)
 
 Este documento describe **dos cosas a la vez**: lo que el gateway es hoy y lo que el diseño pide. En cada vista se
 marca qué existe y qué falta. La lista completa de diferencias está en
@@ -348,6 +348,137 @@ Autenticación por superficie:
 | `GET /health` | Sin autenticación; solo en loopback | Igual |
 | Resto de endpoints | JWT firmado por el cliente dentro de un JWE: construido | JWT firmado por el cliente dentro de un JWE (ADR-0005, ADR-0009) |
 
+## Objetivo del refactor (Gate 1 del refactor, 2026-10-18)
+
+Lo que cambia con la topología de ocho workers del [plan](../00-project/plan-topologia-de-workers.md). El gateway
+pasa a ser tres servicios de la misma imagen alrededor de un bus de eventos: el webhook, el worker de ingesta y la
+API de gestión. Las vistas de arriba describen lo construido hasta la 0.3.0; estas, lo que se construye en los
+incrementos I0 a I8.
+
+### Vista C4 — Container (objetivo)
+
+```mermaid
+C4Container
+    title Contenedores - objetivo del refactor
+
+    Person(cliente, "Cliente", "Administra sus bots")
+    System_Ext(meta, "Meta", "WhatsApp, Messenger e Instagram")
+    System_Ext(cf, "Cloudflare", "Borde, TLS y tunel")
+    ContainerDb_Ext(atlas, "MongoDB Atlas", "MongoDB", "Bots, contactos, historial cifrado y registro de clientes")
+
+    System_Boundary(servidor, "Servidor midgard") {
+        Container(webhook, "Webhook", "Python 3.12, FastAPI", "Comprueba la firma y publica un evento por mensaje")
+        Container(ingesta, "Worker de ingesta", "Python 3.12", "Identifica al contacto, guarda el historial y publica en la particion")
+        Container(gestion, "API de gestion", "Python 3.12, FastAPI", "Clientes, bots, exportar y borrar, configuracion para el motor")
+        ContainerQueue(bifrost, "Bifrost", "NATS JetStream 2.14", "Streams WEBHOOK, MENSAJES, RESPUESTAS y SUPRESIONES")
+        ContainerDb(kv, "KV contexto", "NATS JetStream KV", "Contexto de cada conversacion, 24 horas")
+        Container(andvari, "Andvari", "OpenBao", "Claves de datos y credenciales")
+        Container_Ext(motor, "Workers del motor", "ms-python-metamsghandler", "Clasificador, coordinador, enlace, respuesta, evaluador y notificador")
+    }
+
+    Rel(meta, cf, "Notificaciones firmadas", "HTTPS")
+    Rel(cf, webhook, "Solo el webhook", "Tunel")
+    Rel(webhook, bifrost, "Publica y espera el acuse", "NATS, TLS")
+    Rel(bifrost, ingesta, "Entrega cada evento", "NATS, TLS")
+    Rel(ingesta, atlas, "Contacto e historial", "TLS")
+    Rel(ingesta, bifrost, "Publica el mensaje identificado", "NATS, TLS")
+    Rel(bifrost, motor, "Mensajes por particion", "NATS, TLS")
+    Rel(motor, kv, "Lee y escribe el contexto", "NATS, TLS")
+    Rel(motor, gestion, "Reglas, herramientas, tokens, vueltas", "JWT en JWE, una clave por worker")
+    Rel(motor, meta, "Envia la respuesta", "HTTPS")
+    Rel(cliente, gestion, "Administra sus bots", "JWT en JWE")
+    Rel(gestion, atlas, "Lee y escribe", "TLS")
+    Rel(webhook, andvari, "Abre el App Secret", "HTTPS")
+
+    UpdateElementStyle(webhook, $bgColor="#1168bd", $fontColor="#ffffff")
+    UpdateElementStyle(ingesta, $bgColor="#1168bd", $fontColor="#ffffff")
+    UpdateElementStyle(gestion, $bgColor="#1168bd", $fontColor="#ffffff")
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+```
+*Eje estructura · fase 02 · Gate 1 del refactor. En azul, los tres servicios del gateway
+([ADR-0018](../00-project/adr/0018-webhook-y-gestion-por-separado.md), [ADR-0021](../00-project/adr/0021-el-webhook-solo-publica.md)).
+Bifröst es [ADR-0019](../00-project/adr/0019-nats-jetstream-como-bus.md) y [ADR-0020](../00-project/adr/0020-placement-de-bifrost.md);
+el bucket de contexto, [ADR-0017](../00-project/adr/0017-contexto-de-conversacion-e-historial.md). Hermod se retira
+cuando el motor lea de Bifröst.*
+
+### Notificación entrante (objetivo)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as Meta
+    participant W as Webhook
+    participant B as Bifrost
+    participant I as Worker de ingesta
+    participant A as Atlas
+    participant C as Coordinador (motor)
+    M->>W: POST /chat/{bot_id} firmado
+    W->>W: Bot y App Secret en memoria, firma comprobada
+    W->>B: Un evento por mensaje, con Nats-Msg-Id y traceparent
+    alt Bifrost acusa todos
+        B-->>W: PubAck
+        W-->>M: 200
+    else Bifrost no acusa
+        W-->>M: 503, Meta reenvia
+    end
+    B->>I: Evento de WEBHOOK
+    I->>A: Ya esta en el historial?
+    alt Es un reintento de Meta
+        I->>B: Confirma sin mas
+    else Es nuevo
+        I->>A: Contacto y mensaje en el historial, cifrados
+        I->>B: Mensaje en gateway.message.particion.bot.contacto
+        I->>B: Confirma el evento
+    end
+    alt La base no responde
+        I-->>B: Sin confirmar, se reentrega con espera creciente, hasta 7 dias
+    end
+    B->>C: Mensaje de su particion, uno en vuelo
+```
+*Eje comportamiento · fase 02 · Gate 1 del refactor. El plazo de Meta (RNF01) solo incluye los pasos 1 a 5: Atlas y
+la Graph API salen de él. Lo que hace el motor con el mensaje está en la secuencia de ADR-0017.*
+
+### Ciclo de vida de un evento en el stream `WEBHOOK`
+
+```mermaid
+stateDiagram-v2
+    [*] --> Publicado: el webhook publica y Bifrost acusa
+    Publicado --> Entregado: la ingesta lo recibe
+    Entregado --> Confirmado: identificado, guardado y publicado, o reintento de Meta
+    Entregado --> EnEspera: la base, Andvari o Bifrost no responden
+    EnEspera --> Entregado: vence la espera creciente
+    Entregado --> Terminado: falla por si mismo o el bot ya no existe
+    EnEspera --> Caducado: pasan 7 dias
+    Confirmado --> [*]
+    Terminado --> [*]
+    Caducado --> [*]
+```
+*Eje comportamiento · fase 02 · Gate 1 del refactor. "Terminado" queda en el log; "Caducado" es un mensaje perdido
+después de que Meta recibiera su `200` (T27), y Gjallarhorn avisa mucho antes, a los 15 minutos sin confirmar.*
+
+### Qué tiene cada servicio del gateway
+
+| Servicio | Rutas o sujetos | Credenciales | Lo que no tiene |
+|---|---|---|---|
+| Webhook | `GET` y `POST /chat/{bot_id}`; publica en `webhook.meta.>` | Atlas (lee el bot), Andvari (abre el App Secret), su usuario de Bifröst | Las claves del gateway, el registro de supresiones, la Graph API |
+| Worker de ingesta | Consume `webhook.meta.>` y `engine.reply.sent.>`; publica en `gateway.message.>` | Atlas (contactos e historial), Andvari, la Graph API con el token de página, su usuario de Bifröst | Rutas HTTP |
+| API de gestión | Las 30 rutas de gestión y la de las 10 últimas vueltas; publica en `gateway.*.erased` | Atlas, Andvari, las claves del gateway, el registro de supresiones, su usuario de Bifröst | — |
+
+### Brecha del refactor
+
+| Incremento | Trabajo | ADR | Estado |
+|---|---|---|---|
+| IS | El webhook y la gestión, en dos servicios | ADR-0018 | **Hecho** |
+| I0 | Bifröst en midgard, con la medición del `fsync` en su disco | ADR-0019, ADR-0020 | Pendiente |
+| I1 | Medir el webhook actual en midgard | — | Pendiente |
+| I2 | Puerto de publicación sobre NATS | ADR-0019 | Pendiente |
+| I3 | Contrato v2 y publicación por mensaje | ADR-0021, `asyncapi-v2.yaml` | Pendiente |
+| I4 | Worker de ingesta, historial y webhook que solo publica | ADR-0017, ADR-0021 | Pendiente |
+| I5 | OpenTelemetry con la regla de los logs | — | Pendiente |
+| I6 | Una credencial por worker | ADR-0022 | Pendiente |
+| I7 | Destinos de los intents | — | Pendiente |
+| I8 | Instagram | — | Pendiente |
+
 ## Patrones de seguridad seleccionados (por amenaza DREAD priorizada)
 
 | Amenaza | Patrón / Control | OWASP | ADR |
@@ -362,6 +493,13 @@ Autenticación por superficie:
 | T7 Duplicados | Consumidor idempotente, con el identificador de Meta como clave | A10 | ADR-0006, ADR-0011 |
 | T1 Notificación falsa | Verificar la firma sobre el cuerpo crudo, antes de procesar; fallar cerrado | A08 | ADR-0004, ADR-0007 |
 | T16 Mensaje perdido | Confirmación del broker antes de responder; reintento a cargo del emisor | A10 | ADR-0006 |
+| T22 Sujeto ajeno en el bus | Mínimo privilegio en el bus: un usuario por servicio con lista `allow` de sus sujetos; TLS | A01 | ADR-0019 |
+| T23, T31 Copia del disco del bus o del contexto | Cifrado en reposo: almacén de Bifröst con clave en Andvari; contexto con una clave de Transit propia | A04 | ADR-0019, ADR-0017 |
+| T25 Mensajes acusados perdidos en un corte de luz | Durabilidad antes del acuse: `fsync` en cada escritura | A10 | ADR-0019 |
+| T26 Duplicados y desorden | Consumidor idempotente por el historial; particiones por conversación con un mensaje en vuelo | A10 | ADR-0019, ADR-0021 |
+| T27 Caída larga de la base | El bus absorbe la caída 7 días; alerta a los 15 minutos sin confirmar | A10 | ADR-0021 |
+| T28 Datos personales en trazas | Las trazas siguen la regla de los logs: identificadores, nunca contenido | A09 | — |
+| T29 Credencial de worker con rutas de más | Mínimo privilegio por worker: una clave por cliente y por worker | A01 | ADR-0022 |
 
 ## Brecha entre lo construido y el diseño
 
