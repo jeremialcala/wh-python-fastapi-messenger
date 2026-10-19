@@ -217,7 +217,7 @@ flowchart LR
     I1["I1 Medir el webhook actual en midgard, hecho"] --> I4
     I0["I0 NATS JetStream en midgard (R8), hecho"] --> I2
     I2["I2 Puerto de publicacion sobre NATS (R2), hecho"] --> I3
-    I3["I3 Contrato v2 y un evento por notificacion (R3)"] --> I4
+    I3["I3 Contrato v2 y un evento por notificacion (R3), hecho"] --> I4
     I4["I4 Worker de ingesta y webhook que solo publica (R1)"] --> I5
     I4 --> I8
     I5["I5 OpenTelemetry con la regla de los logs (R4)"]

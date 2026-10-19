@@ -1,17 +1,18 @@
 # Contrato AsyncAPI del bus de eventos, versión 2 (fase 02-design, Gate 1 del refactor).
 # Estado: approved (Gate 1 del refactor, 2026-10-18). Versión: 2.0.0.
 #
-# Es el objetivo: lo que se publica en Bifröst (NATS JetStream) cuando se construyan R1, R2 y R3 del plan
-# (ADR-0019, ADR-0021). El contrato construido sigue siendo asyncapi.yaml, la versión 1 de la cola `llm` de
-# Hermod, que las pruebas validan contra el código. tests/contract/test_bus_contract.py comprueba de momento que
-# este fichero es coherente: cada referencia existe y cada esquema es un JSON Schema válido.
+# Lo que se publica en Bifröst (NATS JetStream), según R1, R2 y R3 del plan (ADR-0019, ADR-0021). Desde I3 el
+# webhook publica EventoWebhook, y tests/contract/test_bus_contract.py valida contra este fichero el evento que
+# construye el código. El resto de los eventos sigue siendo diseño. Mientras el motor lea la cola `llm` de Hermod,
+# el gateway publica también la versión 1 (asyncapi.yaml). test_bus_contract.py comprueba además que el fichero es
+# coherente: cada referencia existe y cada esquema es un JSON Schema válido.
 asyncapi: 3.0.0
 info:
   title: Bus de eventos del gateway BaaS
   version: 2.0.0
   description: >-
     Eventos entre el gateway y los workers del motor de respuestas. El webhook publica lo que Meta firmó, un evento
-    por mensaje; el worker de ingesta lo identifica y lo publica en la partición de su conversación; el notificador
+    por notificación; el worker de ingesta lo identifica y lo publica en la partición de su conversación; el notificador
     del motor publica lo que Meta aceptó enviar; y la API de gestión avisa de cada supresión. Todos los eventos
     llevan el contexto de traza W3C en la cabecera `traceparent` (RNF09) y ninguno lleva en sus cabeceras datos
     personales (RS19).

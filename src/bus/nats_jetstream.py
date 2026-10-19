@@ -94,12 +94,14 @@ class NatsPublisher:
     def _open(self, loop) -> bool:
         return self._connection is not None and self._loop is loop and not self._connection.is_closed
 
-    async def publish(self, subject: str, payload: bytes, message_id: str) -> Published:
+    async def publish(self, subject: str, payload: bytes, message_id: str,
+                      headers: dict[str, str] | None = None) -> Published:
         if not message_id:
             raise ValueError("An event needs a message_id: it is what the bus drops a second copy by")
         jetstream = await self._connect()
         try:
-            ack = await jetstream.publish(subject, payload, timeout=ACK_TIMEOUT, headers={"Nats-Msg-Id": message_id})
+            ack = await jetstream.publish(subject, payload, timeout=ACK_TIMEOUT,
+                                          headers={**(headers or {}), "Nats-Msg-Id": message_id})
         except (nats.errors.Error, OSError, asyncio.TimeoutError) as e:
             # No stream for the subject, a subject the user may not publish to, a full buffer while reconnecting,
             # or no acknowledgement in time: in every case the event may not be kept, and it is sent again.
