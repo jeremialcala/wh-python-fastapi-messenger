@@ -17,6 +17,9 @@
 #     after the database is restored (docs/03-implementation/exportar-y-borrar.md)
 #   * loopback only. The tunnel publishes the webhook (port 5003) and nothing else; the management API (port
 #     5002) stays private until it is published on a hostname of its own
+#   * traces: each service names itself with OTEL_SERVICE_NAME. They are only exported where
+#     OTEL_EXPORTER_OTLP_ENDPOINT says, in .env; without it they never leave the process, and the context still goes
+#     on with each event (docs/03-implementation/trazas.md)
 #   * the webhook starts once the management API is healthy, so the health URL of the receiver, the webhook's,
 #     answers for both
 #   * RabbitMQ is not here: it is reached over the external `hermod` network, as host `hermod`
@@ -54,6 +57,7 @@ services:
       ENVIRONMENT: production
       # Two workers: the calls to the database and to the key service still block each process (H14).
       WEB_CONCURRENCY: 2
+      OTEL_SERVICE_NAME: gateway-webhook
       ANDVARI_ADDR: https://andvari:8200
       ANDVARI_CA_FILE: /run/gateway/andvari-ca.crt
       ANDVARI_SECRET_ID_FILE: /run/gateway/andvari-secret-id
@@ -81,6 +85,7 @@ services:
     environment:
       ENVIRONMENT: production
       WEB_CONCURRENCY: 1
+      OTEL_SERVICE_NAME: gateway-management
       GATEWAY_KEYS_FILE: /run/gateway/gateway-keys.json
       ANDVARI_ADDR: https://andvari:8200
       ANDVARI_CA_FILE: /run/gateway/andvari-ca.crt
@@ -108,6 +113,7 @@ services:
     networks: [hermod, andvari, bifrost]
     environment:
       ENVIRONMENT: production
+      OTEL_SERVICE_NAME: gateway-ingest
       ANDVARI_ADDR: https://andvari:8200
       ANDVARI_CA_FILE: /run/gateway/andvari-ca.crt
       ANDVARI_SECRET_ID_FILE: /run/gateway/andvari-secret-id

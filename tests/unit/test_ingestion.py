@@ -133,7 +133,10 @@ def test_the_trace_of_the_event_goes_on_with_the_message(bot, bifrost, queue):
 
     ingest_now(event_of(bot, whatsapp_message("wamid.A")), trace)
 
-    assert bifrost.events[0].headers["traceparent"] == trace
+    # The same trace, from a span of the ingestion: the message identified is its child.
+    version, trace_id, span_id, flags = bifrost.events[0].headers["traceparent"].split("-")
+    assert (version, trace_id, flags) == ("00", "a" * 32, "01")
+    assert span_id != "b" * 16
 
 
 def test_a_messenger_message_is_identified_through_the_graph_api(bot, bifrost, queue, graph_api):

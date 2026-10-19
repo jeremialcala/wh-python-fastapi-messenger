@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 import bus
+import tracing
 from classes import Settings
 
 from .webhook_event import SCHEMA_VERSION, traceparent
@@ -44,6 +45,12 @@ async def announce(entity: str, client_id: UUID, bot_id: UUID | None = None, con
         return 0
     notices = ([notice(entity, client_id, bot_id, contact) for contact in contacts] if entity == CONTACT
                else [notice(entity, client_id, bot_id)])
+    with tracing.span("erasure.notices", **{"gateway.entity": entity, "gateway.client_id": str(client_id),
+                                            "gateway.messages": len(notices)}):
+        return await _publish(entity, client_id, notices)
+
+
+async def _publish(entity: str, client_id: UUID, notices: list[dict]) -> int:
     taken = 0
     for erased in notices:
         try:

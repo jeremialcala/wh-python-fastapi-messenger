@@ -11,6 +11,7 @@ import secrets
 from datetime import datetime, timezone
 
 import bus
+import tracing
 from classes import ChatBot, Settings
 
 from .incoming import MESSENGER, WHATSAPP, IncomingMessage
@@ -34,8 +35,11 @@ def event_message_id(bot: ChatBot, messages: list[IncomingMessage]) -> str:
 
 
 def traceparent() -> str:
-    """A W3C trace context of its own for the event, until the service traces with OpenTelemetry (I5)."""
-    return f"00-{secrets.token_hex(16)}-{secrets.token_hex(8)}-01"
+    """
+        The W3C context the event goes with: the one of the current span (I5), so that whoever reads the event goes
+        on with the same trace. Outside a span, one of its own.
+    """
+    return tracing.traceparent() or f"00-{secrets.token_hex(16)}-{secrets.token_hex(8)}-01"
 
 
 def webhook_event(channel: str, bot: ChatBot, messages: list[IncomingMessage], received_at: datetime) -> dict:
