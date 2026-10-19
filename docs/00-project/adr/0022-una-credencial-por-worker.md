@@ -1,6 +1,6 @@
 # ADR-0022: Cada worker del motor tiene su propia credencial, con sus rutas
 
-* **Estado:** proposed
+* **Estado:** accepted
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -10,7 +10,9 @@
   ahora también por worker)
 * **Controles OWASP afectados:** A01 (mínimo privilegio entre servicios), A07 (credenciales de servicio)
 
-Propuesta para el Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), R5). Decisión D3 del 2026-10-18.
+Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor. Se construye en I6.
+
+Propuesta como entregable del Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), R5). Decisión D3 del 2026-10-18.
 
 ## Contexto
 
