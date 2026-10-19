@@ -79,8 +79,21 @@ Desplegado tal como se describe, con la imagen `nats:2.14.8-alpine` y el reposit
 50 ms de la condición de revisión, pero cerca. Las notificaciones de varios mensajes se resolvieron con un evento
 por notificación ([ADR-0021](0021-el-webhook-solo-publica.md)), con `max_payload` en 4 MB.
 
-**El SSD:** Jeremi tiene un HP SSD S700 para midgard. Instalado, el almacén de Bifröst irá en él, y se repetirá la
-medición.
+**El SSD (2026-10-19):** el almacén de Bifröst está en un HP SSD S700 de 1 TB, instalado por Jeremi en midgard y montado
+en `/srv/rapido` con `nofail`. `/srv/rapido/bifrost` se monta sobre `/var/lib/bifrost`, y sin el SSD Bifröst no
+arranca (comprobado), en vez de crear un almacén vacío en el HDD. Lo vigilan smartd y un temporizador que avisa por
+ntfy de los errores del enlace.
+
+El SSD se cayó una vez, a los tres minutos de escritura sostenida, y volvió a funcionar al reconectarlo: después pasó
+60 GB de escritura a 193 MB/s sin errores. Por eso Docker, containerd, Bragi y Andvari se moverán después de vigilarlo
+2 o 3 días.
+
+| Acuse con `fsync` en cada escritura | HDD | SSD |
+|---|---|---|
+| 1 KB, mediana / p99 / máximo | 44,5 / 89 / 289 ms | 2,2 / 9,7 / 18,5 ms |
+| 3 MB, mediana | 196 ms | 69 ms |
+
+El HDD de midgard, además, tiene 16 sectores pendientes de reasignar (eran 8 el 2026-10-05).
 
 Pendiente de ese despliegue:
 - mover a Andvari los secretos de `.env`, `ca/` y `credenciales/`;
