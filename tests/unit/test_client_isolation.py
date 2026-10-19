@@ -29,7 +29,7 @@ PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/healt
 ROUTES = sorted((method, route.path) for route in app_module.app.routes if isinstance(route, APIRoute)
                 for method in route.methods)
 # What only the response engine gets, with the key it holds for a client: test_service_credential covers it.
-ENGINE_ONLY = {("GET", "/chat/{bot_id}/tokens")}
+ENGINE_ONLY = {("GET", "/chat/{bot_id}/tokens"), ("GET", "/chat/{bot_id}/contacts/{contact_id}/turns")}
 BOT_ROUTES = [route for route in ROUTES if route not in PUBLIC | ENGINE_ONLY and "{bot_id}" in route[1]]
 # What is not about one chatbot: creating one, and the registry of clients and keys.
 OTHER_ROUTES = [route for route in ROUTES if route not in PUBLIC | ENGINE_ONLY and route not in BOT_ROUTES]

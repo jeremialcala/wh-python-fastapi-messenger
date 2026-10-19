@@ -12,6 +12,7 @@ from mongoengine import Q
 from mongoengine.errors import NotUniqueError, SaveConditionError
 
 from classes import ChatBot, ChatbotPhone, Client, Contact, ConversationMessage, Intent, Rule
+from classes.entity_conversation_message import INCOMING
 from crypto.fields import ClientCipher
 from enums import Status
 
@@ -334,7 +335,24 @@ class TenantRepository:
         """The contact's conversation, oldest first, with each text opened."""
         if contact.clientId != self.client_id:
             raise NotFound(contact._uuid)
-        messages = self._own(ConversationMessage, botId=contact.botId, contactId=contact._uuid).order_by("sentAt")
+        return self._opened(self._own(ConversationMessage, botId=contact.botId,
+                                      contactId=contact._uuid).order_by("sentAt"))
+
+    def last_turns(self, contact: Contact, turns: int = 10) -> list[dict]:
+        """
+            The last turns of the contact's conversation, oldest first: from the `turns`-th last message the contact
+            sent, everything that came after, both ways (RF15). What the engine's coordinator rebuilds its context
+            with when it has none.
+        """
+        if contact.clientId != self.client_id:
+            raise NotFound(contact._uuid)
+        conversation = self._own(ConversationMessage, botId=contact.botId, contactId=contact._uuid)
+        starts = list(conversation.filter(direction=INCOMING).order_by("-sentAt").limit(turns).only("sentAt"))
+        if not starts:
+            return []
+        return self._opened(conversation.filter(sentAt__gte=starts[-1].sentAt).order_by("sentAt"))
+
+    def _opened(self, messages) -> list[dict]:
         return [{"direction": message.direction, "messageId": message.messageId, "channel": message.channel,
                  "sentAt": message.sentAt.replace(tzinfo=timezone.utc), "intent": message.intent,
                  "inReplyTo": message.inReplyTo,

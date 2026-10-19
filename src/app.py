@@ -22,7 +22,7 @@ from controller import (ctr_add_own_signing_key, ctr_add_phone_chatbot, ctr_add_
                         ctr_delete_client, ctr_delete_contact, ctr_delete_intent, ctr_export_contact,
                         ctr_gateway_keys, ctr_get_bot_tokens, ctr_get_bot_tools, ctr_get_chatbot_from_uuid,
                         ctr_get_chatbot_phones, ctr_get_chatbot_rules_from_uuid, ctr_get_client, ctr_get_intent,
-                        ctr_get_intents, ctr_list_clients, ctr_list_contacts, ctr_register_client,
+                        ctr_get_intents, ctr_last_turns, ctr_list_clients, ctr_list_contacts, ctr_register_client,
                         ctr_remove_service_key, ctr_remove_signing_key, ctr_search_contacts, ctr_set_bot_credentials,
                         ctr_update_intent)
 from enums import Role
@@ -54,6 +54,8 @@ SERVICE_ROUTES = {
     ("GET", "/chat/{bot_id}/rules"),
     ("GET", "/chat/{bot_id}/tools"),
     ("GET", "/chat/{bot_id}/tokens"),
+    # The coordinator, when its context is gone (RF15). ADR-0022 narrows it to the coordinator's own key in I6.
+    ("GET", "/chat/{bot_id}/contacts/{contact_id}/turns"),
 }
 
 
@@ -212,6 +214,17 @@ async def get_chatbot_tokens(bot_id: str, engine: Principal = Depends(require_se
         them, with the key it holds for the client that owns the chatbot, and every time it does is logged.
     """
     return await ctr_get_bot_tokens(TenantRepository(engine.client_id), bot_id, engine)
+
+
+@app.get(path="/chat/{bot_id}/contacts/{contact_id}/turns", tags=["Contacts"], response_model=ResponseData)
+async def get_last_turns(bot_id: str, contact_id: str, engine: Principal = Depends(require_service)):
+    """
+        The last 10 turns of a conversation, both ways and oldest first: from the tenth last message the contact
+        sent, everything after it. For the engine's coordinator, when its context of 24 hours is gone; only the
+        engine gets them, with the key it holds for the client that owns the chatbot, and every time it does is
+        logged.
+    """
+    return await ctr_last_turns(TenantRepository(engine.client_id), bot_id, contact_id, engine)
 
 
 @app.get(path="/chat/{bot_id}/rules", tags=["Chat"])

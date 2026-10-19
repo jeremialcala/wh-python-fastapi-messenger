@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import mongoengine
@@ -21,7 +22,7 @@ import webhook as webhook_module
 import controller.ingestion as ingestion
 from auth import gateway_keys
 from auth.client import build_token, new_signing_key, public_part
-from classes import Client
+from classes import Client, Contact
 from conftest import GATEWAY_AUDIENCE, GATEWAY_KEYS_FILE
 from enums import Role, Status
 from repository import TenantRepository, data_keys, find_signer
@@ -51,8 +52,8 @@ BODIES = {
 PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/health")}
 ROUTES = sorted({(method, route.path) for route in app_module.app.routes if isinstance(route, APIRoute)
                  for method in route.methods} - PUBLIC)
-FOR_THE_ENGINE = [("GET", "/chat/{bot_id}/rules"), ("GET", "/chat/{bot_id}/tokens"), ("GET", "/chat/{bot_id}/tools"),
-                  ("GET", "/gateway/keys")]
+FOR_THE_ENGINE = [("GET", "/chat/{bot_id}/contacts/{contact_id}/turns"), ("GET", "/chat/{bot_id}/rules"),
+                  ("GET", "/chat/{bot_id}/tokens"), ("GET", "/chat/{bot_id}/tools"), ("GET", "/gateway/keys")]
 NOT_FOR_THE_ENGINE = [route for route in ROUTES if route not in FOR_THE_ENGINE]
 
 
@@ -458,3 +459,84 @@ def test_letting_the_engine_in_and_out_leaves_a_trace_that_production_keeps(http
     kept = [record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING]
     assert kept == [f"Service key {engine.kid} added to client {acme.client_id}",
                     f"Service key removed from client {acme.client_id}"]
+
+
+# --- The last turns of a conversation, for the coordinator (RF15) ------------------------------------------------
+
+def conversation(acme, bot, turns: int) -> Contact:
+    """A contact of the chatbot who wrote `turns` times, and got two answers each time, a minute apart."""
+    repo = TenantRepository(acme.client_id)
+    contact = repo.add_contact(bot, Contact(firstName="Ana", waId="12025550143"))
+    start = datetime(2026, 10, 19, 12, 0, tzinfo=timezone.utc)
+    for turn in range(turns):
+        at = start + timedelta(minutes=turn)
+        repo.record_message(contact, "in", f"wamid.IN{turn:02d}", "whatsapp", at, text=f"pregunta {turn}")
+        for answer in range(2):
+            repo.record_message(contact, "out", f"wamid.OUT{turn:02d}{answer}", "whatsapp",
+                                at + timedelta(seconds=answer + 1), text=f"respuesta {turn}.{answer}",
+                                in_reply_to=f"wamid.IN{turn:02d}")
+    return contact
+
+
+def turns_of(http, engine, bot, contact):
+    return http.get(f"/chat/{bot}/contacts/{contact._uuid}/turns", headers=engine.auth)
+
+
+def test_the_engine_gets_the_last_ten_turns_both_ways_and_oldest_first(http, acme, engine, bot):
+    contact = conversation(acme, bot, turns=12)
+
+    response = turns_of(http, engine, bot, contact)
+
+    assert response.status_code == 200
+    messages = response.json()["data"]["messages"]
+    assert [m["messageId"] for m in messages if m["direction"] == "in"] == [f"wamid.IN{t:02d}" for t in range(2, 12)]
+    assert len(messages) == 30
+    assert (messages[0]["text"], messages[1]["inReplyTo"]) == ("pregunta 2", "wamid.IN02")
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_a_shorter_conversation_comes_whole(http, acme, engine, bot):
+    contact = conversation(acme, bot, turns=3)
+
+    assert len(turns_of(http, engine, bot, contact).json()["data"]["messages"]) == 9
+
+
+def test_a_contact_who_never_wrote_has_no_turns(http, acme, engine, bot):
+    contact = conversation(acme, bot, turns=0)
+
+    assert turns_of(http, engine, bot, contact).json()["data"]["messages"] == []
+
+
+def test_the_turns_of_a_contact_of_another_client_are_not_found(http, operator, acme, globex, engine, bot):
+    theirs = new_bot(http, globex)["uuid"]
+    contact = conversation(globex, theirs, turns=2)
+
+    assert turns_of(http, engine, theirs, contact).status_code == 404
+    assert turns_of(http, engine, bot, contact).status_code == 404
+
+
+def test_a_client_does_not_get_the_turns_with_its_own_key(http, acme, bot):
+    """It has the export of the contact for that: the turns are the engine's."""
+    contact = conversation(acme, bot, turns=1)
+
+    assert http.get(f"/chat/{bot}/contacts/{contact._uuid}/turns", headers=acme.auth).status_code == 403
+
+
+def test_without_the_key_service_no_turn_is_handed_out(http, acme, engine, bot, key_service):
+    contact = conversation(acme, bot, turns=1)
+    key_service.down = True
+    data_keys.forget()
+
+    response = turns_of(http, engine, bot, contact)
+
+    assert response.status_code == 503 and "pregunta" not in response.text
+
+
+def test_every_time_the_turns_are_handed_out_leaves_a_trace_that_production_keeps(http, acme, engine, bot, caplog):
+    contact = conversation(acme, bot, turns=2)
+    caplog.set_level(logging.WARNING)
+
+    turns_of(http, engine, bot, contact)
+
+    assert f"Last turns of contact {contact._uuid} of chatbot {bot} handed to the response engine" in caplog.text
+    assert "pregunta" not in caplog.text and "12025550143" not in caplog.text
