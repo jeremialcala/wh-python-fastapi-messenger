@@ -469,7 +469,7 @@ después de que Meta recibiera su `200` (T27), y Gjallarhorn avisa mucho antes, 
 | Incremento | Trabajo | ADR | Estado |
 |---|---|---|---|
 | IS | El webhook y la gestión, en dos servicios | ADR-0018 | **Hecho** |
-| I0 | Bifröst en midgard, con la medición del `fsync` en su disco | ADR-0019, ADR-0020 | Pendiente |
+| I0 | Bifröst en midgard, con la medición del `fsync` en su disco | ADR-0019, ADR-0020 | **Hecho** (2026-10-19): 44,5 ms de mediana por mensaje; queda decidir cómo se publican las notificaciones de varios mensajes |
 | I1 | Medir el webhook actual en midgard | — | Pendiente |
 | I2 | Puerto de publicación sobre NATS | ADR-0019 | Pendiente |
 | I3 | Contrato v2 y publicación por mensaje | ADR-0021, `asyncapi-v2.yaml` | Pendiente |

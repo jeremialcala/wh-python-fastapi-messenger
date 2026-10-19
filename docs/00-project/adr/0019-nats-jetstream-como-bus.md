@@ -86,6 +86,30 @@ gate.
 - **Almacén cifrado en disco** con `encryption_key`, también guardada en Andvari. Por el bus pasa el contenido de
   los mensajes, que es dato restringido.
 
+## Medido en I0 (2026-10-19)
+
+Bifröst desplegado en midgard ([ADR-0020](0020-placement-de-bifrost.md)), con `sync_interval: always`. Disco `sda`:
+Seagate ST500LT012, un disco de portátil de 5400 rpm. Cada medición, 500 publicaciones de 1 KB una tras otra, desde un
+contenedor en la red `bifrost`:
+
+| Servidor | Mediana | p90 | p99 | Máximo |
+|---|---|---|---|---|
+| Bifröst, `fsync` en cada escritura | 44,5 ms | 45,0 ms | 88,9 ms | 288,7 ms |
+| Temporal en el mismo disco, `fsync` cada 2 minutos | 0,42 ms | 0,54 ms | 0,76 ms | 0,99 ms |
+
+Una notificación con varios mensajes paga el `fsync` de cada uno, y publicarlos a la vez no lo agrupa:
+
+| Mensajes de la notificación | En serie | A la vez |
+|---|---|---|
+| 1 | 44,5 ms | 44,5 ms |
+| 5 | 184 ms | 179 ms |
+| 10 | 356 ms (máx. 634) | 390 ms (máx. 945) |
+
+**Para una notificación de un mensaje, que es lo habitual, cabe en RNF01 con holgura.** Con cinco mensajes ya ronda
+los 250 ms, y Meta agrupa hasta 1000 cuando hay mucho tráfico. Además, el disco limita el bus a unas 22 escrituras por
+segundo. Queda pendiente de decidir: publicar un evento por notificación en vez de uno por mensaje, lo que deja un solo
+`fsync` sea cual sea el número de mensajes (cambia ADR-0021 y el contrato v2), o un SSD en midgard, o las dos cosas.
+
 ## Alternativas consideradas
 
 | Opción | Por qué no |

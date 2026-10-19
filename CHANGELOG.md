@@ -8,6 +8,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I0 hecho el 2026-10-19: Bifröst (NATS 2.14.8) desplegado en midgard con sus cuatro streams, dos consumidores, el
+  bucket de contexto y un usuario por servicio (repositorio local `Projects/bifrost`). Medido en su disco mecánico: el
+  acuse con `fsync` en cada escritura tarda 44,5 ms de mediana por mensaje, frente a 0,42 ms con la configuración por
+  defecto, y publicar a la vez no lo agrupa. La caducidad del bucket se renueva con cada escritura: ADR-0017 queda
+  aceptada sin condición.
 - Gate 1 del refactor aprobado el 2026-10-18: arquitectura y threat model 0.3.0 y el contrato del bus 2.0.0 en
   `approved`; ADR-0021 y ADR-0022 aceptadas; ADR-0017, ADR-0019 y ADR-0020 aceptadas con la condición de que I0
   confirme en el NATS de midgard la caducidad del bucket de contexto y el coste del `fsync`. ADR-0006 queda sustituida

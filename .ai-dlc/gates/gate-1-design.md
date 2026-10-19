@@ -34,7 +34,7 @@ paso 2).
 arquitectura, threat model y `asyncapi-v2.yaml` en `approved`. ADR-0021 y ADR-0022 quedan aceptadas. ADR-0017,
 ADR-0019 y ADR-0020 se aceptan **con condición**: que I0 confirme en el NATS de midgard que el bucket de contexto
 renueva su caducidad en cada escritura y que el `fsync` en cada escritura cabe en el plazo del webhook. Si no, vuelven
-a `proposed` con la salida que dice cada una. ADR-0006 queda sustituida por ADR-0021, y ADR-0016 ampliada por
+a `proposed` con la salida que dice cada una. **I0, el 2026-10-19:** la caducidad del bucket se cumple, y ADR-0017 queda aceptada sin condición. El `fsync` cabe para una notificación de un mensaje (44,5 ms de mediana), pero no para las de varios: ADR-0019 y ADR-0020 siguen con condición hasta decidir cómo se publican. ADR-0006 queda sustituida por ADR-0021, y ADR-0016 ampliada por
 ADR-0022. No se corta versión: la `0.4.0` es del Gate 3 del refactor.
 
 ## Qué significa este cierre
