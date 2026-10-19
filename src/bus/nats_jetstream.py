@@ -87,8 +87,9 @@ class NatsPublisher:
         """A connection that never opened still has its tasks running: they are stopped, or they keep retrying."""
         try:
             await connection.close()
-        except (nats.errors.Error, OSError, asyncio.TimeoutError):
-            pass
+        except (nats.errors.Error, OSError, asyncio.TimeoutError) as e:
+            # Best-effort cleanup: the original connect failure is handled by the caller.
+            log.debug("Event bus: ignoring close failure during abandon (%s)", type(e).__name__)
 
     def _open(self, loop) -> bool:
         return self._connection is not None and self._loop is loop and not self._connection.is_closed
