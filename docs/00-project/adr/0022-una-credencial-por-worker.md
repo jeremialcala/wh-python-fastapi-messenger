@@ -79,8 +79,36 @@ rutas alcanza:
   Una clave de antes sale con `"worker": null`.
 - **El log** dice el worker en cada entrega de tokens y de vueltas, y en cada ruta denegada. Cada uso de una clave
   sin worker deja un aviso.
-- Pendiente: el comando que genera y registra las seis claves de un cliente (I6b) y el usuario de Bifröst por
-  worker (I6c, cuando el motor se parta).
+- Pendiente: el usuario de Bifröst por worker (I6c, cuando el motor se parta).
+
+## Construido (I6b, 2026-10-19)
+
+- **El comando:** `python -m ops.engine_keys <client_id>`, y en midgard el servicio `engine-keys` del compose (perfil
+  `operations`, solo bajo demanda). Por cada worker crea una clave, guarda la parte privada en Andvari y registra la
+  pública por la API, firmando como el operador. Es lo que la consecuencia de arriba pedía: un comando, no un
+  procedimiento a mano.
+- **Las claves privadas viven en Andvari** (decisión de Jeremi, frente a ficheros con permisos 600), en un motor KV
+  versión 2:
+  - la ruta es `motor/data/clientes/<client_id>/<worker>`;
+  - el KV exige check-and-set;
+  - cada worker las lee con su rol `motor-<worker>`, que solo alcanza la suya;
+  - el comando entra con el rol `motor-claves`, que crea y lee pero no puede escribir encima, borrar ni listar.
+
+  Lo prepara `motor/instalar.sh` del repositorio `andvari`.
+- **El registro pasa por la API** (decisión de Jeremi, frente a escribir en la base como `ops.operator_key`):
+  pasa las mismas validaciones y deja en el log el aviso de cada alta.
+- **Se puede repetir:**
+  - lo que ya está guardado y registrado se deja;
+  - lo guardado y no registrado se registra;
+  - solo se crea clave para el worker que no tiene ninguna.
+
+  Guarda antes de registrar, así que una clave registrada siempre tiene su parte privada en Andvari.
+- **Lo que costó:** sin token raíz vivo, Andvari no se podía administrar, porque OpenBao 2.7.1 cierra por defecto
+  los endpoints sin autenticar de `generate-root`. El repositorio `andvari` añade un listener solo dentro del
+  contenedor que los abre, y `raiz-temporal.sh`, que genera un token raíz con la clave de recuperación, ejecuta
+  una orden y lo revoca.
+- Pendiente: rotar la clave de un worker. Pide escribir una versión nueva en el KV, y `motor-claves` no lo permite a
+  propósito.
 
 ## Condiciones de revisión
 
