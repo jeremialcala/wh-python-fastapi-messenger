@@ -4,7 +4,7 @@
 * **Fecha:** 2026-10-19
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 04-testing
-* **Versión:** 0.1.0
+* **Versión:** 0.2.0
 * **Requisito:** RNF01
 * **Incremento:** I1 del [plan de la topología de workers](../00-project/plan-topologia-de-workers.md)
 
@@ -12,7 +12,41 @@ Esta es la línea base del camino actual. El webhook identifica al contacto en A
 responder. Con esta cifra se compara todo lo que viene después: I2 (publicar en Bifröst), I4 (el webhook que solo
 publica) y la medición del Gate 3.
 
-## Resultado
+## Después de I4: el webhook solo publica (2026-10-19)
+
+Con el mismo script, el mismo despliegue y la imagen `i4b-c10190f`, el webhook comprueba la firma, publica la
+notificación en Bifröst y responde. Tres pasadas:
+
+| Escenario | I1 | I4 | RNF01 |
+|---|---|---|---|
+| Contacto conocido, uno tras otro | 185 ms | **8,3–8,4 ms**; p99 15–62 ms | cumple |
+| Contacto nuevo, uno tras otro | 415 ms | **8,3–8,4 ms**; p99 12–14 ms | cumple |
+| Contacto conocido, 4 a la vez | 357–472 ms | **50–52 ms**; p99 97–187 ms | cumple |
+
+- **Con el bot en memoria, el webhook no pregunta nada a Atlas**. Lo fija
+  `tests/unit/test_webhook_round_trips.py`. El contacto nuevo ya no cuesta más que el conocido.
+- **La primera pasada tras desplegar tuvo 3 respuestas de 1,3 s con 4 a la vez** (1,5 %). En las dos siguientes no
+  hubo ninguna por encima de 200 ms. Coincidió con el arranque en frío: las primeras conexiones a Atlas, a Andvari y
+  a Bifröst de cada proceso. Se vigila en el Gate 3.
+- **Cada pasada dejó sus 610 eventos** en `WEBHOOK`, 610 mensajes identificados en `MENSAJES`, 610 sobres en `llm` y
+  610 mensajes en el historial. El consumidor `ingesta` terminó sin pendientes ni reentregas.
+
+### Lo que cuesta ahora: el worker de ingesta
+
+El trabajo que salió del webhook lo hace el worker, una notificación detrás de otra. Ritmo medido vaciando la cola
+que dejaron las pasadas: **2,1 notificaciones de un mensaje por segundo**, con un 6 % de CPU. Lo limita la red y no
+el procesador: cada mensaje pregunta al historial, busca el contacto (y antes, otra vez el bot), lo publica, abre una
+conexión con Hermod y guarda el mensaje, todo a 60 ms de Atlas.
+
+Para el webhook no cambia nada, porque Bifröst guarda lo que llega hasta 7 días. Lo que cambia es cuánto tarda el
+motor en recibir un mensaje cuando llegan más de dos por segundo durante un rato. Hay tres maneras de subirlo, que
+quedan pendientes:
+
+- no volver a buscar el bot por cada contacto;
+- una conexión a Hermod por proceso;
+- varios workers, uno por partición.
+
+## Resultado de I1
 
 Se midió el 2026-10-19 en midgard con notificaciones de WhatsApp sintéticas, firmadas como las firma Meta. Hubo dos
 pasadas, a las 17:01 y a las 17:05 UTC. Todas las respuestas fueron `200`.

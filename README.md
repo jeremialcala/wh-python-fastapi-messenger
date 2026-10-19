@@ -332,7 +332,8 @@ Preparación única en el servidor:
 - El par de claves del gateway en `keys/gateway-keys.json` y la primera clave del operador registrada: los tres pasos de la puesta en marcha de [autenticacion.md](docs/03-implementation/autenticacion.md).
 - La red Docker externa `andvari`, la credencial del gateway en `keys/andvari-secret-id` y las dos migraciones de datos: la puesta en marcha de [cifrado-de-datos.md](docs/03-implementation/cifrado-de-datos.md).
 - El directorio `erasures/`, con dueño `10001` e incluido en los respaldos del servidor: es el registro de supresiones de [exportar-y-borrar.md](docs/03-implementation/exportar-y-borrar.md). Sin él, borrar responde `503`.
-- La red Docker externa `hermod` y un usuario de RabbitMQ para el gateway (`QMS_SERVER=hermod`).
+- La red Docker externa `hermod` y un usuario de RabbitMQ para el gateway (`QMS_SERVER=hermod`). Lo usa el worker de ingesta mientras el motor lea la cola `llm`.
+- La red Docker externa `bifrost` y los ficheros que Bifröst escribe para el webhook y para el worker, `/srv/infra/bifrost/credenciales/webhook.env` e `ingesta.env`, con el consumidor `ingesta` de `WEBHOOK` ya creado ([bus-de-eventos.md](docs/03-implementation/bus-de-eventos.md)). Sin `NATS_URL`, el webhook no arranca fuera de desarrollo.
 - El paquete de GHCR en **Public**, porque el receptor hace pull anónimo.
 - Una entrada en el `apps.yml` del receptor y el webhook `workflow_run` de este repositorio:
 
@@ -350,7 +351,13 @@ Preparación única en el servidor:
     rollback: true
   ```
 
-Son dos contenedores (ADR-0018), los dos solo en loopback: `bots-webhook` en el 5003 y `bots-gateway`, la gestión, en el 5002. El túnel publica el webhook y nada más; la gestión sigue privada. El webhook arranca cuando la gestión está sana, así que el `health_url` del receptor, el del webhook, responde por los dos.
+Son tres contenedores de la misma imagen. Los dos HTTP escuchan solo en loopback:
+
+- `bots-webhook`, en el 5003. Comprueba la firma y publica en Bifröst (ADR-0021). Es lo único que publica el túnel.
+- `bots-gateway`, la API de gestión, en el 5002 (ADR-0018). Sigue privada.
+- `bots-ingest`, el worker de ingesta, sin puerto. Identifica al contacto, guarda el historial y pasa cada mensaje al motor.
+
+El webhook arranca cuando la gestión está sana, así que el `health_url` del receptor, el del webhook, responde por los dos.
 
 ---
 

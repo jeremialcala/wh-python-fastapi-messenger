@@ -8,6 +8,32 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I4b: el worker de ingesta, y el webhook que solo publica (ADR-0021).
+  - **El worker de ingesta** es `ingest.py`, el servicio `ingest` del compose. Lee `WEBHOOK` con el consumidor
+    `ingesta` de Bifröst y trata las notificaciones una a una. Con cada mensaje:
+    1. lo salta si ya está en el historial;
+    2. identifica al contacto;
+    3. lo publica como `MensajeIdentificado` en la partición de su conversación, en `MENSAJES`, y envía el sobre v1
+       a Hermod;
+    4. lo guarda en el historial.
+  - **Publicar va antes que guardar**, al revés que en la ADR. Un corte entre los dos pasos repite una publicación,
+    nunca la pierde.
+  - **Qué hace con cada evento:** lo confirma al terminar; lo descarta si no se puede ingerir nunca; y lo deja para
+    la reentrega de Bifröst si falta la base, Andvari, Bifröst o Hermod.
+  - **Con bus, el webhook solo publica**, y con el bot en memoria no hace ningún viaje a la base. Sin bus, que solo
+    pasa en desarrollo, ejecuta la misma ingesta; fuera de desarrollo, no arranca sin `NATS_URL`.
+  - **Medido en midgard:**
+    - el webhook baja de 185 ms (contacto conocido) y 415 ms (contacto nuevo) a **8,3 ms de mediana** en los dos
+      casos, y a 50–52 ms con 4 a la vez;
+    - la ingesta trata 2,1 notificaciones por segundo, limitada por los viajes a Atlas.
+  - **Pruebas:**
+    - de la ingesta y del worker;
+    - de integración del worker contra NATS, con los usuarios y los permisos de Bifröst;
+    - las de viajes a la base, rehechas para el webhook que solo publica.
+  - **Dos correcciones:**
+    - `replay_erasures` cuenta ahora también el historial de los contactos que vuelve a borrar. Antes, un historial
+      que volviera sin su contacto pasaba desapercibido.
+    - `pika` deja de escribir en el log a nivel INFO: eran 18 líneas por cada mensaje enviado a Hermod.
 - I4a, el historial de cada conversación (ADR-0017, RF14), en la colección `messages`:
   - **Contenido de cada mensaje:** el contacto por su `uuid`, nunca por el número; el texto cifrado con la clave del
     cliente; de cada adjunto, solo el tipo; y caducidad a los 12 meses de guardarse.
