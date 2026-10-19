@@ -85,7 +85,8 @@ def assert_they_are_the_contracts(notices):
 def test_deleting_a_contact_says_so_with_its_identifiers_only(http, acme, bot, bifrost):
     ana = contact(acme, bot)
 
-    assert http.delete(f"/chat/{bot.uuid}/contacts/{ana._uuid}", headers=acme.auth).status_code == 200
+    deleted = http.delete(f"/chat/{bot.uuid}/contacts/{ana._uuid}", headers=acme.auth)
+    assert deleted.status_code == 200
 
     sent, = bifrost.kept
     assert sent.subject == "gateway.contact.erased"
@@ -108,7 +109,8 @@ def test_every_copy_of_the_person_gets_its_own_notice(http, acme, bot, bifrost):
 def test_deleting_a_chatbot_says_so(http, acme, bot, bifrost):
     contact(acme, bot)
 
-    assert http.delete(f"/bot/{bot.uuid}", headers=acme.auth).status_code == 200
+    deleted = http.delete(f"/bot/{bot.uuid}", headers=acme.auth)
+    assert deleted.status_code == 200
 
     sent, = bifrost.kept
     assert (sent.subject, sent.notice["entity"], sent.notice["botId"]) == ("gateway.bot.erased", "bot", str(bot.uuid))
@@ -117,7 +119,8 @@ def test_deleting_a_chatbot_says_so(http, acme, bot, bifrost):
 
 
 def test_deleting_a_client_says_so(http, operator, acme, bot, bifrost):
-    assert http.delete(f"/clients/{acme.client_id}", headers=operator.auth).status_code == 200
+    deleted = http.delete(f"/clients/{acme.client_id}", headers=operator.auth)
+    assert deleted.status_code == 200
 
     sent, = bifrost.kept
     assert (sent.subject, sent.notice["entity"], sent.notice["clientId"]) == ("gateway.client.erased", "client",
@@ -129,8 +132,10 @@ def test_deleting_a_client_says_so(http, operator, acme, bot, bifrost):
 # --- What is not said ------------------------------------------------------------------------------------------------
 
 def test_a_deletion_of_something_that_does_not_exist_says_nothing(http, acme, bot, bifrost):
-    assert http.delete(f"/chat/{bot.uuid}/contacts/{UUID(int=1)}", headers=acme.auth).status_code == 404
-    assert http.delete(f"/bot/{UUID(int=1)}", headers=acme.auth).status_code == 404
+    deleted = http.delete(f"/chat/{bot.uuid}/contacts/{UUID(int=1)}", headers=acme.auth)
+    assert deleted.status_code == 404
+    deleted = http.delete(f"/bot/{UUID(int=1)}", headers=acme.auth)
+    assert deleted.status_code == 404
 
     assert bifrost.kept == []
 
@@ -138,7 +143,8 @@ def test_a_deletion_of_something_that_does_not_exist_says_nothing(http, acme, bo
 def test_without_a_bus_a_deletion_says_nothing_and_still_happens(http, acme, bot):
     ana = contact(acme, bot)
 
-    assert http.delete(f"/chat/{bot.uuid}/contacts/{ana._uuid}", headers=acme.auth).status_code == 200
+    deleted = http.delete(f"/chat/{bot.uuid}/contacts/{ana._uuid}", headers=acme.auth)
+    assert deleted.status_code == 200
     assert Contact.objects.count() == 0
 
 
