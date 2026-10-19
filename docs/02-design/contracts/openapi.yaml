@@ -543,6 +543,48 @@ paths:
       summary: Export Contact
       tags:
       - Contacts
+  /chat/{bot_id}/contacts/{contact_id}/turns:
+    get:
+      description: 'The last 10 turns of a conversation, both ways and oldest first: from the tenth last message
+        the contact
+
+        sent, everything after it. For the engine''s coordinator, when its context of 24 hours is gone; only the
+
+        engine gets them, with the key it holds for the client that owns the chatbot, and every time it does is
+
+        logged.'
+      operationId: get_last_turns_chat__bot_id__contacts__contact_id__turns_get
+      parameters:
+      - in: path
+        name: bot_id
+        required: true
+        schema:
+          title: Bot Id
+          type: string
+      - in: path
+        name: contact_id
+        required: true
+        schema:
+          title: Contact Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseData'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - HTTPBearer: []
+      summary: Get Last Turns
+      tags:
+      - Contacts
   /chat/{bot_id}/credentials:
     put:
       description: 'Loads or rotates the Meta credentials of a chatbot: the page token, the WhatsApp token and the

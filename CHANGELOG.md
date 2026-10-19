@@ -8,6 +8,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- D6b: `GET /chat/{bot_id}/contacts/{contact_id}/turns`, las 10 últimas vueltas de una conversación (RF15,
+  ADR-0017), para que el coordinador del motor rehaga su contexto cuando no lo tiene.
+  - **Qué devuelve:** desde el décimo mensaje del contacto contando por el final, todo lo que vino después, en los
+    dos sentidos y en orden, con cada texto descifrado.
+  - **Quién la alcanza:** solo la clave del motor para ese cliente. El cliente tiene la exportación para eso.
+  - **Cómo se registra:** cada entrega deja una línea en el log, sin el texto, y la respuesta lleva `no-store`.
+  - **Pendiente:** I6 la dejará solo para la clave del coordinador (ADR-0022).
 - D6a: las respuestas del motor, en el historial (ADR-0017, RF14).
   - **Qué lee:** el worker de ingesta lee también `RESPUESTAS`, con el consumidor `historial` de Bifröst, en un
     bucle propio.

@@ -20,7 +20,7 @@ from repository import NotFound, RegisterUnavailable, TenantRepository
 
 from .answers import answer
 
-__all__ = ["ctr_list_contacts", "ctr_search_contacts", "ctr_export_contact", "ctr_delete_contact",
+__all__ = ["ctr_list_contacts", "ctr_search_contacts", "ctr_export_contact", "ctr_last_turns", "ctr_delete_contact",
            "ctr_delete_chatbot"]
 
 settings = Settings()
@@ -91,6 +91,23 @@ async def ctr_search_contacts(repo: TenantRepository, request: ContactSearchRequ
 
 async def ctr_export_contact(repo: TenantRepository, bot_id: str, contact_id: str) -> JSONResponse:
     return _read(CONTACT_NOT_FOUND, lambda: contact_export(repo, repo.get_contact(bot_id, contact_id)))
+
+
+async def ctr_last_turns(repo: TenantRepository, bot_id: str, contact_id: str, engine) -> JSONResponse:
+    """
+        The last 10 turns of a conversation, for the engine's coordinator to rebuild its context with (RF15). Who
+        took them is logged, like who takes the tokens: they carry what the person wrote.
+    """
+    def read():
+        contact = repo.get_contact(bot_id, contact_id)
+        turns = repo.last_turns(contact)
+        log.warning(f"Last turns of contact {contact._uuid} of chatbot {contact.botId} handed to the response engine: "
+                    f"client {engine.client_id}, key {engine.kid}, {len(turns)} messages")
+        return {"uuid": str(contact._uuid), "botId": str(contact.botId), "messages": turns}
+
+    response = _read(CONTACT_NOT_FOUND, read)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 async def ctr_delete_contact(repo: TenantRepository, bot_id: str, contact_id: str) -> JSONResponse:

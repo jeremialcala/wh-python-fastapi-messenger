@@ -313,9 +313,11 @@ def test_a_method_that_is_not_one_of_the_usual_is_not_written_as_sent(http, logg
 
 LEAK = "failure-text-marker 12025550143 EAAG-token-in-the-failure"
 PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/health")}
-# It answers from what the service holds in memory: there is nothing in it to fail. And the tokens are only
-# for the response engine: the operator, who makes these calls, is turned away before anything can fail.
-NOTHING_TO_FAIL = {("GET", "/gateway/keys"), ("GET", "/chat/{bot_id}/tokens")}
+# It answers from what the service holds in memory: there is nothing in it to fail. And the tokens and the last
+# turns are only for the response engine: the operator, who makes these calls, is turned away before anything can
+# fail.
+NOTHING_TO_FAIL = {("GET", "/gateway/keys"), ("GET", "/chat/{bot_id}/tokens"),
+                   ("GET", "/chat/{bot_id}/contacts/{contact_id}/turns")}
 ROUTES = sorted({(method, route.path) for route in app_module.app.routes if isinstance(route, APIRoute)
                  for method in route.methods} - PUBLIC - NOTHING_TO_FAIL)
 BODIES = {
