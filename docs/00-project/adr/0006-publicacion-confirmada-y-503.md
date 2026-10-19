@@ -11,6 +11,8 @@
 
 Decisión ya construida (PR #3, versión 0.1.0). Se registra aquí para que conste con sus alternativas.
 
+> **Propuesta su sustitución por [ADR-0021](0021-el-webhook-solo-publica.md)** (2026-10-18): el webhook responderá `200` con el acuse de Bifröst, y la identificación del contacto pasa a un worker de ingesta.
+
 > **Ampliada el 2026-10-13 por [ADR-0015](0015-que-se-responde-a-meta.md)**, que fija qué se responde en los demás
 > casos: `503` también cuando no responden la base de datos o el servicio de claves, y `200` para lo firmado que
 > no se entiende o no se puede procesar.
