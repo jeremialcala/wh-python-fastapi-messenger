@@ -1,6 +1,6 @@
 # ADR-0020: Placement de despliegue — Bifröst, el NATS JetStream, corre en midgard
 
-* **Estado:** accepted (con condición, 2026-10-18)
+* **Estado:** accepted
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -9,7 +9,7 @@
 * **Supersede:** —
 * **Controles OWASP afectados:** A02 (configuración del host y del contenedor), A04 (datos personales en disco)
 
-Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor, **con una condición**: la misma que ADR-0019: el `fsync` en el disco de midgard, medido en I0. Si no se cumple, vuelve a `proposed` con la salida que dice la propia ADR.
+Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor, con una condición que se cumplió el 2026-10-19 (ver [ADR-0019](0019-nats-jetstream-como-bus.md)).
 
 Propuesta como entregable del Gate 1 del refactor, con [ADR-0019](0019-nats-jetstream-como-bus.md). El nombre lo eligió Jeremi
 el 2026-10-18: Bifröst, el puente que une los mundos, que en el mito guarda Heimdall.
@@ -76,7 +76,11 @@ una red Docker local; el servicio gestionado añade la ida y vuelta a internet e
 Desplegado tal como se describe, con la imagen `nats:2.14.8-alpine` y el repositorio local `Projects/bifrost`
 (`instalar.sh`, `aprovisionar.sh`, `medir.sh`). La medición del `fsync` está en
 [ADR-0019](0019-nats-jetstream-como-bus.md): 44,5 ms de mediana por mensaje en el disco de midgard, por debajo de los
-50 ms de la condición de revisión, pero cerca. Queda por resolver lo que pasa con las notificaciones de varios mensajes.
+50 ms de la condición de revisión, pero cerca. Las notificaciones de varios mensajes se resolvieron con un evento
+por notificación ([ADR-0021](0021-el-webhook-solo-publica.md)), con `max_payload` en 4 MB.
+
+**El SSD:** Jeremi tiene un HP SSD S700 para midgard. Instalado, el almacén de Bifröst irá en él, y se repetirá la
+medición.
 
 Pendiente de ese despliegue:
 - mover a Andvari los secretos de `.env`, `ca/` y `credenciales/`;

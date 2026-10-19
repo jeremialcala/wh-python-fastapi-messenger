@@ -367,7 +367,7 @@ C4Container
     ContainerDb_Ext(atlas, "MongoDB Atlas", "MongoDB", "Bots, contactos, historial cifrado y registro de clientes")
 
     System_Boundary(servidor, "Servidor midgard") {
-        Container(webhook, "Webhook", "Python 3.12, FastAPI", "Comprueba la firma y publica un evento por mensaje")
+        Container(webhook, "Webhook", "Python 3.12, FastAPI", "Comprueba la firma y publica cada notificacion como un evento")
         Container(ingesta, "Worker de ingesta", "Python 3.12", "Identifica al contacto, guarda el historial y publica en la particion")
         Container(gestion, "API de gestion", "Python 3.12, FastAPI", "Clientes, bots, exportar y borrar, configuracion para el motor")
         ContainerQueue(bifrost, "Bifrost", "NATS JetStream 2.14", "Streams WEBHOOK, MENSAJES, RESPUESTAS y SUPRESIONES")
@@ -414,22 +414,24 @@ sequenceDiagram
     participant C as Coordinador (motor)
     M->>W: POST /chat/{bot_id} firmado
     W->>W: Bot y App Secret en memoria, firma comprobada
-    W->>B: Un evento por mensaje, con Nats-Msg-Id y traceparent
-    alt Bifrost acusa todos
+    W->>B: Un evento con los mensajes de la notificacion, Nats-Msg-Id y traceparent
+    alt Bifrost acusa
         B-->>W: PubAck
         W-->>M: 200
     else Bifrost no acusa
         W-->>M: 503, Meta reenvia
     end
     B->>I: Evento de WEBHOOK
-    I->>A: Ya esta en el historial?
-    alt Es un reintento de Meta
-        I->>B: Confirma sin mas
-    else Es nuevo
-        I->>A: Contacto y mensaje en el historial, cifrados
-        I->>B: Mensaje en gateway.message.particion.bot.contacto
-        I->>B: Confirma el evento
+    loop Cada mensaje de la notificacion
+        I->>A: Ya esta en el historial?
+        alt Es nuevo
+            I->>A: Contacto y mensaje en el historial, cifrados
+            I->>B: Mensaje en gateway.message.particion.bot.contacto
+        else Es un reintento de Meta
+            I->>I: Lo salta
+        end
     end
+    I->>B: Confirma el evento
     alt La base no responde
         I-->>B: Sin confirmar, se reentrega con espera creciente, hasta 7 dias
     end
@@ -469,10 +471,10 @@ después de que Meta recibiera su `200` (T27), y Gjallarhorn avisa mucho antes, 
 | Incremento | Trabajo | ADR | Estado |
 |---|---|---|---|
 | IS | El webhook y la gestión, en dos servicios | ADR-0018 | **Hecho** |
-| I0 | Bifröst en midgard, con la medición del `fsync` en su disco | ADR-0019, ADR-0020 | **Hecho** (2026-10-19): 44,5 ms de mediana por mensaje; queda decidir cómo se publican las notificaciones de varios mensajes |
+| I0 | Bifröst en midgard, con la medición del `fsync` en su disco | ADR-0019, ADR-0020 | **Hecho** (2026-10-19): 44,5 ms por escritura; con un evento por notificación, hasta 3 MB caben en 196 ms de mediana |
 | I1 | Medir el webhook actual en midgard | — | Pendiente |
 | I2 | Puerto de publicación sobre NATS | ADR-0019 | Pendiente |
-| I3 | Contrato v2 y publicación por mensaje | ADR-0021, `asyncapi-v2.yaml` | Pendiente |
+| I3 | Contrato v2 y publicación de un evento por notificación | ADR-0021, `asyncapi-v2.yaml` | Pendiente |
 | I4 | Worker de ingesta, historial y webhook que solo publica | ADR-0017, ADR-0021 | Pendiente |
 | I5 | OpenTelemetry con la regla de los logs | — | Pendiente |
 | I6 | Una credencial por worker | ADR-0022 | Pendiente |

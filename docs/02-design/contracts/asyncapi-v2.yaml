@@ -29,8 +29,9 @@ channels:
   webhookMeta:
     address: 'webhook.meta.{canal}'
     description: >-
-      Stream `WEBHOOK`. Lo que Meta firmó, verificado y sin identificar. Cola de trabajo: el evento se borra al
-      confirmarlo la ingesta, y caduca a los 7 días como mucho, lo que reintenta Meta (ADR-0021).
+      Stream `WEBHOOK`. Cada notificación de Meta verificada que trae algún mensaje de una persona, como un solo
+      evento, sin identificar. Cola de trabajo: el evento se borra al confirmarlo la ingesta, y caduca a los 7 días como
+      mucho, lo que reintenta Meta (ADR-0021).
     parameters:
       canal:
         $ref: '#/components/parameters/canal'
@@ -80,21 +81,21 @@ operations:
     action: send
     channel:
       $ref: '#/channels/webhookMeta'
-    summary: El webhook publica cada mensaje de una notificación firmada.
+    summary: El webhook publica cada notificación firmada que trae mensajes, como un solo evento.
     description: >-
-      Responde 200 a Meta cuando Bifröst acusa todos los eventos de la notificación, y 503 si no. Una publicación
-      repetida dentro de 2 minutos se descarta por `Nats-Msg-Id`.
+      Responde 200 a Meta cuando Bifröst acusa el evento, y 503 si no. Una notificación sin mensajes de una persona
+      (acuses, ecos) no se publica. Una publicación repetida dentro de 2 minutos se descarta por `Nats-Msg-Id`.
     messages:
       - $ref: '#/channels/webhookMeta/messages/eventoWebhook'
   consumirEventoWebhook:
     action: receive
     channel:
       $ref: '#/channels/webhookMeta'
-    summary: La ingesta identifica el contacto, guarda el historial y publica el mensaje identificado.
+    summary: La ingesta separa los mensajes de la notificación, identifica cada contacto y publica cada mensaje.
     description: >-
-      Confirmación explícita. Un evento cuyo bot e identificador de Meta ya están en el historial se confirma sin
-      más: es un reintento de Meta. Ante una caída de la base, de Andvari o de Bifröst, no confirma y el evento se
-      reentrega con espera creciente.
+      Confirmación explícita, cuando ha tratado todos los mensajes de la notificación. Un mensaje cuyo bot e
+      identificador de Meta ya están en el historial se salta: es un reintento de Meta. Ante una caída de la base, de
+      Andvari o de Bifröst, no confirma y el evento se reentrega con espera creciente.
     messages:
       - $ref: '#/channels/webhookMeta/messages/eventoWebhook'
   publicarMensajeIdentificado:
@@ -143,7 +144,7 @@ components:
   messages:
     EventoWebhook:
       name: EventoWebhook
-      title: Mensaje de Meta verificado
+      title: Notificación de Meta verificada
       contentType: application/json
       headers:
         $ref: '#/components/schemas/Cabeceras'
@@ -182,8 +183,10 @@ components:
           type: string
           minLength: 1
           description: >-
-            `<botId>:<messageId>` en los mensajes y las respuestas; el UUID de la supresión en los avisos. Con él
-            JetStream descarta una publicación repetida dentro de su ventana de 2 minutos.
+            En `WEBHOOK`, `<botId>:` seguido del SHA-256 en hexadecimal de los identificadores de Meta de sus
+            mensajes, ordenados y unidos por comas; en los mensajes identificados y las respuestas,
+            `<botId>:<messageId>`; en los avisos, el UUID de la supresión. Con él JetStream descarta una publicación
+            repetida dentro de su ventana de 2 minutos.
         traceparent:
           type: string
           pattern: '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'
@@ -204,35 +207,52 @@ components:
           description: Cliente dueño del bot, para que el worker sepa qué credencial usar (ADR-0022).
     EventoWebhook:
       description: >-
-        Lo que publica el webhook. El mensaje va tal como lo envió Meta, reducido a uno solo; quién lo envía todavía
-        no está identificado.
+        Lo que publica el webhook: una notificación de Meta verificada, con los mensajes de personas que trae, ya
+        separados pero sin identificar a quien los envía. Un solo evento por notificación (ADR-0021).
       allOf:
         - $ref: '#/components/schemas/Base'
         - type: object
-          required: [channel, messageId, receivedAt, message]
+          required: [channel, receivedAt, messages]
           properties:
             channel:
               enum: [whatsapp, messenger, instagram]
-            messageId:
-              type: string
-              minLength: 1
-              description: Identificador de Meta del mensaje (wamid o mid). Es el mismo en cada reintento.
             receivedAt:
               type: string
               format: date-time
-              description: Cuándo lo recibió el webhook, con zona horaria.
-            message:
-              type: object
-              description: >-
-                El `value` del cambio de WhatsApp con un solo mensaje, o un elemento de `entry[].messaging[]` de
-                Messenger o de Instagram. Dato personal: puede llevar el número de quien escribe.
+              description: Cuándo la recibió el webhook, con zona horaria.
+            messages:
+              type: array
+              minItems: 1
+              maxItems: 1000
+              description: Los mensajes de la notificación, en el orden en que los envió Meta.
+              items:
+                $ref: '#/components/schemas/MensajeDeMeta'
+    MensajeDeMeta:
+      type: object
+      required: [messageId, message]
+      properties:
+        messageId:
+          type: string
+          minLength: 1
+          description: Identificador de Meta del mensaje (wamid o mid). Es el mismo en cada reintento.
+        message:
+          type: object
+          description: >-
+            El `value` del cambio de WhatsApp reducido a ese mensaje, o un elemento de `entry[].messaging[]` de
+            Messenger o de Instagram. Dato personal: puede llevar el número de quien escribe.
     MensajeIdentificado:
-      description: Lo que publica la ingesta para el motor.
+      description: Lo que publica la ingesta para el motor, un evento por mensaje.
       allOf:
-        - $ref: '#/components/schemas/EventoWebhook'
+        - $ref: '#/components/schemas/Base'
+        - $ref: '#/components/schemas/MensajeDeMeta'
         - type: object
-          required: [contact, orderKey]
+          required: [channel, receivedAt, contact, orderKey]
           properties:
+            channel:
+              enum: [whatsapp, messenger, instagram]
+            receivedAt:
+              type: string
+              format: date-time
             orderKey:
               type: string
               description: '`<botId>.<contactId>`: la conversación a la que pertenece.'
