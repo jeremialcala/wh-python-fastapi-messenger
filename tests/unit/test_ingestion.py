@@ -10,11 +10,13 @@ import json
 import pathlib
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from uuid import uuid4
 
 import nats.errors
 import pytest
 import yaml
 from jsonschema import Draft202012Validator
+from pymongo.errors import ServerSelectionTimeoutError
 
 import bus
 import controller.facebook as facebook
@@ -23,7 +25,7 @@ import ingest
 from classes import ChatBot, Contact, ConversationMessage
 from controller.incoming import IncomingMessage
 from controller.webhook_event import webhook_event
-from repository import TenantRepository
+from repository import NotFound, TenantRepository
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONTRACT = yaml.safe_load((ROOT / "docs" / "02-design" / "contracts" / "asyncapi-v2.yaml").read_text(encoding="utf-8"))
@@ -365,3 +367,105 @@ def test_the_worker_does_not_start_without_the_bus(monkeypatch):
 
     with pytest.raises(SystemExit):
         asyncio.run(ingest.main())
+
+
+# --- The answers the engine sent (RESPUESTAS) ------------------------------------------------------------------------
+
+ANSWER = Draft202012Validator({"$ref": "#/components/schemas/RespuestaEnviada", "components": CONTRACT["components"]})
+
+
+def answer_to(contact, message_id="wamid.ANSWER", **changes) -> dict:
+    """A RespuestaEnviada as the engine's notifier publishes it, through JSON."""
+    answer = {"schemaVersion": 2, "botId": str(contact.botId), "clientId": str(contact.clientId),
+              "contactId": str(contact._uuid), "channel": "whatsapp", "inReplyTo": "wamid.A",
+              "messageId": message_id, "sentAt": "2026-10-19T12:00:05+00:00", "text": "claro, ¿a qué hora?"}
+    answer.update(changes)
+    return json.loads(json.dumps(answer))
+
+
+@pytest.fixture
+def ana(bot, bifrost, queue):
+    ingest_now(event_of(bot, whatsapp_message("wamid.A")))
+    return Contact.objects.get()
+
+
+def reply_now(event):
+    return asyncio.run(ingestion.ingest_reply(event))
+
+
+def test_the_answer_used_here_is_the_one_of_the_contract(ana):
+    assert [error.message for error in ANSWER.iter_errors(answer_to(ana))] == []
+
+
+def test_an_answer_is_stored_as_the_contacts_conversation_going_out(ana, repo):
+    assert reply_now(answer_to(ana)) == {"stored": True}
+
+    incoming, answer = repo.history(ana)
+    assert (incoming["direction"], answer["direction"]) == ("in", "out")
+    assert (answer["messageId"], answer["inReplyTo"], answer["text"]) == ("wamid.ANSWER", "wamid.A",
+                                                                          "claro, ¿a qué hora?")
+    assert answer["sentAt"] == datetime(2026, 10, 19, 12, 0, 5, tzinfo=timezone.utc)
+    assert "a qué hora" not in json.dumps(ConversationMessage.objects(direction="out").get().to_mongo().to_dict(),
+                                          default=str)
+
+
+def test_of_the_attachments_of_an_answer_only_the_type_is_stored(ana, repo):
+    reply_now(answer_to(ana, text=None, attachments=[{"type": "image"}, {"url": "not a type"}]))
+
+    assert repo.history(ana)[1]["attachments"] == ["image"]
+
+
+def test_an_answer_published_again_is_stored_once(ana):
+    reply_now(answer_to(ana))
+
+    assert reply_now(answer_to(ana)) == {"stored": False}
+    assert ConversationMessage.objects(direction="out").count() == 1
+
+
+@pytest.mark.parametrize("change", [
+    lambda answer: answer.update(schemaVersion=1),
+    lambda answer: answer.update(contactId=str(uuid4())),
+    lambda answer: answer.update(botId=str(uuid4())),
+    lambda answer: answer.update(clientId="not-a-uuid"),
+    lambda answer: answer.pop("messageId"),
+    lambda answer: answer.update(sentAt="yesterday"),
+], ids=["another version", "a contact that does not exist", "a chatbot that does not exist", "no client",
+        "no identifier", "no time"])
+def test_an_answer_that_can_never_be_stored_is_unprocessable(ana, change):
+    answer = answer_to(ana)
+    change(answer)
+
+    with pytest.raises(ingestion.Unprocessable):
+        reply_now(answer)
+    assert ConversationMessage.objects(direction="out").count() == 0
+
+
+def test_the_answer_to_a_contact_of_another_client_is_not_stored(ana, register):
+    with pytest.raises(ingestion.Unprocessable):
+        reply_now(answer_to(ana, clientId=str(register("globex").client_id)))
+
+
+def test_an_answer_for_a_contact_deleted_meanwhile_is_unprocessable(ana, monkeypatch):
+    def deleted_meanwhile(self, contact, *args, **kwargs):
+        raise NotFound(contact._uuid)
+    monkeypatch.setattr(TenantRepository, "record_message", deleted_meanwhile)
+
+    with pytest.raises(ingestion.Unprocessable):
+        reply_now(answer_to(ana))
+
+
+def test_an_answer_waits_while_the_database_is_not_there(ana, monkeypatch):
+    def down(*args, **kwargs):
+        raise ServerSelectionTimeoutError("no servers")
+    monkeypatch.setattr(TenantRepository, "record_message", down)
+
+    with pytest.raises(ingestion.DatabaseUnavailable):
+        reply_now(answer_to(ana))
+
+
+def test_the_worker_acknowledges_an_answer_and_drops_one_it_cannot_store(ana):
+    stored, unknown = delivered(answer_to(ana)), delivered(answer_to(ana, contactId=str(uuid4())))
+
+    assert asyncio.run(ingest.handle(stored, ingest.ANSWERS)) == "acknowledged"
+    assert asyncio.run(ingest.handle(unknown, ingest.ANSWERS)) == "dropped"
+    assert (stored.done, unknown.done) == ("ack", "term")

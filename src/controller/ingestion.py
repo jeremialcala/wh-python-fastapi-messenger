@@ -24,7 +24,7 @@ from uuid import UUID
 
 import bus
 from classes import ChatBot, Contact, MessageBody, QueueMessage, Settings
-from classes.entity_conversation_message import INCOMING
+from classes.entity_conversation_message import INCOMING, OUTGOING
 from crypto.key_service import KeyServiceUnavailable
 from repository import NotFound, TenantRepository, database_failed
 from utils import describe
@@ -34,7 +34,8 @@ from .facebook import ctr_identify_contact_by_wa_id, ctr_identify_fb_contact
 from .incoming import IncomingMessage
 from .webhook_event import SCHEMA_VERSION, traceparent
 
-__all__ = ["DatabaseUnavailable", "Unprocessable", "RETRY_LATER", "PARTITIONS", "partition", "ingest_notification"]
+__all__ = ["DatabaseUnavailable", "Unprocessable", "RETRY_LATER", "PARTITIONS", "partition", "ingest_notification",
+           "ingest_reply"]
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
@@ -208,3 +209,36 @@ async def ingest_notification(event: dict, trace: str | None = None, bot: ChatBo
             log.error(f"A message for chatbot {bot.uuid} could not be ingested: {describe(e)}")
             outcome["failed"] += 1
     return outcome
+
+
+async def ingest_reply(event: dict, trace: str | None = None) -> dict:
+    """
+        Stores in the history what the engine's notifier sent and Meta accepted: one RespuestaEnviada of RESPUESTAS
+        (asyncapi-v2.yaml), as an answer of the contact it went to. Raises Unprocessable for one that can never be
+        stored, a contact deleted in the meantime included: its conversation went with it. Says whether it was new.
+    """
+    if not isinstance(event, dict) or event.get("schemaVersion") != SCHEMA_VERSION:
+        raise Unprocessable("not an answer of version 2")
+    try:
+        repo = TenantRepository(UUID(event["clientId"]))
+        contact = repo.get_contact(event["botId"], event["contactId"])
+        sent_at = datetime.fromisoformat(event["sentAt"])
+        message_id, channel = event["messageId"], event["channel"]
+    except (NotFound, KeyError, ValueError, TypeError):
+        raise Unprocessable("for a contact that does not exist") from None
+    except Exception as e:
+        if database_failed(e):
+            raise DatabaseUnavailable(type(e).__name__) from None
+        raise
+    attachments = tuple(each["type"] for each in event.get("attachments") or []
+                        if isinstance(each, dict) and _text(each.get("type")))
+    try:
+        stored = repo.record_message(contact, OUTGOING, message_id, channel, sent_at, text=event.get("text"),
+                                     attachments=attachments, in_reply_to=event.get("inReplyTo"))
+    except NotFound:
+        raise Unprocessable("for a contact deleted in the meantime") from None
+    except Exception as e:
+        if database_failed(e):
+            raise DatabaseUnavailable(type(e).__name__) from None
+        raise
+    return {"stored": stored}
