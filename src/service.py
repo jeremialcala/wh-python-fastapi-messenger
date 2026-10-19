@@ -35,8 +35,8 @@ data_keys.configure(OpenBaoKeyService(settings.andvari_addr, settings.andvari_ro
 if settings.nats_url:
     if not settings.nats_url.startswith("tls://") and settings.environment != "development":
         raise ValueError("NATS_URL must be a tls:// address")
-    bus.configure(NatsPublisher(settings.nats_url, settings.nats_user, settings.nats_password, settings.nats_ca,
-                                settings.nats_inbox_prefix))
+    bus.configure(NatsPublisher(settings.nats_url, settings.nats_user, settings.nats_password, settings.nats_ca or None,
+                                settings.nats_inbox_prefix or "_INBOX"))
 
 # No request may be larger than this: it is the largest notification Meta sends, and nothing a client sends comes
 # close.

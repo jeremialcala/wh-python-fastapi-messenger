@@ -319,15 +319,24 @@ classDiagram
     class PublicadorRabbit {
         +publicar(sobre)
     }
+    class EventPublisher {
+        <<interface>>
+        +publish(sujeto, evento, messageId) Published
+    }
+    class NatsPublisher {
+        +publish(sujeto, evento, messageId) Published
+    }
     TokenJwtEnJwe ..|> VerificadorDeToken
     TokenJwtEnJwe --> RegistroDeClientes
     RepositorioMongo ..|> RepositorioDeBots
     RepositorioMongo --> CifradorDeCampos
     CifradorDeCampos --> RegistroDeClientes
     PublicadorRabbit ..|> PublicadorDeMensajes
+    NatsPublisher ..|> EventPublisher
 ```
-*Eje estructura · fase 02 · Gate 1. Puertos del diseño. De todos, solo existe hoy el publicador de RabbitMQ, y como
-función, no como puerto.*
+*Eje estructura · fase 02 · Gate 1. Puertos del diseño. El publicador de RabbitMQ existe como función, no como puerto,
+y se va con Hermod. `EventPublisher` y su adaptador `NatsPublisher` existen desde I2 (`src/bus`): el webhook pasa a
+usarlos en I3.*
 
 ## Contratos de API
 
@@ -473,7 +482,7 @@ después de que Meta recibiera su `200` (T27), y Gjallarhorn avisa mucho antes, 
 | IS | El webhook y la gestión, en dos servicios | ADR-0018 | **Hecho** |
 | I0 | Bifröst en midgard, con la medición del `fsync` en su disco | ADR-0019, ADR-0020 | **Hecho** (2026-10-19): 44,5 ms por escritura; con un evento por notificación, hasta 3 MB caben en 196 ms de mediana |
 | I1 | Medir el webhook actual en midgard | — | **Hecho** (2026-10-19): 185 ms de mediana con un contacto conocido, 415 ms con uno nuevo, de 357 a 472 ms con 4 a la vez ([medición](../04-testing/medicion-webhook-i1.md)) |
-| I2 | Puerto de publicación sobre NATS | ADR-0019 | Pendiente |
+| I2 | Puerto de publicación sobre NATS | ADR-0019 | **Hecho** (2026-10-19): `EventPublisher` y `NatsPublisher`, una conexión por proceso; contra Bifröst, 2,1 ms de mediana por evento de 1 KB, frente a los 8,3 ms de Hermod con conexión por mensaje ([guía](../03-implementation/bus-de-eventos.md)) |
 | I3 | Contrato v2 y publicación de un evento por notificación | ADR-0021, `asyncapi-v2.yaml` | Pendiente |
 | I4 | Worker de ingesta, historial y webhook que solo publica | ADR-0017, ADR-0021 | Pendiente |
 | I5 | OpenTelemetry con la regla de los logs | — | Pendiente |

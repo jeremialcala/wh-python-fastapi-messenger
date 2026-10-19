@@ -57,8 +57,8 @@ class Settings(BaseSettings):
     nats_password: str | None = None
     # The CA that signed Bifröst's certificate.
     nats_ca: str | None = None
-    # Each service has its own prefix of reply subjects, and may only read those.
-    nats_inbox_prefix: str = "_INBOX"
+    # Each service has its own prefix of reply subjects, and may only read those. Without one, NATS's own.
+    nats_inbox_prefix: str | None = None
 
     key_size: int
     private_key_filename: str
