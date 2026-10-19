@@ -17,13 +17,11 @@ from classes import ChatBot
 from classes import Settings, FacebookRequest
 from enums import Status
 from .events import ctr_notify_action
-from .amqp_broker import send_message_to_queue
 from .incoming import READERS, incoming_messages
 from .ingestion import DatabaseUnavailable, RETRY_LATER, ingest_notification
 from .webhook_event import CHANNELS, publish_notification, webhook_event
 
-# send_message_to_queue is the name the ingestion calls the broker by, so that a test can replace it here.
-__all__ = ["ctr_process_messages", "DatabaseUnavailable", "RETRY_LATER", "send_message_to_queue"]
+__all__ = ["ctr_process_messages", "DatabaseUnavailable", "RETRY_LATER"]
 
 settings = Settings()
 log = logging.getLogger(settings.environment)

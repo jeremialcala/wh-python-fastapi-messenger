@@ -101,6 +101,7 @@ async def main() -> None:
             try:
                 asyncio.get_running_loop().add_signal_handler(getattr(signal, name), stop.set)
             except NotImplementedError:
+                # Windows has no signal handlers in the event loop: there, Ctrl+C stops the worker as it is.
                 pass
     connection, subscription = await subscribe(settings.nats_url, settings.nats_user, settings.nats_password,
                                                settings.nats_ca, settings.nats_inbox_prefix)

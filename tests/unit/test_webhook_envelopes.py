@@ -18,7 +18,7 @@ from jsonschema import Draft202012Validator
 
 import webhook as webhook_module
 import controller.facebook as facebook
-import controller.messages as messages
+import controller.ingestion as ingestion
 from classes import ChatBot, Contact
 from controller import BrokerUnavailable
 from repository import TenantRepository
@@ -70,7 +70,7 @@ def queue(monkeypatch):
         sent.append(json.loads(message.to_json()))
 
     publish.fail_at, publish.sent = None, sent
-    monkeypatch.setattr(messages, "send_message_to_queue", publish)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", publish)
     return publish
 
 

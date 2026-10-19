@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 import app as app_module
 import webhook as webhook_module
 import controller.facebook as facebook
-import controller.messages as messages
+import controller.ingestion as ingestion
 import repository.clients as clients
 from classes import ChatBot, ChatbotPhone, Client, Contact, Intent, Rule, SeenToken
 from enums import Status
@@ -70,7 +70,7 @@ def queue(monkeypatch):
     async def capture(queue, message):
         sent.append(json.loads(message.to_json()))
 
-    monkeypatch.setattr(messages, "send_message_to_queue", capture)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", capture)
     return sent
 
 

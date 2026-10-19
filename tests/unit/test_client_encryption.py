@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 import app as app_module
 import webhook as webhook_module
-import controller.messages as messages
+import controller.ingestion as ingestion
 from classes import ChatBot, ChatbotPhone, Client, Contact
 from crypto.fields import ClientCipher, NotEncrypted, is_encrypted, normalize_number
 from migrations import assign_operator_client, encrypt_client_data
@@ -50,7 +50,7 @@ def queue(monkeypatch):
     async def capture(queue, message):
         sent.append(json.loads(message.to_json()))
 
-    monkeypatch.setattr(messages, "send_message_to_queue", capture)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", capture)
     return sent
 
 

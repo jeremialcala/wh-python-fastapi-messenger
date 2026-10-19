@@ -19,11 +19,9 @@ from jsonschema import Draft202012Validator
 import bus
 import controller.facebook as facebook
 import controller.ingestion as ingestion
-import controller.messages as messages
 import ingest
 from classes import ChatBot, Contact, ConversationMessage
 from controller.incoming import IncomingMessage
-from controller.ingestion import PARTITIONS, Unprocessable, ingest_notification, partition, what_was_said
 from controller.webhook_event import webhook_event
 from repository import TenantRepository
 
@@ -66,7 +64,7 @@ def queue(monkeypatch):
 
     async def publish(queue, message):
         sent.append(json.loads(message.to_json()))
-    monkeypatch.setattr(messages, "send_message_to_queue", publish)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", publish)
     return sent
 
 
@@ -108,7 +106,7 @@ def event_of(bot, *messages_, channel="whatsapp"):
 
 
 def ingest_now(event, trace=None):
-    return asyncio.run(ingest_notification(event, trace))
+    return asyncio.run(ingestion.ingest_notification(event, trace))
 
 
 # --- One message -----------------------------------------------------------------------------------------------------
@@ -118,7 +116,8 @@ def test_a_message_is_identified_stored_and_published_for_the_engine(bot, bifros
 
     contact = Contact.objects.get()
     identified, = bifrost.events
-    assert identified.subject == f"gateway.message.{partition(bot.uuid, contact._uuid)}.{bot.uuid}.{contact._uuid}"
+    where = ingestion.partition(bot.uuid, contact._uuid)
+    assert identified.subject == f"gateway.message.{where}.{bot.uuid}.{contact._uuid}"
     assert identified.message_id == f"{bot.uuid}:wamid.A"
     assert identified.payload["contact"] == {"uuid": str(contact._uuid), "name": "Ana", "waId": NUMBER}
     assert identified.payload["orderKey"] == f"{bot.uuid}.{contact._uuid}"
@@ -215,7 +214,7 @@ def test_an_event_that_can_never_be_ingested_is_unprocessable(bot, bifrost, queu
     event = event_of(bot, whatsapp_message("wamid.A"))
     change(event)
 
-    with pytest.raises(Unprocessable):
+    with pytest.raises(ingestion.Unprocessable):
         ingest_now(event)
     assert bifrost.events == [] and queue == []
 
@@ -224,22 +223,22 @@ def test_the_chatbot_of_another_client_is_not_found(bot, bifrost, queue, registe
     event = event_of(bot, whatsapp_message("wamid.A"))
     event["clientId"] = str(register("globex").client_id)
 
-    with pytest.raises(Unprocessable):
+    with pytest.raises(ingestion.Unprocessable):
         ingest_now(event)
 
 
 # --- What goes to the history ----------------------------------------------------------------------------------------
 
 def test_the_text_of_each_kind_of_message(bot):
-    whatsapp = lambda message: what_was_said("whatsapp", message.content)[:2]  # noqa: E731
+    whatsapp = lambda message: ingestion.what_was_said("whatsapp", message.content)[:2]  # noqa: E731
 
     assert whatsapp(whatsapp_message("1")) == ("hola, quiero una cita", ())
     assert whatsapp(whatsapp_message("2", "image", id="media", caption="mira")) == ("mira", ("image",))
     assert whatsapp(whatsapp_message("3", "audio", id="media")) == (None, ("audio",))
     assert whatsapp(whatsapp_message("4", "interactive", type="button_reply",
                                      button_reply={"id": "b1", "title": "Sí"})) == ("Sí", ())
-    assert what_was_said("messenger", messenger_message("m_1").content)[:2] == ("hola", ())
-    assert what_was_said("messenger", messenger_message(
+    assert ingestion.what_was_said("messenger", messenger_message("m_1").content)[:2] == ("hola", ())
+    assert ingestion.what_was_said("messenger", messenger_message(
         "m_2", text=None, attachments=[{"type": "image", "payload": {"url": "https://lookaside.example/x"}}]
     ).content)[:2] == (None, ("image",))
 
@@ -267,9 +266,9 @@ def test_the_partition_is_the_one_the_contract_says():
     bot_id, contact_id = "6f0c2c1e-0000-4000-8000-000000000001", "6f0c2c1e-0000-4000-8000-000000000002"
     digest = hashlib.sha256(f"{bot_id}.{contact_id}".encode()).digest()
 
-    assert partition(bot_id, contact_id) == int.from_bytes(digest[:4], "big") % 16
-    assert PARTITIONS == 16
-    assert {partition(bot_id, f"6f0c2c1e-0000-4000-8000-{i:012d}") for i in range(200)} == set(range(16))
+    assert ingestion.partition(bot_id, contact_id) == int.from_bytes(digest[:4], "big") % 16
+    assert ingestion.PARTITIONS == 16
+    assert {ingestion.partition(bot_id, f"6f0c2c1e-0000-4000-8000-{i:012d}") for i in range(200)} == set(range(16))
 
 
 # --- The worker, event by event -------------------------------------------------------------------------------------

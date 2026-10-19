@@ -30,7 +30,6 @@ from jsonschema import Draft202012Validator
 import webhook as webhook_module
 import controller.amqp_broker as broker
 import controller.ingestion as ingestion
-import controller.messages as messages
 from classes import ChatBot, QueueMessage
 from controller import BrokerUnavailable
 from repository import TenantRepository

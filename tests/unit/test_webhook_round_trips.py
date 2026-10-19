@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 import bus
 import webhook as webhook_module
 import controller.facebook as facebook
-import controller.messages as messages
+import controller.ingestion as ingestion
 from classes import ChatBot
 from repository import TenantRepository, delete_client, kept_bots
 
@@ -66,7 +66,7 @@ def round_trips(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def queue(monkeypatch):
-    monkeypatch.setattr(messages, "send_message_to_queue", AsyncMock())
+    monkeypatch.setattr(ingestion, "send_message_to_queue", AsyncMock())
 
 
 @pytest.fixture(autouse=True)

@@ -22,7 +22,7 @@ import pytest
 from nats.js.api import AckPolicy, ConsumerConfig, RetentionPolicy, StreamConfig
 
 import bus
-import controller.messages as messages
+import controller.ingestion as ingestion
 import ingest
 from bus.nats_jetstream import NatsPublisher
 from classes import ChatBot, Contact, ConversationMessage
@@ -65,6 +65,7 @@ def streams(url):
             try:
                 await js.delete_stream(name)
             except nats.js.errors.NotFoundError:
+                # Not there from an earlier run: nothing to delete.
                 pass
         await js.add_stream(StreamConfig(name="WEBHOOK", subjects=["webhook.meta.>"],
                                          retention=RetentionPolicy.WORK_QUEUE, max_age=7 * 24 * 3600,
@@ -85,7 +86,7 @@ def queue(monkeypatch):
 
     async def publish(queue, message):
         sent.append(json.loads(message.to_json()))
-    monkeypatch.setattr(messages, "send_message_to_queue", publish)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", publish)
     return sent
 
 

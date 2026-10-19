@@ -28,7 +28,7 @@ import app as app_module
 import service
 import webhook as webhook_module
 import controller.facebook as facebook
-import controller.messages as messages
+import controller.ingestion as ingestion
 from classes import Contact
 from controller.incoming import MESSENGER, WHATSAPP, NotUnderstood, incoming_messages, read_notification
 from repository import NotFound, TenantRepository, data_keys, database_failed
@@ -82,7 +82,7 @@ def queue(monkeypatch):
     async def capture(queue, message):
         sent.append(json.loads(message.to_json()))
 
-    monkeypatch.setattr(messages, "send_message_to_queue", capture)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", capture)
     return sent
 
 

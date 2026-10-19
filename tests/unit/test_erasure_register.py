@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 
 import app as app_module
 import webhook as webhook_module
-import controller.messages as messages
+import controller.ingestion as ingestion
 from classes import ChatBot, ChatbotPhone, Client, Contact, Intent, Rule
 from migrations import replay_erasures
 from repository import RegisterUnavailable, TenantRepository, erasures
@@ -57,7 +57,7 @@ def queue(monkeypatch):
     async def discard(queue, message):
         pass
 
-    monkeypatch.setattr(messages, "send_message_to_queue", discard)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", discard)
 
 
 def new_bot(http, caller) -> str:

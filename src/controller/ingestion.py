@@ -29,7 +29,7 @@ from crypto.key_service import KeyServiceUnavailable
 from repository import NotFound, TenantRepository, database_failed
 from utils import describe
 
-from .amqp_broker import BrokerUnavailable
+from .amqp_broker import BrokerUnavailable, send_message_to_queue
 from .facebook import ctr_identify_contact_by_wa_id, ctr_identify_fb_contact
 from .incoming import IncomingMessage
 from .webhook_event import SCHEMA_VERSION, traceparent
@@ -159,10 +159,7 @@ async def _publish(event: dict, item: dict, contact: Contact, message: IncomingM
                        contact={"name": contact.firstName, ("waId" if event["channel"] == "whatsapp" else "fbId"):
                                 message.sender},
                        message=message.content)
-    # Late import: the test doubles replace it where the webhook used to call it.
-    from . import messages
-    await messages.send_message_to_queue(queue=QUEUE, message=QueueMessage(messageId=item["messageId"],
-                                                                           jwe_body=body.__dict__))
+    await send_message_to_queue(queue=QUEUE, message=QueueMessage(messageId=item["messageId"], jwe_body=body.__dict__))
 
 
 # The kind of object of version 1, which the envelope still carries as `type`.

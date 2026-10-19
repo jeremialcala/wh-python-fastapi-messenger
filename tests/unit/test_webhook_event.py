@@ -19,7 +19,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 import bus
 import controller.facebook as facebook
-import controller.messages as messages
+import controller.ingestion as ingestion
 import webhook as webhook_module
 from classes import ChatBot, Contact, ConversationMessage
 from controller.incoming import IncomingMessage
@@ -102,7 +102,7 @@ def queue(monkeypatch):
 
     async def publish(queue, message):
         sent.append(json.loads(message.to_json()))
-    monkeypatch.setattr(messages, "send_message_to_queue", publish)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", publish)
     return sent
 
 

@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 import app as app_module
 import webhook as webhook_module
-import controller.messages as messages
+import controller.ingestion as ingestion
 from auth import gateway_keys
 from auth.client import build_token, new_signing_key, public_part
 from classes import Client
@@ -83,7 +83,7 @@ def queue(monkeypatch):
     async def capture(queue, message):
         sent.append(json.loads(message.to_json()))
 
-    monkeypatch.setattr(messages, "send_message_to_queue", capture)
+    monkeypatch.setattr(ingestion, "send_message_to_queue", capture)
     return sent
 
 
