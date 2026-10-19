@@ -71,6 +71,18 @@ quadrantChart
 *Eje trazabilidad · placement · Gate 1. Valoración cualitativa: midgard tiene coste marginal nulo y la latencia de
 una red Docker local; el servicio gestionado añade la ida y vuelta a internet en cada acuse.*
 
+## Desplegado en I0 (2026-10-19)
+
+Desplegado tal como se describe, con la imagen `nats:2.14.8-alpine` y el repositorio local `Projects/bifrost`
+(`instalar.sh`, `aprovisionar.sh`, `medir.sh`). La medición del `fsync` está en
+[ADR-0019](0019-nats-jetstream-como-bus.md): 44,5 ms de mediana por mensaje en el disco de midgard, por debajo de los
+50 ms de la condición de revisión, pero cerca. Queda por resolver lo que pasa con las notificaciones de varios mensajes.
+
+Pendiente de ese despliegue:
+- mover a Andvari los secretos de `.env`, `ca/` y `credenciales/`;
+- guardar las contraseñas como `bcrypt`, porque NATS avisa de que están en claro;
+- que Mimir lea el 8222 y que Gjallarhorn avise.
+
 ## Alternativas consideradas
 
 | Opción | Pros | Contras | Riesgo de seguridad |

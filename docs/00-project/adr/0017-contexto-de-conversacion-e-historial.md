@@ -1,6 +1,6 @@
 # ADR-0017: El historial de cada conversación se guarda en el gateway y su contexto vive 24 horas en NATS
 
-* **Estado:** accepted (con condición, 2026-10-18)
+* **Estado:** accepted
 * **Fecha:** 2026-10-18
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -11,7 +11,7 @@
 * **Controles OWASP afectados:** A01 (acceso solo del cliente dueño y del worker que lo necesita), A02 (cifrado del
   contenido con una clave por cliente), A04 (retención y supresión), A09 (constancia de lo suprimido)
 
-Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor, **con una condición**: que en el NATS de I0 cada escritura renueve las 24 horas de su clave. Si no se cumple, vuelve a `proposed` con la salida que dice la propia ADR.
+Aceptada el 2026-10-18 al aprobar el Gate 1 del refactor, con una condición que se cumplió el 2026-10-19: en Bifröst (NATS 2.14.8), un bucket con caducidad de 20 s reescrito a los 12 s seguía a los 24 s y había desaparecido a los 38 s. La caducidad se cuenta desde la última escritura de cada clave.
 
 Propuesta como entregable del Gate 1 del refactor ([plan](../plan-topologia-de-workers.md), paso 2).
 
@@ -182,10 +182,10 @@ erDiagram
 - **Incrementos nuevos en el plan,** detrás del worker de ingesta (I4): el historial (colección, escritura,
   exportación y supresión) y la ruta para el coordinador.
 
-## Lo que falta antes de aceptarla
+## Comprobado en I0
 
-- **La prueba de la caducidad del bucket:** que cada escritura renueve las 24 horas de su clave en el NATS que se
-  despliegue.
+- **La caducidad del bucket se renueva con cada escritura** (2026-10-19, `medir.sh` de Bifröst). El bucket
+  `contexto` ya existe en Bifröst: 24 horas, una revisión y 256 KB por valor.
 
 La retención del historial (12 meses por mensaje) y los adjuntos (solo el tipo) se decidieron el 2026-10-18, al
 aprobar el Gate 0 del refactor.
