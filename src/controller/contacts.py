@@ -48,6 +48,11 @@ def contact_info(repo: TenantRepository, contact: Contact) -> dict:
     }
 
 
+def contact_export(repo: TenantRepository, contact: Contact) -> dict:
+    """Everything stored about a contact, its conversation included: it is theirs too (RF14)."""
+    return {**contact_info(repo, contact), "messages": repo.history(contact)}
+
+
 def _read(found_nothing: str, read) -> JSONResponse:
     """Answers with what `read` returns, or with what went wrong reading it."""
     try:
@@ -85,7 +90,7 @@ async def ctr_search_contacts(repo: TenantRepository, request: ContactSearchRequ
 
 
 async def ctr_export_contact(repo: TenantRepository, bot_id: str, contact_id: str) -> JSONResponse:
-    return _read(CONTACT_NOT_FOUND, lambda: contact_info(repo, repo.get_contact(bot_id, contact_id)))
+    return _read(CONTACT_NOT_FOUND, lambda: contact_export(repo, repo.get_contact(bot_id, contact_id)))
 
 
 async def ctr_delete_contact(repo: TenantRepository, bot_id: str, contact_id: str) -> JSONResponse:
@@ -98,7 +103,7 @@ async def ctr_delete_contact(repo: TenantRepository, bot_id: str, contact_id: st
     # A warning, so that it is kept at the level production logs at: a deletion cannot be undone.
     log.warning(f"Client {repo.client_id} deleted contact {UUID(contact_id)} of chatbot {UUID(bot_id)}: "
                 f"{deleted} stored")
-    return answer(status.HTTP_200_OK, data={"uuid": str(UUID(contact_id)), "deleted": {"contacts": deleted}})
+    return answer(status.HTTP_200_OK, data={"uuid": str(UUID(contact_id)), "deleted": deleted})
 
 
 async def ctr_delete_chatbot(repo: TenantRepository, bot_id: str) -> JSONResponse:

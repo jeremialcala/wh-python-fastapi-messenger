@@ -5,12 +5,13 @@
     to check who owns what.
 """
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from mongoengine import Q
-from mongoengine.errors import SaveConditionError
+from mongoengine.errors import NotUniqueError, SaveConditionError
 
-from classes import ChatBot, ChatbotPhone, Client, Contact, Intent, Rule
+from classes import ChatBot, ChatbotPhone, Client, Contact, ConversationMessage, Intent, Rule
 from crypto.fields import ClientCipher
 from enums import Status
 
@@ -24,9 +25,12 @@ BOT_SECRETS = ("verifyToken", "facebookToken", "whatsappToken", "appSecret")
 BOT_CREDENTIALS = ("facebookToken", "whatsappToken", "appSecret")
 PHONE_FIELDS = ("phoneNumber", "phoneId")
 
+# How long a message of the history is kept at most, from when it is stored: 12 months (RNF05, ADR-0017).
+HISTORY_RETENTION = timedelta(days=365)
+
 # What is stored for a chatbot, and the field that says which one: all of it goes when the chatbot does.
 OF_A_BOT = (("contacts", Contact, "botId"), ("phones", ChatbotPhone, "bot_id"), ("rules", Rule, "botId"),
-            ("intents", Intent, "botId"))
+            ("intents", Intent, "botId"), ("messages", ConversationMessage, "botId"))
 
 
 @dataclass(frozen=True)
@@ -159,8 +163,10 @@ class TenantRepository:
             deleted[name] = self._own(document).delete()
         return deleted
 
-    def erase_contacts(self, bot_uuid: UUID, contacts: list) -> int:
-        return self._own(Contact, botId=bot_uuid, _uuid__in=list(contacts)).delete()
+    def erase_contacts(self, bot_uuid: UUID, contacts: list) -> dict:
+        """The contacts first, then their history: from then on no new message is stored for them."""
+        return {"contacts": self._own(Contact, botId=bot_uuid, _uuid__in=list(contacts)).delete(),
+                "messages": self._own(ConversationMessage, botId=bot_uuid, contactId__in=list(contacts)).delete()}
 
     def _add_to_bot(self, bot_id, document, field: str, seal=None):
         bot_uuid = self.get_bot(bot_id).uuid
@@ -276,7 +282,7 @@ class TenantRepository:
             raise NotFound(contact_id)
         return contact
 
-    def delete_contact(self, bot_id, contact_id) -> int:
+    def delete_contact(self, bot_id, contact_id) -> dict:
         """
             Deletes a contact of a chatbot. Two first messages arriving at once can store the same person twice,
             and deleting one would leave the other: every document of that person for that chatbot goes.
@@ -290,3 +296,44 @@ class TenantRepository:
         copies = [copy._uuid for copy in self._own(Contact, botId=contact.botId).filter(same)]
         erasures.record(erasures.CONTACT, self.client_id, bot_id=contact.botId, contacts=copies)
         return self.erase_contacts(contact.botId, copies)
+
+    # --- History ----------------------------------------------------------------------------------------------------
+
+    def has_message(self, bot_uuid: UUID, direction: str, message_id: str) -> bool:
+        """Whether a message is already in the history: one Meta sends again is."""
+        return bool(self._own(ConversationMessage, key=ConversationMessage.key_for(bot_uuid, direction,
+                                                                                  message_id)).count())
+
+    def record_message(self, contact: Contact, direction: str, message_id: str, channel: str, sent_at: datetime,
+                       text: str | None = None, attachments: tuple = (), intent: str | None = None) -> bool:
+        """
+            Stores one message of the contact's conversation, with its text encrypted. False if it was already
+            stored: storing it twice changes nothing, and does not tell whoever sent it again apart.
+        """
+        if contact.clientId != self.client_id:
+            raise NotFound(contact._uuid)
+        now = datetime.now(timezone.utc)
+        message = ConversationMessage(
+            key=ConversationMessage.key_for(contact.botId, direction, message_id), clientId=self.client_id,
+            botId=contact.botId, contactId=contact._uuid, direction=direction, messageId=message_id,
+            channel=channel, sentAt=sent_at, text=self._cipher.encrypt("Message.text", text),
+            attachments=list(attachments), intent=intent, createdAt=now, expiresAt=now + HISTORY_RETENTION)
+        try:
+            message.save(force_insert=True)
+        except NotUniqueError:
+            return False
+        if not self._own(Contact, _uuid=contact._uuid).count():
+            # The contact was deleted between finding it and storing this: nothing is left behind in its name.
+            message.delete()
+            raise NotFound(contact._uuid)
+        return True
+
+    def history(self, contact: Contact) -> list[dict]:
+        """The contact's conversation, oldest first, with each text opened."""
+        if contact.clientId != self.client_id:
+            raise NotFound(contact._uuid)
+        messages = self._own(ConversationMessage, botId=contact.botId, contactId=contact._uuid).order_by("sentAt")
+        return [{"direction": message.direction, "messageId": message.messageId, "channel": message.channel,
+                 "sentAt": message.sentAt.replace(tzinfo=timezone.utc), "intent": message.intent,
+                 "text": self._cipher.decrypt("Message.text", message.text),
+                 "attachments": list(message.attachments)} for message in messages]
