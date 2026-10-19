@@ -8,6 +8,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I2 hecho el 2026-10-19: el puerto `EventPublisher` y su adaptador `NatsPublisher` sobre Bifröst (`src/bus`, `nats-py`
+  2.16.0).
+  - Una conexión por proceso, `Nats-Msg-Id` en cada evento y espera del acuse del stream.
+  - Cualquier fallo es `BusUnavailable`.
+  - Medido contra Bifröst con el usuario del webhook: 2,1 ms de mediana por evento de 1 KB, frente a los 8,3 ms de
+    Hermod con una conexión por mensaje.
+  - Probado contra un NATS 2.14.8 real configurado como Bifröst, también en el CI.
+  - El webhook sigue publicando en Hermod: el evento que publicará en Bifröst llega con I3.
+  - Guía: `docs/03-implementation/bus-de-eventos.md`.
 - I1 hecho el 2026-10-19: medido el webhook actual en midgard, contra Atlas y Hermod reales, con notificaciones de
   WhatsApp sintéticas y firmadas. Con un contacto conocido responde en 185 ms de mediana y cumple RNF01; con uno
   nuevo tarda 415 ms, y con 4 notificaciones a la vez, de 357 a 472 ms. Ninguno de los dos cumple. Publicar en Hermod

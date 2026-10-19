@@ -31,3 +31,6 @@ PyYAML>=6.0.1
 
 # AMQP for RABBITMQ
 pika>=1.3.2
+
+# NATS JetStream for Bifröst, the event bus (ADR-0019)
+nats-py>=2.16

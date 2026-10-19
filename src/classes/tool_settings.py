@@ -49,6 +49,17 @@ class Settings(BaseSettings):
     qms_user: str
     qms_password: str
 
+    # The event bus, Bifröst (ADR-0019): the same names as the file Bifröst writes for each service in
+    # /srv/infra/bifrost/credenciales/<service>.env, so that file can be handed to the container as it is. Without
+    # NATS_URL there is no publisher. Outside development the address must be tls://.
+    nats_url: str | None = None
+    nats_user: str | None = None
+    nats_password: str | None = None
+    # The CA that signed Bifröst's certificate.
+    nats_ca: str | None = None
+    # Each service has its own prefix of reply subjects, and may only read those. Without one, NATS's own.
+    nats_inbox_prefix: str | None = None
+
     key_size: int
     private_key_filename: str
     public_key_filename: str

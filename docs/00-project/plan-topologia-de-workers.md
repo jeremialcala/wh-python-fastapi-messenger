@@ -216,7 +216,7 @@ flowchart LR
     IS["IS Separar el webhook de la API de gestion (RD-05), hecho"] --> I1
     I1["I1 Medir el webhook actual en midgard, hecho"] --> I4
     I0["I0 NATS JetStream en midgard (R8), hecho"] --> I2
-    I2["I2 Puerto de publicacion sobre NATS (R2)"] --> I3
+    I2["I2 Puerto de publicacion sobre NATS (R2), hecho"] --> I3
     I3["I3 Contrato v2 y un evento por notificacion (R3)"] --> I4
     I4["I4 Worker de ingesta y webhook que solo publica (R1)"] --> I5
     I4 --> I8
