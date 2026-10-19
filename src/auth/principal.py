@@ -3,7 +3,7 @@ import time
 from dataclasses import dataclass
 from uuid import UUID
 
-from enums import Role
+from enums import Role, Worker
 from repository import find_signer, remember_token
 
 from .gateway_keys import GatewayKeys
@@ -19,6 +19,14 @@ class Principal:
     kid: str
     # The token's, used up by this request: what a request that needs a proof binds it to.
     jti: str
+    # For the response engine, which of its workers signs: it decides the routes it reaches. None for a key
+    # registered before keys had a worker (ADR-0022).
+    worker: Worker | None = None
+
+    @property
+    def worker_name(self) -> str:
+        """The worker, as the log writes it."""
+        return self.worker.value if self.worker else "none"
 
 
 def authenticate(token: str | None, gateway_keys: GatewayKeys, audience: str) -> Principal:
@@ -31,7 +39,7 @@ def authenticate(token: str | None, gateway_keys: GatewayKeys, audience: str) ->
         found = find_signer(client_id, kid)
         if found is None:
             return None
-        _, key, signer["role"] = found
+        _, key, signer["role"], signer["worker"] = found
         signer["key"] = key
         return key
 
@@ -40,4 +48,4 @@ def authenticate(token: str | None, gateway_keys: GatewayKeys, audience: str) ->
     if not remember_token(claims.client_id, claims.jti, claims.expires_at):
         raise InvalidToken("token already used")
     return Principal(client_id=claims.client_id, role=signer["role"], kid=signer["key"]["kid"],
-                     jti=claims.jti)
+                     jti=claims.jti, worker=signer["worker"])

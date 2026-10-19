@@ -288,6 +288,20 @@ components:
           type: array
       title: RulesRequest
       type: object
+    ServiceKeyRequest:
+      additionalProperties: false
+      properties:
+        signingKey:
+          additionalProperties: true
+          title: Signingkey
+          type: object
+        worker:
+          $ref: '#/components/schemas/Worker'
+      required:
+      - signingKey
+      - worker
+      title: ServiceKeyRequest
+      type: object
     SigningKeyRequest:
       additionalProperties: false
       properties:
@@ -325,6 +339,17 @@ components:
       - type
       title: ValidationError
       type: object
+    Worker:
+      description: The workers of the response engine that call this service, each with keys of its own (ADR-0022).
+      enum:
+      - classifier
+      - coordinator
+      - link
+      - responder
+      - evaluator
+      - notifier
+      title: Worker
+      type: string
   securitySchemes:
     HTTPBearer:
       bearerFormat: JWE
@@ -351,13 +376,17 @@ info:
     \ for the model.\n* /chat/{bot_id}/contacts: @GET who wrote to it, a page at a time; /chat/{bot_id}/contacts/{contact_id}\
     \ exports\n  one with @GET and deletes it with @DELETE.\n* /contacts/search: @POST finds a person in every chatbot\
     \ of the client, by number or by Messenger id.\n* /keys: @GET the keys of the caller, @POST adds one to rotate;\
-    \ /keys/{kid} removes one with @DELETE.\n\n### The response engine\n\n* /chat/{bot_id}/tokens: @GET the Meta\
-    \ tokens of a chatbot. Only for the engine, with the key it holds for the\n  client that owns the chatbot. It\
-    \ also reads the rules and the tools of that chatbot, and nothing else.\n\n### The operator\n\n* /clients: @POST\
-    \ registers a client, @GET lists them; /clients/{client_id} takes one off with @DELETE.\n* /clients/{client_id}/keys:\
-    \ the keys a client signs with; /clients/{client_id}/service-keys, the keys the\n  response engine signs with\
-    \ for that client.\n\n### Any caller\n\n* /gateway/keys: @GET the audience and the public keys tokens are encrypted\
-    \ to.\n* /health: @GET liveness, without a token.\n"
+    \ /keys/{kid} removes one with @DELETE.\n\n### The response engine\n\nEach worker of the engine holds its own\
+    \ key for each client, and the key says which routes it reaches: the\nnotifier, the Meta tokens; the coordinator,\
+    \ the rules, the tools and the last turns of a conversation; the\nclassifier, the responder and the evaluator,\
+    \ the rules; the link, the tools. All of them read /gateway/keys.\n\n* /chat/{bot_id}/tokens: @GET the Meta\
+    \ tokens of a chatbot. Only for the notifier, with the key it holds for the\n  client that owns the chatbot.\n\
+    * /chat/{bot_id}/contacts/{contact_id}/turns: @GET the last 10 turns of a conversation, for the coordinator.\n\
+    \n### The operator\n\n* /clients: @POST registers a client, @GET lists them; /clients/{client_id} takes one\
+    \ off with @DELETE.\n* /clients/{client_id}/keys: the keys a client signs with; /clients/{client_id}/service-keys,\
+    \ the keys each\n  worker of the response engine signs with for that client, with the worker that signs with\
+    \ each.\n\n### Any caller\n\n* /gateway/keys: @GET the audience and the public keys tokens are encrypted to.\n\
+    * /health: @GET liveness, without a token.\n"
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
@@ -1124,10 +1153,16 @@ paths:
       - Clients
   /clients/{client_id}/service-keys:
     post:
-      description: 'The operator lets the response engine act for a client: it registers the public key the engine
-        signs
+      description: 'The operator lets a worker of the response engine act for a client: it registers the public
+        key that
 
-        with for that client. With it the engine reaches the chatbots of that client and of nobody else.'
+        worker signs with for that client. With it the worker reaches the chatbots of that client and of nobody
+
+        else, and only the routes of that worker: the notifier, the Meta tokens; the coordinator, the rules,
+
+        the tools and the last turns; the classifier, the responder and the evaluator, the rules; the link,
+
+        the tools. Two keys at most per worker and client, to rotate without a gap.'
       operationId: add_service_key_clients__client_id__service_keys_post
       parameters:
       - in: path
@@ -1140,7 +1175,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SigningKeyRequest'
+              $ref: '#/components/schemas/ServiceKeyRequest'
         required: true
       responses:
         '200':

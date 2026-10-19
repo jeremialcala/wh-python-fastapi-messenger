@@ -133,44 +133,63 @@ alcanza los suyos.
 
 ### Dar paso al motor de respuestas
 
-El motor no tiene una credencial para todo: tiene una clave por cliente, y con ella solo alcanza los bots de ese
-cliente ([ADR-0016](../00-project/adr/0016-credencial-del-motor-por-cliente.md)). Para cada cliente al que vaya a
-servir:
+El motor no tiene una credencial para todo. Cada worker del motor tiene una clave por cliente, y con ella solo
+alcanza los bots de ese cliente ([ADR-0016](../00-project/adr/0016-credencial-del-motor-por-cliente.md)) y las
+rutas de ese worker ([ADR-0022](../00-project/adr/0022-una-credencial-por-worker.md)). Para cada cliente al que
+vaya a servir, y para cada worker:
 
-1. El motor crea una clave para ese cliente, igual que un cliente crea la suya, y se queda la parte privada.
-2. El operador registra la parte pública bajo el cliente:
+1. El worker crea una clave para ese cliente, igual que un cliente crea la suya, y se queda la parte privada.
+2. El operador registra la parte pública bajo el cliente, diciendo de qué worker es:
 
    ```
    POST /clients/{client_id}/service-keys
-   {"signingKey": {"kty": "EC", "crv": "P-256", "x": "...", "y": "..."}}
+   {"signingKey": {"kty": "EC", "crv": "P-256", "x": "...", "y": "..."}, "worker": "notifier"}
    ```
 
-3. El motor firma sus tokens con esa clave y pone como emisor el identificador del cliente. El formato es el
+3. El worker firma sus tokens con esa clave y pone como emisor el identificador del cliente. El formato es el
    mismo de cualquier cliente. Qué cliente es lo dice cada mensaje de la cola, en `clientId`.
 
-Con esa clave el motor alcanza cinco rutas, y cualquier otra le responde `403`:
+Qué worker firma lo dice el registro, no el token: el `kid` dice qué clave es, y la clave, de qué worker. Cada
+worker alcanza sus rutas, y cualquier otra le responde `403`:
 
-| Ruta | Qué obtiene |
-|---|---|
-| `GET /chat/{bot_id}/rules` | El system prompt del bot |
-| `GET /chat/{bot_id}/tools` | Sus herramientas |
-| `GET /chat/{bot_id}/tokens` | Los tokens de Meta con los que envía la respuesta |
-| `GET /chat/{bot_id}/contacts/{contact_id}/turns` | Las 10 últimas vueltas de una conversación, para que el coordinador rehaga su contexto cuando no lo tiene (RF15) |
-| `GET /gateway/keys` | Las claves públicas del gateway, para seguir su rotación |
+| Ruta | Qué obtiene | `classifier` | `coordinator` | `link` | `responder` | `evaluator` | `notifier` |
+|---|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| `GET /chat/{bot_id}/rules` | El system prompt del bot | ✓ | ✓ | | ✓ | ✓ | |
+| `GET /chat/{bot_id}/tools` | Sus herramientas | | ✓ | ✓ | | | |
+| `GET /chat/{bot_id}/tokens` | Los tokens de Meta con los que envía la respuesta | | | | | | ✓ |
+| `GET /chat/{bot_id}/contacts/{contact_id}/turns` | Las 10 últimas vueltas de una conversación, para que el coordinador rehaga su contexto cuando no lo tiene (RF15) | | ✓ | | | | |
+| `GET /gateway/keys` | Las claves públicas del gateway, para seguir su rotación | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-- **Los tokens solo los recibe el motor.** El cliente no los recupera con su propia clave, ni el operador con la
-  suya. No incluyen el App Secret ni el token de verificación.
-- **Cada entrega de tokens deja una línea en el log**, también en `production`: el bot, el cliente y la clave.
-- **Las vueltas, igual.** Las recibe solo el motor; el cliente tiene para eso la exportación del contacto. Cada
-  entrega deja en el log el contacto, el bot, el cliente, la clave y cuántos mensajes fueron, nunca su texto. Una
-  vuelta empieza en un mensaje del contacto, y llegan desde el décimo por el final hasta el último, en los dos
-  sentidos y en orden.
-  - Hasta I6, las vueltas las alcanza cualquier clave del motor.
-  - Con I6 ([ADR-0022](../00-project/adr/0022-una-credencial-por-worker.md)) quedan solo para la del coordinador.
-- **Admite dos claves por cliente**, para rotar sin corte: se registra la nueva, el motor pasa a usarla y se borra
-  la antigua con `DELETE /clients/{client_id}/service-keys/{kid}`. Borrarla le quita el acceso en el acto.
-- **El cliente ve qué claves del motor alcanzan sus bots**: `GET /keys` las lista en `serviceKeys`.
-- **Una clave es del cliente o del motor, nunca de los dos.** Registrar la misma en las dos listas responde `409`.
+La tabla está en `WORKER_ROUTES` (`src/app.py`). Una ruta nueva nace cerrada para todos los workers hasta que se
+apunta ahí.
+
+- **Los tokens solo los recibe el notificador.** El cliente no los recupera con su propia clave, ni el operador
+  con la suya, ni otro worker del motor con la de él. No incluyen el App Secret ni el token de verificación.
+- **Cada entrega de tokens deja una línea en el log**, también en `production`: el bot, el cliente, la clave y el
+  worker.
+- **Las vueltas, igual.** Las recibe solo el coordinador; el cliente tiene para eso la exportación del contacto.
+  Cada entrega deja en el log el contacto, el bot, el cliente, la clave, el worker y cuántos mensajes fueron,
+  nunca su texto. Una vuelta empieza en un mensaje del contacto, y llegan desde el décimo por el final hasta el
+  último, en los dos sentidos y en orden.
+- **Admite dos claves por worker y cliente**, para rotar sin corte: se registra la nueva, el worker pasa a usarla y
+  se borra la antigua con `DELETE /clients/{client_id}/service-keys/{kid}`. Borrarla le quita el acceso en el acto.
+- **El cliente ve qué claves del motor alcanzan sus bots, y de qué worker es cada una**: `GET /keys` las lista en
+  `serviceKeys`, como `{"kid": ..., "worker": ...}`.
+- **Una clave es del cliente o del motor, nunca de los dos**, y es de un solo worker. Registrar la misma dos veces
+  responde `409`.
+
+#### Las claves de antes de I6
+
+Las claves que se registraron antes de I6 no tienen worker, y `GET /keys` las muestra con `"worker": null`. Siguen
+alcanzando las cinco rutas del motor, vueltas incluidas, hasta que el motor pase a una clave por worker. Cada uso
+deja un aviso en el log, también en `production`:
+
+```
+The response engine used key <kid> of client <client_id>, which has no worker: register one per worker (ADR-0022)
+```
+
+Esa línea es la lista de lo que falta por retirar. Ya no se pueden registrar claves nuevas sin worker: la API
+responde `422`. Al terminar el refactor se borran con `DELETE /clients/{client_id}/service-keys/{kid}`.
 
 ### Rotar el par del gateway
 
@@ -181,8 +200,10 @@ Con esa clave el motor alcanza cinco rutas, y cualquier otra le responde `403`:
 
 ## Lo que no hace todavía
 
-- **El motor de respuestas no lo usa todavía.** El gateway ya le da paso con una clave por cliente; pedir la
-  configuración y los tokens es trabajo de su repositorio.
+- **El motor de respuestas no lo usa todavía.** El gateway ya le da paso con una clave por cliente y por worker;
+  pedir la configuración y los tokens es trabajo de su repositorio.
+- **Registrar las seis claves de un cliente es a mano**, una petición por worker. El comando que las genera y las
+  registra de una vez es I6b.
 - **No hay límite de tasa.** Los intentos fallidos se registran, pero nada los frena; es RS10, en el borde.
 - **Un cliente no se puede desactivar por la API.** Revocar sus claves lo deja fuera; el estado del cliente solo se
   cambia en la base.

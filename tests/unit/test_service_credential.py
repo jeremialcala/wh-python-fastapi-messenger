@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-    The credential of the response engine (ADR-0016). The engine holds one key per client, and the operator
-    registers its public part under that client. With it the engine reads what it needs to answer for the
-    chatbots of that client, the Meta tokens among it, and reaches nothing else: no other client, and no route
-    that is not written down for it.
+    The credentials of the response engine (ADR-0016, ADR-0022). The engine holds keys per client and per worker,
+    and the operator registers their public part under that client, saying which worker signs with each. With
+    them each worker reads what it needs for the chatbots of that client and reaches nothing else: no other
+    client, no route of another worker, and no route that is not written down for it.
+
+    Most of these tests use a key from before keys had a worker, which reaches every route of the engine until
+    it is taken out; the ones about workers are at the end.
 """
 import hashlib
 import hmac
@@ -22,9 +25,10 @@ import webhook as webhook_module
 import controller.ingestion as ingestion
 from auth import gateway_keys
 from auth.client import build_token, new_signing_key, public_part
+from auth.client_keys import public_signing_key
 from classes import Client, Contact
 from conftest import GATEWAY_AUDIENCE, GATEWAY_KEYS_FILE
-from enums import Role, Status
+from enums import Role, Status, Worker
 from repository import TenantRepository, data_keys, find_signer
 
 # What Meta calls is its own service, apart from the management API.
@@ -47,7 +51,8 @@ BODIES = {
     ("POST", "/keys"): {"signingKey": public_part(new_signing_key())},
     ("POST", "/clients"): {"name": "initech", "signingKey": public_part(new_signing_key())},
     ("POST", "/clients/{client_id}/keys"): {"signingKey": public_part(new_signing_key())},
-    ("POST", "/clients/{client_id}/service-keys"): {"signingKey": public_part(new_signing_key())},
+    ("POST", "/clients/{client_id}/service-keys"): {"signingKey": public_part(new_signing_key()),
+                                                    "worker": "notifier"},
 }
 PUBLIC = {("GET", "/chat/{bot_id}"), ("POST", "/chat/{bot_id}"), ("GET", "/health")}
 ROUTES = sorted({(method, route.path) for route in app_module.app.routes if isinstance(route, APIRoute)
@@ -114,21 +119,27 @@ def bot(http, acme):
     return new_bot(http, acme)["uuid"]
 
 
-def let_in(http, operator, client_id, engine: Engine):
-    """The operator registers the key the engine holds for a client."""
+def let_in(http, operator, client_id, engine: Engine, worker: str = "notifier"):
+    """The operator registers the key a worker of the engine holds for a client."""
     response = http.post(f"/clients/{client_id}/service-keys", headers=operator.auth,
-                         json={"signingKey": engine.public})
+                         json={"signingKey": engine.public, "worker": worker})
     if response.status_code == 200:
-        engine.kid = response.json()["data"]["serviceKeys"][-1]
+        engine.kid = response.json()["data"]["serviceKeys"][-1]["kid"]
     return response
 
 
-@pytest.fixture
-def engine(http, operator, acme):
-    """The response engine, let in for acme."""
-    engine = Engine(acme.client_id)
-    assert let_in(http, operator, acme.client_id, engine).status_code == 200
+def let_in_without_a_worker(client_id, engine: Engine) -> Engine:
+    """A key of the engine as it was registered before keys had a worker (ADR-0016): the API no longer takes one."""
+    key = public_signing_key(engine.public)
+    Client.objects(uuid=client_id).update_one(push__serviceKeys=key)
+    engine.kid = key["kid"]
     return engine
+
+
+@pytest.fixture
+def engine(acme):
+    """The response engine, let in for acme with a key from before keys had a worker."""
+    return let_in_without_a_worker(acme.client_id, Engine(acme.client_id))
 
 
 def dump() -> str:
@@ -324,7 +335,7 @@ def test_every_time_the_tokens_are_handed_out_leaves_a_trace_that_production_kee
     kept = [record.getMessage() for record in caplog.records
             if record.levelno >= logging.WARNING and "handed to the response engine" in record.getMessage()]
     assert kept == [f"Meta tokens of chatbot {bot} handed to the response engine: client {acme.client_id}, "
-                    f"key {engine.kid}"] * 2
+                    f"key {engine.kid}, worker none"] * 2
     for secret in SECRETS.values():
         assert secret not in caplog.text
 
@@ -346,7 +357,7 @@ def test_only_the_operator_lets_the_engine_in(http, acme, globex, engine):
 
     for caller in (acme, globex, engine):
         added = http.post(f"/clients/{acme.client_id}/service-keys", headers=caller.auth,
-                          json={"signingKey": another.public})
+                          json={"signingKey": another.public, "worker": "notifier"})
         removed = http.delete(f"/clients/{acme.client_id}/service-keys/{engine.kid}", headers=caller.auth)
 
         assert (added.status_code, removed.status_code) == (403, 403)
@@ -357,8 +368,8 @@ def test_the_client_sees_which_keys_of_the_engine_reach_its_chatbots(http, acme,
     mine = http.get("/keys", headers=acme.auth).json()["data"]
     listed = {client["name"]: client for client in http.get("/clients", headers=operator.auth).json()["data"]}
 
-    assert (mine["keys"], mine["serviceKeys"]) == ([acme.kid], [engine.kid])
-    assert listed["acme"]["serviceKeys"] == [engine.kid] and listed["operator"]["serviceKeys"] == []
+    assert (mine["keys"], mine["serviceKeys"]) == ([acme.kid], [{"kid": engine.kid, "worker": None}])
+    assert listed["acme"]["serviceKeys"] == mine["serviceKeys"] and listed["operator"]["serviceKeys"] == []
 
 
 def test_only_the_public_part_of_the_key_of_the_engine_is_stored(http, operator, acme, engine):
@@ -371,7 +382,8 @@ def test_only_the_public_part_of_the_key_of_the_engine_is_stored(http, operator,
 @pytest.mark.parametrize("key", [new_signing_key(), {"kty": "RSA", "n": "AQAB", "e": "AQAB"}, {"kty": "EC"}, "a-key"],
                          ids=["a private key", "not an elliptic curve key", "without coordinates", "not a key"])
 def test_only_a_public_p256_key_is_accepted_for_the_engine(http, operator, acme, key):
-    response = http.post(f"/clients/{acme.client_id}/service-keys", headers=operator.auth, json={"signingKey": key})
+    response = http.post(f"/clients/{acme.client_id}/service-keys", headers=operator.auth,
+                         json={"signingKey": key, "worker": "notifier"})
 
     assert response.status_code == 422
     assert Client.objects(uuid=acme.client_id).first().serviceKeys == []
@@ -380,7 +392,7 @@ def test_only_a_public_p256_key_is_accepted_for_the_engine(http, operator, acme,
 @pytest.mark.parametrize("client_id", [str(uuid4()), "not-a-uuid"])
 def test_the_engine_is_not_let_in_for_a_client_that_does_not_exist(http, operator, client_id):
     added = http.post(f"/clients/{client_id}/service-keys", headers=operator.auth,
-                      json={"signingKey": Engine(client_id).public})
+                      json={"signingKey": Engine(client_id).public, "worker": "notifier"})
     removed = http.delete(f"/clients/{client_id}/service-keys/a-kid", headers=operator.auth)
 
     assert (added.status_code, removed.status_code) == (404, 404)
@@ -406,18 +418,24 @@ def test_the_engine_rotates_its_key_for_a_client_without_a_gap(http, operator, a
     assert [http.get(f"/chat/{bot}/tokens", headers=key.auth).status_code for key in (engine, new)] == [401, 200]
 
 
-def test_the_engine_has_two_keys_for_a_client_at_most(http, operator, acme, engine):
-    assert let_in(http, operator, acme.client_id, Engine(acme.client_id)).status_code == 200
+def test_a_worker_has_two_keys_for_a_client_at_most(http, operator, acme, engine):
+    """The key from before keys had a worker does not count: the limit is per worker."""
+    for _ in range(2):
+        assert let_in(http, operator, acme.client_id, Engine(acme.client_id)).status_code == 200
 
     third = let_in(http, operator, acme.client_id, Engine(acme.client_id))
+    for_another_worker = let_in(http, operator, acme.client_id, Engine(acme.client_id), worker="coordinator")
 
     assert (third.status_code, third.json()["detail"]) == (409, "TOO_MANY_KEYS")
+    assert for_another_worker.status_code == 200
+    stored = Client.objects(uuid=acme.client_id).first().serviceKeys
+    assert [key.get("worker") for key in stored] == [None, "notifier", "notifier", "coordinator"]
 
 
 def test_a_key_is_the_client_s_or_the_engine_s_never_both(http, operator, acme, engine):
     """Which list a key is in says who signs with it. In both, it would say two things."""
     as_engine = http.post(f"/clients/{acme.client_id}/service-keys", headers=operator.auth,
-                          json={"signingKey": public_part(acme.key)})
+                          json={"signingKey": public_part(acme.key), "worker": "notifier"})
     # Even holding its private part, which a client never has: without it, the proof alone turns it away.
     as_client = http.post("/keys", **acme.adding(engine.key))
     again = let_in(http, operator, acme.client_id, engine)
@@ -457,7 +475,7 @@ def test_letting_the_engine_in_and_out_leaves_a_trace_that_production_keeps(http
     http.delete(f"/clients/{acme.client_id}/service-keys/{engine.kid}", headers=operator.auth)
 
     kept = [record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING]
-    assert kept == [f"Service key {engine.kid} added to client {acme.client_id}",
+    assert kept == [f"Service key {engine.kid} of worker notifier added to client {acme.client_id}",
                     f"Service key removed from client {acme.client_id}"]
 
 
@@ -540,3 +558,156 @@ def test_every_time_the_turns_are_handed_out_leaves_a_trace_that_production_keep
 
     assert f"Last turns of contact {contact._uuid} of chatbot {bot} handed to the response engine" in caplog.text
     assert "pregunta" not in caplog.text and "12025550143" not in caplog.text
+
+
+# --- One key per worker (ADR-0022) ---------------------------------------------------------------------------------
+
+WORKERS = [worker.value for worker in Worker]
+ENGINE_ROUTES = {"gateway": ("GET", "/gateway/keys"), "rules": ("GET", "/chat/{bot_id}/rules"),
+                 "tools": ("GET", "/chat/{bot_id}/tools"), "tokens": ("GET", "/chat/{bot_id}/tokens"),
+                 "turns": ("GET", "/chat/{bot_id}/contacts/{contact_id}/turns")}
+# The table of ADR-0022, written out again: changing what a worker reaches has to change it here too. All of them
+# also reach the gateway's public keys.
+ADR_0022 = {"classifier": {"rules"}, "coordinator": {"rules", "tools", "turns"}, "link": {"tools"},
+            "responder": {"rules"}, "evaluator": {"rules"}, "notifier": {"tokens"}}
+
+
+def worker_engine(http, operator, client, worker: str) -> Engine:
+    """A worker of the engine, let in for a client with a key of its own."""
+    engine = Engine(client.client_id)
+    assert let_in(http, operator, client.client_id, engine, worker=worker).status_code == 200
+    return engine
+
+
+def test_each_worker_reaches_what_adr_0022_says_and_the_gateway_keys():
+    assert {worker.value: routes for worker, routes in app_module.WORKER_ROUTES.items()} == {
+        worker: {ENGINE_ROUTES[name] for name in names | {"gateway"}} for worker, names in ADR_0022.items()}
+
+
+def test_no_worker_reaches_a_route_that_is_not_the_engine_s():
+    assert set().union(*app_module.WORKER_ROUTES.values()) == set(FOR_THE_ENGINE)
+    assert sorted(ADR_0022) == sorted(WORKERS)
+
+
+@pytest.mark.parametrize("name", sorted(ENGINE_ROUTES))
+@pytest.mark.parametrize("worker", WORKERS)
+def test_a_worker_gets_its_routes_and_none_of_the_others(http, operator, acme, bot, worker, name):
+    contact = conversation(acme, bot, turns=1)
+    engine = worker_engine(http, operator, acme, worker)
+    method, path = ENGINE_ROUTES[name]
+
+    response = http.request(method, path.format(bot_id=bot, contact_id=contact._uuid), headers=engine.auth)
+
+    if name == "gateway" or name in ADR_0022[worker]:
+        assert response.status_code == 200
+    else:
+        assert response.status_code == 403
+        assert SECRETS["facebookToken"] not in response.text and "pregunta" not in response.text
+
+
+@pytest.mark.parametrize("body", [{}, {"worker": None}, {"worker": "scheduler"}, {"worker": "NOTIFIER"}],
+                         ids=["without a worker", "a null worker", "a worker that does not exist", "in capitals"])
+def test_a_key_of_the_engine_is_only_let_in_for_a_worker_it_names(http, operator, acme, body):
+    response = http.post(f"/clients/{acme.client_id}/service-keys", headers=operator.auth,
+                         json={"signingKey": Engine(acme.client_id).public, **body})
+
+    assert response.status_code == 422
+    assert Client.objects(uuid=acme.client_id).first().serviceKeys == []
+
+
+def test_the_key_of_a_worker_is_stored_with_its_worker_and_its_public_part_only(http, operator, acme):
+    engine = worker_engine(http, operator, acme, "coordinator")
+
+    (stored,) = Client.objects(uuid=acme.client_id).first().serviceKeys
+
+    assert set(stored) == {"kty", "crv", "x", "y", "kid", "use", "alg", "worker"}
+    assert (stored["kid"], stored["worker"]) == (engine.kid, "coordinator")
+    assert engine.key["d"] not in dump()
+
+
+def test_who_signs_comes_with_its_worker(http, operator, acme, engine):
+    coordinator = worker_engine(http, operator, acme, "coordinator")
+
+    assert find_signer(acme.client_id, coordinator.kid)[2:] == (Role.SERVICE, Worker.COORDINATOR)
+    assert find_signer(acme.client_id, engine.kid)[2:] == (Role.SERVICE, None)
+    assert find_signer(acme.client_id, acme.kid)[2:] == (Role.CLIENT, None)
+    # What verifies the token is the key alone.
+    assert "worker" not in find_signer(acme.client_id, coordinator.kid)[1]
+
+
+def test_the_client_sees_which_worker_signs_with_each_key_of_the_engine(http, operator, acme, engine):
+    coordinator = worker_engine(http, operator, acme, "coordinator")
+
+    mine = http.get("/keys", headers=acme.auth).json()["data"]["serviceKeys"]
+
+    assert mine == [{"kid": engine.kid, "worker": None}, {"kid": coordinator.kid, "worker": "coordinator"}]
+
+
+def test_a_worker_rotates_its_key_without_a_gap(http, operator, acme, bot):
+    old, new = [worker_engine(http, operator, acme, "notifier") for _ in range(2)]
+
+    assert [http.get(f"/chat/{bot}/tokens", headers=key.auth).status_code for key in (old, new)] == [200, 200]
+
+    taken_out = http.delete(f"/clients/{acme.client_id}/service-keys/{old.kid}", headers=operator.auth)
+
+    assert taken_out.status_code == 200
+    assert [http.get(f"/chat/{bot}/tokens", headers=key.auth).status_code for key in (old, new)] == [401, 200]
+
+
+def test_the_same_key_is_not_let_in_for_two_workers(http, operator, acme):
+    engine = worker_engine(http, operator, acme, "classifier")
+
+    again = let_in(http, operator, acme.client_id, engine, worker="notifier")
+
+    assert (again.status_code, again.json()["detail"]) == (409, "KEY_ALREADY_REGISTERED")
+    assert [key["worker"] for key in Client.objects(uuid=acme.client_id).first().serviceKeys] == ["classifier"]
+
+
+def test_the_log_says_which_worker_took_the_tokens(http, operator, acme, bot, caplog):
+    caplog.set_level(logging.WARNING)
+    notifier = worker_engine(http, operator, acme, "notifier")
+
+    http.get(f"/chat/{bot}/tokens", headers=notifier.auth)
+
+    assert (f"Meta tokens of chatbot {bot} handed to the response engine: client {acme.client_id}, "
+            f"key {notifier.kid}, worker notifier") in caplog.text
+
+
+def test_the_log_says_which_worker_took_the_turns(http, operator, acme, bot, caplog):
+    contact = conversation(acme, bot, turns=1)
+    caplog.set_level(logging.WARNING)
+    coordinator = worker_engine(http, operator, acme, "coordinator")
+
+    turns_of(http, coordinator, bot, contact)
+
+    assert f"key {coordinator.kid}, worker coordinator, 3 messages" in caplog.text
+
+
+def test_a_key_without_a_worker_leaves_a_warning_every_time_it_is_used(http, acme, engine, bot, caplog):
+    caplog.set_level(logging.WARNING)
+
+    http.get(f"/chat/{bot}/rules", headers=engine.auth)
+    http.get(f"/chat/{bot}/tools", headers=engine.auth)
+
+    warned = [record.getMessage() for record in caplog.records
+              if record.levelno >= logging.WARNING and "which has no worker" in record.getMessage()]
+    assert warned == [f"The response engine used key {engine.kid} of client {acme.client_id}, which has no "
+                      f"worker: register one per worker (ADR-0022)"] * 2
+
+
+def test_a_key_with_a_worker_leaves_no_such_warning(http, operator, acme, bot, caplog):
+    caplog.set_level(logging.WARNING)
+    coordinator = worker_engine(http, operator, acme, "coordinator")
+
+    assert http.get(f"/chat/{bot}/rules", headers=coordinator.auth).status_code == 200
+    assert "which has no worker" not in caplog.text
+
+
+def test_a_route_denied_to_a_worker_leaves_a_trace_with_the_worker(http, operator, acme, bot, caplog):
+    caplog.set_level(logging.WARNING)
+    classifier = worker_engine(http, operator, acme, "classifier")
+
+    assert http.get(f"/chat/{bot}/tokens", headers=classifier.auth).status_code == 403
+    assert (f"The response engine was denied a route with its key for client {acme.client_id}, "
+            f"worker classifier") in caplog.text
+    assert "handed to the response engine" not in caplog.text

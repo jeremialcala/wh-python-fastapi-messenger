@@ -47,7 +47,7 @@ async def ctr_get_bot_tokens(repo: TenantRepository, bot_id: str, engine: Princi
         return answer(status.HTTP_503_SERVICE_UNAVAILABLE, "SERVICE UNAVAILABLE")
     # A warning, so that it is kept at the level production logs at: who took the tokens, of which chatbot.
     log.warning(f"Meta tokens of chatbot {bot.uuid} handed to the response engine: client {engine.client_id}, "
-                f"key {engine.kid}")
+                f"key {engine.kid}, worker {engine.worker_name}")
     response = answer(status.HTTP_200_OK, data={"uuid": str(bot.uuid), "facebookToken": secrets.facebook_token,
                                                 "whatsappToken": secrets.whatsapp_token})
     response.headers["Cache-Control"] = "no-store"

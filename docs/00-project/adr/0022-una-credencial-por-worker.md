@@ -62,6 +62,26 @@ rutas alcanza:
 - **Una ruta nueva para el coordinador:** las 10 últimas vueltas de una conversación. Se fija con el historial.
 - **El log dice qué worker pidió los tokens**, además del cliente y la clave.
 
+## Construido (I6a, 2026-10-19)
+
+- **Los nombres de los workers en la API** son `classifier`, `coordinator`, `link`, `responder`, `evaluator` y
+  `notifier` (`enums.Worker`). La tabla de arriba está en `WORKER_ROUTES` (`src/app.py`), y
+  `tests/unit/test_service_credential.py` la escribe otra vez para que no cambie sin querer.
+- **El worker es obligatorio al registrar una clave.** Sin él, o con uno que no existe, la API responde `422`. Las
+  claves de ADR-0016 ya registradas siguen valiendo, pero no se pueden registrar más.
+- **Las claves sin worker alcanzan también las vueltas** (RF15), no solo las cuatro rutas de ADR-0016. La ruta de las
+  vueltas llegó con D6b, cuando la única clave del motor no tenía worker. Quitársela ahora le rompería esa ruta
+  antes de que el motor pase a una clave por worker. Lo propuse al empezar I6a, y Jeremi dio paso a I6a con ese
+  criterio.
+- **El límite de dos claves cuenta por worker** dentro de la propia actualización (`$expr` sobre las claves de ese
+  worker), así que dos registros a la vez no lo rebasan. Las claves sin worker no cuentan para ninguno.
+- **`GET /keys` y `GET /clients`** muestran cada clave del motor como `{"kid", "worker"}`, en lugar de solo su `kid`.
+  Una clave de antes sale con `"worker": null`.
+- **El log** dice el worker en cada entrega de tokens y de vueltas, y en cada ruta denegada. Cada uso de una clave
+  sin worker deja un aviso.
+- Pendiente: el comando que genera y registra las seis claves de un cliente (I6b) y el usuario de Bifröst por
+  worker (I6c, cuando el motor se parta).
+
 ## Condiciones de revisión
 
 - El motor cambia su partición en workers.
