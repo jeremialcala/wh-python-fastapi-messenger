@@ -333,7 +333,7 @@ Preparación única en el servidor:
 - La red Docker externa `andvari`, la credencial del gateway en `keys/andvari-secret-id` y las dos migraciones de datos: la puesta en marcha de [cifrado-de-datos.md](docs/03-implementation/cifrado-de-datos.md).
 - El directorio `erasures/`, con dueño `10001` e incluido en los respaldos del servidor: es el registro de supresiones de [exportar-y-borrar.md](docs/03-implementation/exportar-y-borrar.md). Sin él, borrar responde `503`.
 - La red Docker externa `hermod` y un usuario de RabbitMQ para el gateway (`QMS_SERVER=hermod`). Lo usa el worker de ingesta mientras el motor lea la cola `llm`.
-- La red Docker externa `bifrost` y los ficheros que Bifröst escribe para el webhook y para el worker, `/srv/infra/bifrost/credenciales/webhook.env` e `ingesta.env`, con el consumidor `ingesta` de `WEBHOOK` ya creado ([bus-de-eventos.md](docs/03-implementation/bus-de-eventos.md)). Sin `NATS_URL`, el webhook no arranca fuera de desarrollo.
+- La red Docker externa `bifrost` y los ficheros que Bifröst escribe para el webhook y para el worker, `/srv/infra/bifrost/credenciales/webhook.env`, `ingesta.env` y `gestion.env`, con el consumidor `ingesta` de `WEBHOOK` ya creado ([bus-de-eventos.md](docs/03-implementation/bus-de-eventos.md)). Sin `NATS_URL`, el webhook no arranca fuera de desarrollo.
 - El paquete de GHCR en **Public**, porque el receptor hace pull anónimo.
 - Una entrada en el `apps.yml` del receptor y el webhook `workflow_run` de este repositorio:
 
