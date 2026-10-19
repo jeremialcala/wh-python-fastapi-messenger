@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
 from inspect import currentframe
 from jwcrypto import jwk
 from datetime import datetime
@@ -67,9 +68,11 @@ class Jwk(Document):
         _pem = _key.export_to_pem(private_key=True, password=None)
         _dict = _key.export_public(as_dict=True)
 
-        _private = open(settings.private_key_filename.format(UUID=str(_uuid)), "w")
-        _private.write(_pem.decode())
-        _private.close()
+        # A private key: closed whatever happens while it is written, and readable only by its owner.
+        descriptor = os.open(settings.private_key_filename.format(UUID=str(_uuid)),
+                             os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w") as _private:
+            _private.write(_pem.decode())
 
         _dict["kid"] = _uuid
         _dict["use"] = "enc"

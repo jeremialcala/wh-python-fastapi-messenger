@@ -91,6 +91,20 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - Dos contratos OpenAPI: `openapi.yaml` para la gestión y `openapi-webhook.yaml` para el webhook.
 - `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE` solo los exige la API de gestión.
 
+### Corregido
+- Las alertas de CodeQL abiertas en `main` (2026-10-19).
+  - **`controller/intents.py`:** las seis funciones respondían desde un `finally` con `return`, que se tragaba
+    cualquier excepción salida de los propios `except` y también una cancelación (`asyncio.CancelledError`). La
+    respuesta se arma ahora después del `try`; lo que antes contestaban no cambia.
+  - **`classes/entity_jwk.py`:** la clave privada de cada evento se escribía sin cerrar el fichero si fallaba la
+    escritura, y con los permisos por defecto. Ahora se crea con permisos solo para su dueño (600) y se cierra
+    siempre.
+  - **39 imports sin usar** quitados, en `classes/`, `utils/` y `controller/chatbot.py`.
+  - **`__all__` en los diez módulos que se importan con `*`,** en `constants/`, `controller/` y
+    `utils/key_management.py`. Se borra `constants/locations.py`, que estaba vacío.
+  - **Las cinco alertas de `app.py`** (cuatro imports y una variable sin usar) ya no existen en `develop`, y se
+    cierran al llegar a `main`.
+
 ## [0.3.0] - 2026-10-18
 
 Cierre del Gate 2 (implementación).

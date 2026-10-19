@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 import logging
 from datetime import datetime, timezone
-from typing import Any
-from uuid import uuid4, UUID
+from uuid import uuid4
 from mongoengine import *
-from jwcrypto import jwe, jwk
+from jwcrypto import jwe
 from inspect import currentframe
 
 from enums import Status
-from utils import get_private_key
 
 from .tool_settings import Settings
 from .entity_jwk import EventJwk

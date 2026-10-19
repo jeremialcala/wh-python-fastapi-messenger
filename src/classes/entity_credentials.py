@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
-import json
 from jwcrypto import jwk, jwt
-from datetime import datetime
-from uuid import uuid4, UUID
+from uuid import uuid4
 from mongoengine import *
-from enums import Status
 from inspect import currentframe
 from .tool_settings import Settings
 
