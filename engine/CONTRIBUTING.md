@@ -18,12 +18,12 @@ pull request.
 
 ```bash
 pytest tests/ --cov=src --cov-branch
-pylint --rcfile=pyproject.toml src main.py
+pylint --rcfile=pyproject.toml src
 python ~/.claude/skills/ai-dlc/scripts/validate_mermaid.py docs   # si tocaste documentación
 ```
 
-- Si cambia `src/domain/models`, regenera el contrato:
-  `PYTHONPATH=. python .ai-dlc/scripts/gen_asyncapi.py docs/02-design/contracts/asyncapi.yaml`.
+- Si cambia el sobre (`src/domain/models/sobre.py`), cambia también su contrato,
+  `docs/02-design/contracts/asyncapi-motor.yaml`: las pruebas de contrato fallan si no coinciden.
 - Una decisión de diseño nueva es una ADR nueva (`.ai-dlc/templates/adr.md`).
 - Todo cambio notable lleva su línea en `CHANGELOG.md`, bajo `[Unreleased]`.
 

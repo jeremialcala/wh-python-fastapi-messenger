@@ -37,7 +37,7 @@ El CI compila desde cero, así que un lock regenerado encima del anterior puede 
 comprobación.
 
 El motor de respuestas, en `engine/` (ADR-0023), tiene sus propios `requirements` y locks. Se regeneran igual, desde
-`engine/`, y se prueban en Linux, porque `nemoguardrails` arrastra `annoy`, que no tiene wheel para Windows:
+`engine/`. La imagen del motor instala solo ruedas: una dependencia que pida compilarse rompe su construcción.
 
 ```bash
 cd engine

@@ -2,10 +2,10 @@
 
 | Nivel | Qué prueba | Estado |
 |---|---|---|
-| `unit/` | Parsers, sanitización, caso de uso, motor de intención, guardrails y publicador, con Ollama, NeMo y pika mockeados | 29 tests |
-| `integration/` | Contra RabbitMQ real: ACK y NACK, DLQ, reentrega, publicación confirmada | Vacío |
-| `contract/` | Que lo publicado cumple `docs/02-design/contracts/asyncapi.yaml` | Vacío |
-| `e2e/` | Webhook en la cola de entrada hasta resultado en la de salida, con el modelo real | Vacío |
+| `unit/` | El clasificador con Claude (el SDK de verdad, con un transporte HTTP falso), el worker con cada mensaje y el bucle común | Con pruebas |
+| `integration/` | Contra un NATS con los permisos de Bifröst (`nats-test.conf`): leer, publicar, confirmar, reentregar, y que cada usuario solo publica su paso | Con pruebas |
+| `contract/` | Que el sobre que se publica cumple `docs/02-design/contracts/asyncapi-motor.yaml` | Con pruebas |
+| `e2e/` | Un mensaje de WhatsApp de punta a punta, con Claude de verdad (E7) | Vacío |
 | `security/` | Amenazas T1 a T12: corpus de jailbreaks, payloads hostiles, URL internas, PII en logs | Vacío |
 
 ```bash
@@ -13,8 +13,6 @@ pytest                                  # toda la pirámide
 pytest tests/unit --cov=src --cov-branch
 ```
 
-`pyproject.toml` añade la raíz del repo al `sys.path`, así que `from src...` resuelve desde
-cualquier nivel. Las fixtures de webhooks están en `tests/unit/conftest.py`; al añadir otro
-nivel que las necesite, hay que subirlas a `tests/conftest.py`.
-
-`nemoguardrails` no se instala en Windows (ver README). Los tests unitarios no lo necesitan.
+`pyproject.toml` añade `engine/` y la raíz del monorepo al `sys.path`, así que `from src...` y `from shared...`
+resuelven desde cualquier nivel. Las de integración se saltan sin `NATS_TEST_ADDR`, y fallan con
+`NATS_TEST_REQUIRED`, como en el CI.

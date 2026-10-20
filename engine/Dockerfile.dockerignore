@@ -4,8 +4,6 @@
 **
 
 !engine/requirements.lock
-!engine/main.py
-!engine/logging_config.yaml
 !engine/src/
 !shared/
 

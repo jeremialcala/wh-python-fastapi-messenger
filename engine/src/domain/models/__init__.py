@@ -1,15 +1,3 @@
 """
-    Modelos de dominio.
+    Modelos de dominio: el sobre que se pasan los workers (sobre.py).
 """
-from .mensaje import Adjunto, MensajeEntrante
-from .intencion import Intencion
-from .guardrail import ResultadoGuardrail
-from .resultado import ResultadoClasificado
-
-__all__ = [
-    "Adjunto",
-    "MensajeEntrante",
-    "Intencion",
-    "ResultadoGuardrail",
-    "ResultadoClasificado",
-]

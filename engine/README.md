@@ -1,169 +1,125 @@
-# ms-python-metamsghandler
+# El motor de respuestas
 
-> **El motor de respuestas, dentro del monorepo de los chatbots.** Vive en `engine/` del repositorio
-> `wh-python-fastapi-messenger`, junto al gateway que le entrega los mensajes, desde el 2026-10-20
+> **Dentro del monorepo de los chatbots.** Vive en `engine/` del repositorio `wh-python-fastapi-messenger`, junto al
+> gateway que le entrega los mensajes, desde el 2026-10-20
 > ([ADR-0023](../docs/00-project/adr/0023-monorepo-del-gateway-y-el-motor.md)). El repositorio
-> `ms-python-metamsghandler` queda archivado con su historia, que también está aquí. Las órdenes de este README se
-> ejecutan desde `engine/`.
+> `ms-python-metamsghandler`, donde nació, queda archivado con su historia, que también está aquí. Las órdenes de
+> este README se ejecutan desde `engine/`.
 
-Microservicio en Python que **consume, procesa e interpreta** los mensajes entrantes de las plataformas de Meta (**Messenger, WhatsApp e Instagram**). Determina la intención del usuario mediante IA (Ollama), aplica una capa de seguridad (NVIDIA NeMo Guardrails) y publica un resultado clasificado para que un servicio aguas abajo entregue la respuesta.
+Responde los mensajes que las personas envían a los chatbots por WhatsApp, Messenger e Instagram. Son seis workers de
+una misma imagen, uno por contenedor, que se pasan cada mensaje por Bifröst, el NATS JetStream de midgard
+([ADR-0008](docs/02-design/adr/ADR-0008-seis-workers-sobre-bifrost.md)). Usan Claude por la API de Anthropic
+([ADR-0009](docs/02-design/adr/ADR-0009-claude-como-llm.md)).
 
-El servicio consume webhooks crudos de Meta desde una cola de **RabbitMQ (AMQP)** y publica el `ResultadoClasificado` en otra cola.
+## El recorrido de un mensaje
 
----
-
-## Pilares
-
-- **Clean Architecture** — capas independientes de la tecnología: `domain`, `application`, `infrastructure`, `presentation`.
-- **SOLID** — la aplicación depende de **puertos** (interfaces) del dominio; la infraestructura los implementa (inversión de dependencias).
-- **OWASP** — sanitización estricta de inputs e IDs, mitigación de inyección de prompts (guardrails + validación de la salida del LLM).
-- **SOC2** — logs de auditoría estructurados por etapa con PII enmascarada.
-
----
-
-## Pipeline
-
-```text
-[RabbitMQ: cola de entrada]
-        │
-        ▼
-AmqpConsumer (hilos + ACK threadsafe)        src/infrastructure/amqp
-        │
-        ▼
-WebhookResolver → MessengerParser / WhatsAppParser / InstagramParser   (Fase 1)
-        │   (identifica origen por el campo `object` y normaliza a MensajeEntrante)
-        ▼
-NeMoGuardrailsPolicy.evaluar()               (Fase 3)  → bloquea jailbreak / off-topic
-        │
-        ▼
-OllamaIntentEngine.detectar()                (Fase 2)  → Intencion {etiqueta, tipo_respuesta, ...}
-        │
-        ▼
-ResultadoClasificado → AmqpPublisher.publicar()  → [RabbitMQ: cola de salida]
+```mermaid
+flowchart LR
+    GW["gateway<br/>(ingesta)"] -- "gateway.message.…<br/>MENSAJES" --> CL["clasificador"]
+    CL -- "motor.clasificado.…" --> CO["coordinador"]
+    CO -- "motor.pedido.…" --> RE["respuesta"]
+    RE -- "motor.respuesta.…" --> NO["notificador"]
+    NO -- "engine.reply.sent.…<br/>RESPUESTAS" --> GW
+    NO -- "Graph API" --> META["Meta"]
 ```
 
-La orquestación vive en [`ProcesarMensajeUseCase`](src/application/procesar_mensaje.py).
+Es el esqueleto: el enlace y el evaluador llegan después. El orden está en el
+[plan de los workers](docs/00-project/plan-de-los-workers.md).
 
-### Matriz de clasificación
+| Worker | Estado | Lee | Publica |
+|---|---|---|---|
+| Clasificador | **Construido** (E3) | `MENSAJES`, consumidor `classifier` | `motor.clasificado.{p}.{bot}.{contacto}` |
+| Coordinador | E4 | `MOTOR`, consumidor `coordinator` | `motor.pedido.…` |
+| Respuesta | E5 | `MOTOR`, consumidor `responder` | `motor.respuesta.…` |
+| Notificador | E6 | `MOTOR`, consumidor `notifier` | `engine.reply.sent.{bot}` y Meta |
 
-| `tipo_respuesta` | Descripción |
-|---|---|
-| `texto`   | Consulta común / conversación simple. |
-| `action`  | Requiere lógica de negocio externa (ej: consultar stock). |
-| `adjunto` | Recepción de archivos (imágenes, PDFs, audios). |
+### El clasificador
 
-> Esta entrega cubre las **Fases 1–3** (identificación de origen, intención y guardrails). Las estrategias de respuesta (Fase 4) y el hardening completo OWASP/SOC2 (Fase 5) son trabajo posterior.
+`python -m src.workers.classifier`. Por cada mensaje identificado, una llamada a Claude Haiku 5.5 con salida
+estructurada decide si se atiende y cuál es su intención.
 
----
+- **Fail-closed:** solo sigue lo que Claude permite sin motivo para pararlo.
+- **Solo el texto sale a Anthropic.**
+- **Publica el sobre para el coordinador** y solo entonces confirma.
+
+El sobre que se pasan los workers es el contrato interno del motor,
+[`asyncapi-motor.yaml`](docs/02-design/contracts/asyncapi-motor.yaml).
 
 ## Estructura
 
 ```text
-main.py                              # entrypoint; delega en presentation
 src/
 ├── domain/
-│   ├── enums/                       # Origen, TipoRespuesta, Status, ResponseCodes, KeyTypes
-│   ├── models/                      # MensajeEntrante, Adjunto, Intencion, ResultadoClasificado, ResultadoGuardrail
-│   └── ports/                       # WebhookParser, GuardrailsPolicy, IntentEngine, MessagePublisher
-├── application/
-│   └── procesar_mensaje.py          # ProcesarMensajeUseCase (orquesta el pipeline)
+│   ├── models/sobre.py              # el sobre de los workers, versión 1
+│   └── ports/                       # ClasificadorDeEntrada
 ├── infrastructure/
-│   ├── config/                      # Settings (pydantic-settings ← config.env)
-│   ├── logging/                     # configure_logging (logging_config.yaml)
-│   ├── shared/                      # constantes y utilidades (enmascarar PII, etc.)
-│   ├── amqp/                        # AmqpConsumer + AmqpPublisher
-│   ├── adapters/                    # parsers de webhooks Meta + WebhookResolver + sanitización
-│   ├── llm/                         # OllamaIntentEngine + prompts
-│   ├── guardrails/                  # NeMoGuardrailsPolicy + config/ (rails .yml/.co)
-│   ├── persistence/                 # generación dinámica de modelos ORM/DTO
-│   └── security/                    # operaciones JWE/JWK (opcional)
-└── presentation/
-    └── bootstrap.py                 # composición de dependencias + arranque del consumer
-tests/                               # pirámide: unit, integration, contract, e2e, security
+│   ├── claude/                      # ClaudeClasificador (SDK anthropic)
+│   └── adapters/sanitize.py         # el saneado del texto antes de salir
+└── workers/
+    ├── runtime.py                   # el bucle común: atarse al consumidor, leer, publicar, confirmar
+    ├── settings.py                  # la configuración de cada worker, del entorno
+    └── classifier.py                # el clasificador
+tests/                               # unit, contract e integration (contra un NATS)
 docs/                                # documentación AI-DLC por fase (00 a 06)
-.ai-dlc/                             # gates, plantillas y mapeo OWASP
 ```
 
----
-
-## Stack tecnológico
-
-| Categoría | Tecnología |
-|---|---|
-| Lenguaje | Python 3.12 |
-| Mensajería | RabbitMQ / AMQP (`pika`) |
-| Motor de IA | Ollama (`ollama`, instancia local en `localhost:11434`) |
-| Seguridad IA | NVIDIA NeMo Guardrails (`nemoguardrails`) |
-| Validación / Settings | `pydantic`, `pydantic-settings` |
-| Base de datos | MongoDB (`mongoengine`) — para JWK/JWE |
-| Testing / Calidad | `pytest`, `pytest-cov`, `pylint` (fijados en `requirements-dev.lock`) |
-| Contenerización | Docker, Kubernetes |
-
----
+Lo que el motor comparte con el gateway (el bus, las trazas, los contratos v2, el almacén de claves de Andvari) está
+en `shared/`, en la raíz del monorepo.
 
 ## Configuración
 
-Copia [`config.env.example`](config.env.example) a `config.env` y completa los valores. Variables nuevas relevantes:
+Del entorno del contenedor. Ningún secreto va en ella:
 
-| Variable | Descripción |
+| Variable | Qué |
 |---|---|
-| `queue_name`, `amqp_exchange`, `amqp_routing_key` | Cola/exchange de **entrada** (webhooks Meta). |
-| `output_queue_name`, `output_routing_key` | Cola/exchange de **salida** (resultado clasificado). |
-| `ollama_host` | URL de Ollama (por defecto `http://localhost:11434`). |
-| `ollama_model` | Modelo a usar para intención y guardrails (ej: `llama3.1`). |
-| `guardrails_config_path` | Ruta a la config de NeMo (`src/infrastructure/guardrails/config`). |
+| `NATS_URL`, `NATS_USER`, `NATS_PASSWORD`, `NATS_CA`, `NATS_INBOX_PREFIX` | Bifröst. Las deja `credenciales/<worker>.env` del repositorio `bifrost` |
+| `ANDVARI_ADDR`, `ANDVARI_CA_FILE` | Andvari |
+| `ENGINE_ROLE_ID`, `ENGINE_SECRET_ID_FILE` | El rol AppRole `motor-<worker>` y el fichero con su `secret_id` |
+| `CLASSIFIER_MODEL`, `CLASSIFIER_EFFORT`, `CLASSIFIER_MAX_TOKENS`, `CLASSIFIER_TIMEOUT`, `CLASSIFIER_MAX_RETRIES` | El clasificador. Por defecto: `claude-haiku-5-5`, `low`, 1024, 7 s y 2 |
+| `LOG_LEVEL` | `INFO` por defecto. El log va al stdout del contenedor |
 
-Requisitos de ejecución: **RabbitMQ** accesible y **Ollama** con el modelo descargado (`ollama pull llama3.1`).
+La clave de la API de Anthropic de cada worker la lee el worker de Andvari al arrancar, de
+`motor/data/anthropic/<worker>`. La pone el operador con `motor/clave-anthropic.sh` del repositorio `andvari`.
 
----
+## Desarrollo y pruebas
 
-## Desarrollo y pruebas (Docker / WSL)
-
-> ⚠️ `nemoguardrails` arrastra `annoy`, una extensión nativa **sin wheel para Windows** que requiere un compilador C++. Por eso el desarrollo y los tests se ejecutan en **Docker/WSL (Linux)**, con **Python 3.12**. Las dependencias se instalan desde los locks, con hashes (`requirements.lock` y `requirements-dev.lock`; cómo regenerarlos, en el `CONTRIBUTING.md` de la raíz).
+Python 3.12. Las dependencias se instalan desde los locks, con hashes (`requirements.lock` y `requirements-dev.lock`;
+cómo regenerarlos, en el `CONTRIBUTING.md` de la raíz). Las pruebas no llaman a la API de Anthropic: el clasificador
+se prueba con el SDK de verdad y un transporte HTTP falso.
 
 ```bash
-# Desde engine/. Pruebas, cobertura y pylint, como en el CI (workflow `engine`)
-docker run --rm -v "$PWD:/src:ro" python:3.12 bash -c \
-  'cp -r /src /work && cd /work && pip install -q --require-hashes -r requirements-dev.lock \
-   && pylint --rcfile=pyproject.toml src main.py && python -m pytest --cov=src --cov-branch --cov-fail-under=60'
+# Desde engine/. Las de integración necesitan un NATS como Bifröst; sin NATS_TEST_ADDR se saltan.
+docker run -d --rm --name nats-motor -p 127.0.0.1:24222:4222 \
+  -v "$PWD/tests/integration/nats-test.conf:/etc/nats/test.conf:ro" nats:2.14.8-alpine -c /etc/nats/test.conf
+pip install --require-hashes -r requirements-dev.lock
+pylint --rcfile=pyproject.toml src
+NATS_TEST_ADDR=127.0.0.1:24222 python -m pytest --cov=src --cov-branch --cov-fail-under=80
 
-# La imagen del servicio: solo el código y lo de ejecución, sin las pruebas
-docker build -t chatbot-engine .
-
-# Ejecutar el servicio (montando config.env)
-docker run --rm --env-file config.env chatbot-engine
+# La imagen, desde la raíz del monorepo, que es donde está shared/
+docker build -f Dockerfile -t chatbot-engine ..
 ```
 
-Las pruebas unitarias mockean Ollama y el motor de guardrails, por lo que **no requieren** servicios externos.
-
----
+El CI (workflows `engine` y `build-engine`) hace lo mismo, con el NATS y con las pruebas de integración obligatorias.
 
 ## Despliegue
 
-El servicio aún no está desplegado. [`deployment.yaml`](deployment.yaml) es un borrador heredado
-de un template (nombre e imagen de otro servicio) y no sirve tal cual. Dónde y cómo se despliega
-se decide en [ADR-0006](docs/02-design/adr/ADR-0006-placement-worker.md) y
-[ADR-0007](docs/02-design/adr/ADR-0007-placement-serving-llm.md).
-
----
+Todavía no está desplegado: el esqueleto se despliega en midgard en el E7, un contenedor por worker, junto a Bifröst
+y Andvari.
 
 ## Metodología AI-DLC
 
-El repositorio sigue el estándar AI-DLC en su variante de un solo servicio
-([ADR-0001](docs/00-project/adr/0001-adopcion-estructura-ai-dlc.md)).
+El motor sigue el estándar AI-DLC ([ADR-0001](docs/00-project/adr/0001-adopcion-estructura-ai-dlc.md)).
 
 | Carpeta | Contenido |
 |---|---|
-| [`docs/`](docs/README.md) | Charter, requisitos, arquitectura, threat model, ADRs y contrato AsyncAPI, por fase |
+| [`docs/`](docs/README.md) | Charter, requisitos, arquitectura, threat model, ADRs y contratos, por fase |
 | [`.ai-dlc/`](.ai-dlc/) | Checklists de los gates 0 a 5 con su estado, plantillas y mapeo OWASP |
 | [`tests/`](tests/README.md) | Pirámide de pruebas |
 | [`CHANGELOG.md`](CHANGELOG.md) | Cambios notables |
 | [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) | Política de seguridad y flujo de trabajo |
 
-Ningún gate está cerrado todavía. Las brechas de seguridad conocidas están en
-[`docs/02-design/threat-model.md`](docs/02-design/threat-model.md).
-
----
+Ningún gate está cerrado todavía. La arquitectura y el threat model describen aún el servicio de antes, el de
+RabbitMQ, NeMo y Ollama: se rehacen con ADR-0008 y ADR-0009 antes de cerrar el Gate 1 del motor.
 
 ## Autor
 

@@ -7,7 +7,7 @@ Los diagramas van dentro del documento de su fase, como bloques Mermaid. Para va
 |---|---|---|---|
 | 00 Proyecto | — | [Charter](00-project/charter.md) · [Glosario](00-project/glossary.md) · [Clasificación de datos](00-project/data-classification.md) · [ADRs](00-project/adr/) | — |
 | 01 Requisitos | 0 | [PRD MMH-F01](01-requirements/clasificacion-mensajes-meta.md) | Abierto: falta aprobación |
-| 02 Diseño | 1 | [Arquitectura](02-design/architecture.md) · [Threat model](02-design/threat-model.md) · [AsyncAPI](02-design/contracts/asyncapi.yaml) · [ADRs de placement](02-design/adr/) | Abierto: falta validación y placement |
+| 02 Diseño | 1 | [Arquitectura](02-design/architecture.md) · [Threat model](02-design/threat-model.md) · [AsyncAPI del sobre](02-design/contracts/asyncapi-motor.yaml) · [ADRs de placement](02-design/adr/) | Abierto: falta validación y placement |
 | 03 Implementación | 2 | [Historial del repo](03-implementation/repo-history.md) | Abierto |
 | 04 Pruebas | 3 | [Estado](04-testing/README.md) | Abierto |
 | 05 Despliegue | 4 | [Estado](05-deployment/README.md) | Abierto |

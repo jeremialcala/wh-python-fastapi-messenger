@@ -1,9 +1,7 @@
 """
-    ms-python-metamsghandler — Microservicio de procesamiento de mensajería Meta.
+    El motor de respuestas: seis workers sobre Bifröst, de una misma imagen (ADR-0008).
 
-    Estructura Clean Architecture:
-        - domain:          modelos puros, enums y puertos (interfaces).
-        - application:      casos de uso que orquestan el pipeline.
-        - infrastructure:   implementaciones concretas (AMQP, LLM, Guardrails, etc.).
-        - presentation:     puntos de entrada y cableado de dependencias.
+        - domain:          el sobre que se pasan los workers y los puertos (interfaces).
+        - infrastructure:  las implementaciones concretas: Claude y el saneado de la entrada.
+        - workers:         el punto de entrada de cada worker y el bucle que comparten.
 """
