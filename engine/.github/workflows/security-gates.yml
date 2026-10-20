@@ -1,0 +1,28 @@
+# Esqueleto de los 7 gates de seguridad de AI-DLC (fase 05, Gate 4).
+#
+# Ningún paso analiza nada todavía. Por eso se lanza solo a mano (workflow_dispatch):
+# en pull_request daría una marca verde sin significado. Cuando un paso tenga su
+# herramienta real, cambiar el disparador a pull_request.
+name: AI-DLC Security Gates (pendiente)
+on: [workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: SAST
+        run: echo "PENDIENTE - SAST (p. ej. Semgrep o CodeQL)"
+      - name: SCA + deps verificadas (A03)
+        run: echo "PENDIENTE - SCA sobre requirements.txt (p. ej. pip-audit o Trivy)"
+      - name: Secret scanning
+        run: echo "PENDIENTE - gitleaks sobre el historial completo"
+      - name: License check
+        run: echo "PENDIENTE - escaner de licencias"
+      - name: Container scan
+        run: echo "PENDIENTE - Trivy sobre la imagen"
+      - name: IaC scan
+        run: echo "PENDIENTE - Checkov sobre la definicion de despliegue (ADR-0006)"
+      - name: DAST
+        run: echo "PENDIENTE - payloads hostiles contra la cola de entrada en un entorno efimero"

@@ -73,7 +73,9 @@ src/
 │   └── security/                    # operaciones JWE/JWK (opcional)
 └── presentation/
     └── bootstrap.py                 # composición de dependencias + arranque del consumer
-test/                                # pruebas unitarias (pytest)
+tests/                               # pirámide: unit, integration, contract, e2e, security
+docs/                                # documentación AI-DLC por fase (00 a 06)
+.ai-dlc/                             # gates, plantillas y mapeo OWASP
 ```
 
 ---
@@ -118,7 +120,7 @@ Requisitos de ejecución: **RabbitMQ** accesible y **Ollama** con el modelo desc
 docker build -t ms-metamsg .
 
 # Ejecutar la batería de pruebas con cobertura dentro del contenedor
-docker run --rm ms-metamsg pytest --cov=src test/ -p no:warnings
+docker run --rm ms-metamsg pytest --cov=src tests/ -p no:warnings
 
 # Ejecutar el servicio (montando config.env)
 docker run --rm --env-file config.env ms-metamsg
@@ -128,13 +130,30 @@ Las pruebas unitarias mockean Ollama y el motor de guardrails, por lo que **no r
 
 ---
 
-## Despliegue en Kubernetes
+## Despliegue
 
-[`deployment.yaml`](deployment.yaml) define un `Deployment` en el namespace `chatters-pro`.
+El servicio aún no está desplegado. [`deployment.yaml`](deployment.yaml) es un borrador heredado
+de un template (nombre e imagen de otro servicio) y no sirve tal cual. Dónde y cómo se despliega
+se decide en [ADR-0006](docs/02-design/adr/ADR-0006-placement-worker.md) y
+[ADR-0007](docs/02-design/adr/ADR-0007-placement-serving-llm.md).
 
-```bash
-kubectl apply -f deployment.yaml
-```
+---
+
+## Metodología AI-DLC
+
+El repositorio sigue el estándar AI-DLC en su variante de un solo servicio
+([ADR-0001](docs/00-project/adr/0001-adopcion-estructura-ai-dlc.md)).
+
+| Carpeta | Contenido |
+|---|---|
+| [`docs/`](docs/README.md) | Charter, requisitos, arquitectura, threat model, ADRs y contrato AsyncAPI, por fase |
+| [`.ai-dlc/`](.ai-dlc/) | Checklists de los gates 0 a 5 con su estado, plantillas y mapeo OWASP |
+| [`tests/`](tests/README.md) | Pirámide de pruebas |
+| [`CHANGELOG.md`](CHANGELOG.md) | Cambios notables |
+| [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) | Política de seguridad y flujo de trabajo |
+
+Ningún gate está cerrado todavía. Las brechas de seguridad conocidas están en
+[`docs/02-design/threat-model.md`](docs/02-design/threat-model.md).
 
 ---
 
