@@ -13,6 +13,10 @@ mongoengine>=0.28.2
 
 # Rest clients
 requests>=2.32
+# The CA bundle requests trusts. From 2026.10.19: the ones before trust the emSign roots whose intermediates had their
+# keys compromised (GHSA-6q48-6c7w-9gw2, critical, published 2026-10-20). Taken a day old, against the two-week rule:
+# no older release has the fix.
+certifi>=2026.10.19
 
 # PyDantic data validators
 pydantic>=2.6.4
