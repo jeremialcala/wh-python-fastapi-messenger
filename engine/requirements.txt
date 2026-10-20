@@ -2,38 +2,19 @@
 #  Runtime dependencies
 # ============================================================
 
-# Messaging (RabbitMQ / AMQP)
-pika==1.3.2
-
-# Database (MongoDB)
-mongoengine==0.28.2
-pymongo==4.18.2
-dnspython==2.8.0          # required for mongodb+srv:// URIs
-pillow==12.3.0            # required by mongoengine ImageField
-
-# Configuration & validation
+# Configuración y validación: el sobre, los contratos y la configuración de cada worker.
 pydantic==2.7.4
 pydantic_core==2.18.4
 annotated-types==0.7.0
 typing_extensions==4.16.0  # anthropic asks for >=4.14
 pydantic-settings==2.3.3
-python-dotenv==1.2.2      # .env support for pydantic-settings
-PyYAML==6.0.1             # logging configuration (logging_config.yaml)
+python-dotenv==1.2.2      # lo pide pydantic-settings; fijado en la versión sin vulnerabilidades conocidas
 
-# Security (JWE / JWK)
+# Las firmas de los tokens de la API del gateway (shared.auth).
 jwcrypto==1.6.1
 cryptography==50.0.2
 cffi==2.0.0
 pycparser==2.22
-
-# AI engine (Ollama) — detección de intención
-ollama==0.3.3
-
-# AI safety layer (NVIDIA NeMo Guardrails)
-# Nota: arrastra 'annoy', que requiere un compilador C++ para construirse.
-# En la imagen Docker (Linux) compila con build-essential; en Windows usar
-# Docker/WSL para el desarrollo y los tests.
-nemoguardrails==0.22.0
 
 # What `shared/` needs (ADR-0023): the bus, the traces and the tokens of the gateway's API. The same versions as
 # the gateway's requirements.lock, so both sides run the shared code on the same libraries.

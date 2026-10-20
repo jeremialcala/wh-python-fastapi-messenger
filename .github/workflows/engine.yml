@@ -47,15 +47,14 @@ jobs:
           cache: pip
           cache-dependency-path: engine/requirements-dev.lock
 
-      # From the lock and with hashes: the tests run against exactly what was pinned. annoy, which nemoguardrails
-      # pulls in, builds with the compilers the runner already has.
+      # From the lock and with hashes: the tests run against exactly what was pinned.
       - run: pip install --require-hashes -r requirements-dev.lock
 
-      - run: pylint --rcfile=pyproject.toml src main.py
+      - run: pylint --rcfile=pyproject.toml src
 
-      # The engine starts at the coverage it has, 60 %, and goes up to the gateway's 80 % before its Gate 3
-      # (ADR-0023, point 5).
-      - run: python -m pytest --cov=src --cov-branch --cov-fail-under=60
+      # The gateway's 80 % (ADR-0023, point 5): the engine started at 60 %, and reached it when the old pipeline left
+      # (E3b).
+      - run: python -m pytest --cov=src --cov-branch --cov-fail-under=80
         env:
           NATS_TEST_ADDR: 127.0.0.1:4222
           # Here the integration tests must run: without this they would be skipped without a word.

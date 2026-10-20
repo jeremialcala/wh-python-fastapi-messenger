@@ -1,18 +1,6 @@
 """
-    Adaptadores de webhooks de Meta (Messenger / WhatsApp / Instagram).
+    Adaptadores de la entrada: el saneado del texto de la persona antes de que salga del motor.
 """
-from .messenger import MessengerParser
-from .whatsapp import WhatsAppParser
-from .instagram import InstagramParser
-from .resolver import WebhookResolver, OrigenNoSoportado
-from .sanitize import sanitizar_texto, sanitizar_id
+from .sanitize import sanitizar_texto
 
-__all__ = [
-    "MessengerParser",
-    "WhatsAppParser",
-    "InstagramParser",
-    "WebhookResolver",
-    "OrigenNoSoportado",
-    "sanitizar_texto",
-    "sanitizar_id",
-]
+__all__ = ["sanitizar_texto"]

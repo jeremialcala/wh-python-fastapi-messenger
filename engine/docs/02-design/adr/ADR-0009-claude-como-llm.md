@@ -152,7 +152,17 @@ Opus 5.5 para responder y evaluar.
   `ack_wait` del consumidor, y la configuración no deja pasar valores que lo rompan.
 - **El log** dice los tokens de entrada y de salida de cada llamada, para medir el coste, y nunca el texto, la
   respuesta ni el error de la API.
-- Pendiente (E3b): retirar NeMo, Ollama, `annoy`, sus adaptadores y el consumidor AMQP.
+## Construido (E3b, la retirada, 2026-10-20)
+
+- **Salen del motor** NeMo Guardrails, Ollama y `annoy`, con sus adaptadores, sus prompts y la configuración de los
+  rails. Con ellos se van el consumidor y el publicador AMQP (`pika`), el caso de uso que los unía, los parsers de
+  webhooks de Meta y el código muerto de MongoDB y JWE (`mongoengine`, `pymongo`, `pillow`). El texto lo lee
+  `shared.contract.what_was_said`, no los parsers: es lo que ADR-0008, punto 9, decía reaprovechar, y al final el
+  clasificador solo necesitó el saneado.
+- **La imagen** pasa a una sola etapa sobre `python:3.12-slim`, e instala solo ruedas (`--only-binary=:all:`): ya no
+  hay nada que compilar. Su orden por defecto es el clasificador.
+- **La cobertura mínima del CI** sube del 60 % al 80 %, la del gateway (ADR-0023, punto 5). Con el código de antes
+  fuera, el motor tiene el 91 %.
 
 ## Condiciones de revisión
 

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-    Sanitización de entradas (OWASP). Limpia el texto y valida identificadores
-    antes de que entren al pipeline.
+    Sanitización de la entrada (OWASP). Limpia el texto de la persona antes de que salga del motor hacia Claude.
 """
 import re
 import unicodedata
@@ -9,8 +8,6 @@ import unicodedata
 # Longitud máxima razonable para un mensaje de chat; recorta entradas abusivas.
 MAX_TEXTO = 4096
 
-# Identificadores de Meta: PSID/wa_id/IGSID/mid. Conjunto conservador.
-_ID_PERMITIDO = re.compile(r"[^A-Za-z0-9_.:=\-]")
 # Caracteres de control (excepto tab/newline) que no deben llegar al LLM.
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
@@ -30,17 +27,3 @@ def sanitizar_texto(texto: object, max_len: int = MAX_TEXTO) -> str:
     valor = _CONTROL.sub("", valor)
     valor = valor.strip()
     return valor[:max_len]
-
-
-def sanitizar_id(valor: object, max_len: int = 128) -> str:
-    """
-        Valida/limpia un identificador, descartando caracteres no permitidos.
-        Mitiga inyección a través de IDs (logs, claves, downstream).
-
-    :param valor: identificador crudo.
-    :param max_len: longitud máxima permitida.
-    :return: identificador saneado (puede quedar vacío si era inválido).
-    """
-    if valor is None:
-        return ""
-    return _ID_PERMITIDO.sub("", str(valor))[:max_len]

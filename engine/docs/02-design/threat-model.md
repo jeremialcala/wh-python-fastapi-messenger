@@ -10,6 +10,11 @@
 * **Metodología:** STRIDE + DREAD, con el Top 10 de OWASP 2025 y el Top 10 para aplicaciones LLM 2025
 * **Clasificación de datos (ref):** `docs/00-project/data-classification.md`
 
+> **Describe el servicio de antes.** Desde el E3b (2026-10-20) el código de RabbitMQ, NeMo Guardrails y Ollama ya no
+> existe: el motor son workers sobre Bifröst ([ADR-0008](adr/ADR-0008-seis-workers-sobre-bifrost.md)) que usan Claude
+> ([ADR-0009](adr/ADR-0009-claude-como-llm.md)). Este threat model se rehace con ellas (T1, T5, T7 y T12, según ADR-0009) antes de cerrar el Gate 1 del
+> motor; mientras tanto, lo construido está en la sección «Construido» de cada ADR.
+
 Las amenazas salen de leer el código de `develop` (4c7bb9e), no de una plantilla. Cada una cita
 el fichero donde se observa. Lo que no se pudo comprobar desde este repositorio está marcado
 como supuesto.

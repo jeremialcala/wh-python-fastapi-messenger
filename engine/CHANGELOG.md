@@ -70,6 +70,11 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 - `.ai-dlc/scripts/`: generadores del contrato AsyncAPI y del historial del repo.
 
 ### Cambiado
+- **La imagen, en una sola etapa** sobre `python:3.12-slim`, con solo ruedas (`--only-binary=:all:`): sin NeMo ni
+  `annoy` no hay nada que compilar. Por defecto arranca el clasificador; cada contenedor dice su worker.
+- **La cobertura mínima del CI sube del 60 % al 80 %**, la del gateway. `build-engine` levanta también el NATS, así
+  que las pruebas de integración corren en `main` en vez de saltarse.
+- El README describe el motor en workers.
 - **El motor vive ahora en `engine/` del monorepo `wh-python-fastapi-messenger`**, junto al gateway (ADR-0023 del
   gateway, que supera la ADR-0001 de aquí en lo que decía de un repositorio por servicio). Se importó con toda su
   historia; `ms-python-metamsghandler` queda archivado. Sus ADRs siguen aquí con sus números. El `.github/` propio
@@ -85,6 +90,18 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
   fijada con hashes en su `.lock`. flake8, tox y pycobertura dejan de instalarse.
 - **Dockerfile en dos etapas**, con las bases por digest: las dependencias se compilan desde el lock con hashes y la
   imagen final es `python:3.12-slim`, sin compiladores y solo con el código. Ya no instala rustup.
+
+### Eliminado
+- **El servicio de antes** (E3b del [plan](docs/00-project/plan-de-los-workers.md); ADR-0009, «Construido»):
+  - NeMo Guardrails y Ollama, con sus adaptadores, sus prompts y los rails, y con ellos `annoy` y su compilación de
+    C++. El motor ya se puede desarrollar fuera de Linux;
+  - el consumidor y el publicador AMQP (`pika`), el caso de uso que los unía y `main.py`;
+  - los parsers de webhooks de Meta: el clasificador lee el texto con `shared.contract.what_was_said`;
+  - el código muerto de MongoDB y JWE (`mongoengine`, `pymongo`, `dnspython`, `pillow`);
+  - `config.env.example`, `logging_config.yaml`, `deployment.yaml` (un borrador de otro servicio) y el contrato AMQP
+    `asyncapi.yaml` con su generador. El contrato de ahora es `asyncapi-motor.yaml`.
+
+  `jwcrypto` y `cryptography` se quedan: los usa `shared.auth`. `PyYAML` pasa a las dependencias de desarrollo.
 
 ### Seguridad
 - **Siete dependencias con vulnerabilidades conocidas pasan a versiones corregidas**, todas con más de dos semanas:
