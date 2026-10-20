@@ -1,5 +1,11 @@
 # ms-python-metamsghandler
 
+> **El motor de respuestas, dentro del monorepo de los chatbots.** Vive en `engine/` del repositorio
+> `wh-python-fastapi-messenger`, junto al gateway que le entrega los mensajes, desde el 2026-10-20
+> ([ADR-0023](../docs/00-project/adr/0023-monorepo-del-gateway-y-el-motor.md)). El repositorio
+> `ms-python-metamsghandler` queda archivado con su historia, que también está aquí. Las órdenes de este README se
+> ejecutan desde `engine/`.
+
 Microservicio en Python que **consume, procesa e interpreta** los mensajes entrantes de las plataformas de Meta (**Messenger, WhatsApp e Instagram**). Determina la intención del usuario mediante IA (Ollama), aplica una capa de seguridad (NVIDIA NeMo Guardrails) y publica un resultado clasificado para que un servicio aguas abajo entregue la respuesta.
 
 El servicio consume webhooks crudos de Meta desde una cola de **RabbitMQ (AMQP)** y publica el `ResultadoClasificado` en otra cola.

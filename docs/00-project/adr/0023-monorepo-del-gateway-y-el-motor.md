@@ -1,6 +1,6 @@
 # ADR-0023: El gateway y el motor de respuestas, en un solo repositorio
 
-* **Estado:** proposed
+* **Estado:** accepted
 * **Fecha:** 2026-10-20
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 00-project
@@ -10,6 +10,8 @@
   polyrepo», en lo que dice de un repositorio por servicio
 * **Controles OWASP afectados:** A06 (componentes y su cadena de suministro), A08 (integridad del software y de los
   datos)
+
+Aceptada el 2026-10-20 al fusionar la PR #62.
 
 ## Contexto
 
@@ -85,6 +87,22 @@ repositorio `ms-python-metamsghandler` se archiva.
   las PRs #1 a #3 siguen en el repositorio archivado.
 - **El motor sigue sin desplegarse.** Esta ADR no decide dónde corre su LLM: midgard no puede, es un i3 sin AVX2 ni
   GPU (ADR-0007 del motor).
+
+## Construido (la importación, 2026-10-20)
+
+- **De dónde salió:** la historia de `develop` del motor, en `baff307`, que ya incluía su adopción de AI-DLC (PR #3
+  del motor). Son 13 commits, reescritos bajo `engine/` con `git filter-repo` 2.47.0 y unidos con un merge de
+  historias no relacionadas.
+- **Secretos:** gitleaks 8.28.0, la versión del CI, recorrió antes toda la historia del motor, con sus dos ramas, y
+  no encontró nada.
+- **Pruebas:** las 1287 del gateway pasan desde la raíz, porque `pytest.ini` solo recoge `tests/`, y las 29 del motor
+  pasan desde `engine/`.
+- **`engine/.github/` se retira.** GitHub solo lee el de la raíz, cuyo `CODEOWNERS` ya cubre todo el repositorio. El
+  workflow de gates del motor era un esqueleto que solo imprimía «PENDIENTE».
+- **Pendiente:**
+  - el CI por rutas y la imagen del motor;
+  - el paquete `shared/`;
+  - archivar `ms-python-metamsghandler` en GitHub.
 
 ## Condiciones de revisión
 

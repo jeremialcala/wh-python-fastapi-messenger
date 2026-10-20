@@ -33,6 +33,10 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 - `.ai-dlc/scripts/`: generadores del contrato AsyncAPI y del historial del repo.
 
 ### Cambiado
+- **El motor vive ahora en `engine/` del monorepo `wh-python-fastapi-messenger`**, junto al gateway (ADR-0023 del
+  gateway, que supera la ADR-0001 de aquí en lo que decía de un repositorio por servicio). Se importó con toda su
+  historia; `ms-python-metamsghandler` queda archivado. Sus ADRs siguen aquí con sus números. El `.github/` propio
+  se retira: manda el de la raíz.
 - `test/` pasa a `tests/unit/`. `tox.ini`, `pyproject.toml` y el README apuntan a la ruta nueva.
 - `pyproject.toml` configura pytest (`pythonpath`, `testpaths`) para que `from src...` resuelva
   también con el ejecutable `pytest`.
