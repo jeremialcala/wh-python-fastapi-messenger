@@ -205,3 +205,39 @@ def test_la_clave_del_gateway_es_la_ultima_del_fichero(tmp_path):
     fichero.write_text(json.dumps({"keys": [vieja, nueva]}), encoding="utf-8")
 
     assert clave_publica_del_gateway(str(fichero)) == nueva
+
+
+# --- Los tokens de Meta, para el notificador -------------------------------------------------------------------------
+
+def tokens(url, andvari):
+    return ApiDelGateway(url, AUDIENCIA, gateway_public(GATEWAY), andvari, "notifier")
+
+
+def test_el_token_de_whatsapp_se_pide_una_vez_y_se_recuerda(servidor, clave):
+    Gateway.respuestas[f"/chat/{BOT}/tokens"] = (200, {"data": {"uuid": str(BOT), "facebookToken": "EAAF",
+                                                               "whatsappToken": "EAAG-wa"}})
+    gateway = tokens(servidor, Andvari(clave))
+
+    assert asyncio.run(gateway.token_de_whatsapp(CLIENTE, BOT)) == "EAAG-wa"
+    assert asyncio.run(gateway.token_de_whatsapp(CLIENTE, BOT)) == "EAAG-wa"
+
+    assert [ruta for ruta, _ in Gateway.vistas] == [f"/chat/{BOT}/tokens"]
+
+
+def test_un_token_olvidado_se_pide_otra_vez(servidor, clave):
+    Gateway.respuestas[f"/chat/{BOT}/tokens"] = (200, {"data": {"whatsappToken": "EAAG-viejo"}})
+    gateway = tokens(servidor, Andvari(clave))
+    asyncio.run(gateway.token_de_whatsapp(CLIENTE, BOT))
+    Gateway.respuestas[f"/chat/{BOT}/tokens"] = (200, {"data": {"whatsappToken": "EAAG-nuevo"}})
+
+    gateway.olvidar(BOT)
+
+    assert asyncio.run(gateway.token_de_whatsapp(CLIENTE, BOT)) == "EAAG-nuevo"
+
+
+@pytest.mark.parametrize("datos", [{"whatsappToken": None}, {"whatsappToken": ""}, {"facebookToken": "EAAF"}])
+def test_un_bot_sin_token_de_whatsapp_no_podra_responder_por_whatsapp(servidor, clave, datos):
+    Gateway.respuestas[f"/chat/{BOT}/tokens"] = (200, {"data": datos})
+
+    with pytest.raises(NoEncontrado):
+        asyncio.run(tokens(servidor, Andvari(clave)).token_de_whatsapp(CLIENTE, BOT))

@@ -13,6 +13,20 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 ## [Unreleased]
 
 ### Añadido
+- **El notificador, el cuarto worker** (E6 del [plan](docs/00-project/plan-de-los-workers.md)):
+  `python -m src.workers.notifier`. Con él el esqueleto está completo de punta a punta, a falta de desplegarlo
+  (E7).
+  - Lee cada respuesta de `MOTOR`, la envía por la Cloud API de WhatsApp (v26.0, solo texto, sin citar) y publica lo
+    enviado en `engine.reply.sent.{botId}`, el `RespuestaEnviada` del contrato v2 del gateway, para el historial.
+  - **No envía dos veces la misma respuesta:** lo apunta en el bucket `enviados` de Bifröst y lo mira antes de
+    enviar (decisión de Jeremi del 2026-10-20; el bucket, en higerotech/bifrost#2).
+  - El token de WhatsApp lo pide al gateway con su clave, lo recuerda 10 minutos y lo vuelve a pedir si Meta lo
+    rechaza.
+  - Cada error de Meta, por su código: lo que se arregla esperando se reintenta con las entregas de Bifröst; lo que
+    no irá nunca (fuera de la ventana de 24 horas, un número que no puede recibir) se descarta.
+  - Messenger e Instagram, en el E10.
+- **El sobre lleva `cuentaDelBot`**, el `phone_number_id` desde el que se responde, que pone el clasificador. El
+  contrato del sobre pasa a la 1.3.0.
 - **El de respuesta, el tercer worker** (E5 del [plan](docs/00-project/plan-de-los-workers.md)):
   `python -m src.workers.responder`.
   - Lee cada pedido de `MOTOR` y publica la contestación en `motor.respuesta.…`, y solo entonces confirma.
@@ -94,6 +108,7 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 - `.ai-dlc/scripts/`: generadores del contrato AsyncAPI y del historial del repo.
 
 ### Cambiado
+- El bucle común pasa a cada worker su conexión con Bifröst al arrancar.
 - La lectura del sobre de un paso del motor (`leer_del_motor`) pasa al bucle común: la usan el coordinador y el de
   respuesta.
 - **La imagen, en una sola etapa** sobre `python:3.12-slim`, con solo ruedas (`--only-binary=:all:`): sin NeMo ni

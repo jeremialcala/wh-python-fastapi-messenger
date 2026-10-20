@@ -137,10 +137,10 @@ def configurar_log(nivel: str) -> None:
 
 
 async def ejecutar(nombre: str, settings: WorkerSettings, stream: str, consumidor: str,
-                   crear: Callable[[int], Awaitable[tuple[Atender, Callable[[], Awaitable[None]]]]]) -> None:
+                   crear: Callable[[int, object], Awaitable[tuple[Atender, Callable[[], Awaitable[None]]]]]) -> None:
     """
-        El bucle de un worker hasta que le piden parar. `crear` recibe el `max_deliver` del consumidor y devuelve
-        cómo atender cada mensaje y cómo cerrar lo que abrió.
+        El bucle de un worker hasta que le piden parar. `crear` recibe el `max_deliver` del consumidor y la conexión
+        con Bifröst, y devuelve cómo atender cada mensaje y cómo cerrar lo que abrió.
     """
     configurar_log(settings.log_level)
     tracing.configure(f"engine-{nombre}")
@@ -157,7 +157,7 @@ async def ejecutar(nombre: str, settings: WorkerSettings, stream: str, consumido
     try:
         subscription = await connection.jetstream().pull_subscribe_bind(durable=consumidor, stream=stream)
         info = await subscription.consumer_info()
-        atender, cerrar = await crear(info.config.max_deliver or -1)
+        atender, cerrar = await crear(info.config.max_deliver or -1, connection)
         log.info("%s lee %s con el consumidor %s", nombre, stream, consumidor)
         await consumir(subscription, stop, atender, pathlib.Path(f"/tmp/{nombre}-alive"))
     finally:

@@ -40,6 +40,7 @@ log = logging.getLogger(__name__)
 NOMBRE = Worker.CLASSIFIER.value
 STREAM, CONSUMIDOR = "MENSAJES", NOMBRE
 _PARTICION = re.compile(PARTICION)
+_CUENTA = re.compile(r"^[0-9]{1,32}$")
 
 
 class Descartado(Exception):
@@ -71,6 +72,20 @@ def entrada(evento: IdentifiedMessage) -> Entrada:
     return Entrada(texto=sanitizar_texto(texto), adjuntos=list(adjuntos)[:10])
 
 
+def cuenta_del_bot(evento: IdentifiedMessage) -> str | None:
+    """
+        A qué número o página escribió la persona, que es desde donde se le responde: en WhatsApp, el
+        `phone_number_id` de los metadatos del cambio; en Messenger e Instagram, el destinatario del mensaje.
+    """
+    if evento.channel == "whatsapp":
+        metadata = evento.message.get("metadata")
+        valor = metadata.get("phone_number_id") if isinstance(metadata, dict) else None
+    else:
+        destinatario = evento.message.get("recipient")
+        valor = destinatario.get("id") if isinstance(destinatario, dict) else None
+    return valor if isinstance(valor, str) and _CUENTA.match(valor) else None
+
+
 def sobre(evento: IdentifiedMessage, lo_dicho: Entrada, clasificacion: Clasificacion) -> MensajeClasificado:
     """El sobre para el coordinador: el evento sin lo que ningún paso necesita, más lo dicho y el veredicto."""
     contacto = evento.contact
@@ -78,7 +93,7 @@ def sobre(evento: IdentifiedMessage, lo_dicho: Entrada, clasificacion: Clasifica
         schemaVersion=ESQUEMA, botId=evento.botId, clientId=evento.clientId, messageId=evento.messageId,
         channel=evento.channel, receivedAt=evento.receivedAt, orderKey=evento.orderKey,
         contact=ContactoDelCanal(uuid=contacto.uuid, waId=contacto.waId, fbId=contacto.fbId, igsid=contacto.igsid),
-        entrada=lo_dicho, clasificacion=clasificacion)
+        cuentaDelBot=cuenta_del_bot(evento), entrada=lo_dicho, clasificacion=clasificacion)
 
 
 class Clasificar:
@@ -165,7 +180,7 @@ def main() -> None:
     """El worker: su configuración y su bucle sobre MENSAJES."""
     settings = ClassifierSettings()
     asyncio.run(ejecutar(NOMBRE, settings, STREAM, CONSUMIDOR,
-                         lambda max_deliver: preparar(settings, max_deliver)))
+                         lambda max_deliver, _conexion: preparar(settings, max_deliver)))
 
 
 if __name__ == "__main__":

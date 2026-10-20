@@ -192,6 +192,39 @@ código. El orden está en `engine/docs/00-project/plan-de-los-workers.md`.
     gateway, cada una con su consulta a Atlas (60 ms de ida y vuelta medidos desde midgard). Se mide en el E7;
   - el enlace y las herramientas.
 
+## Construido (E6, el notificador, 2026-10-20)
+
+- **El cuarto worker:** `python -m src.workers.notifier`. Lee `motor.respuesta.…` con el consumidor `MOTOR/notifier`,
+  envía el texto por la Cloud API de WhatsApp y publica lo enviado en `engine.reply.sent.{botId}` (`RESPUESTAS`).
+  - Lo publicado es un `RespuestaEnviada` del contrato v2 del gateway, con `Nats-Msg-Id = {botId}:{id de Meta}`.
+  - Una prueba de contrato lo valida contra `asyncapi-v2.yaml`.
+- **No envía dos veces la misma respuesta** (punto 4). Antes de enviar mira el bucket KV `enviados` de Bifröst y,
+  en cuanto Meta acepta, la apunta allí (decisión de Jeremi del 2026-10-20).
+  - Si Bifröst le entrega otra vez una respuesta que ya salió, no la envía: publica lo que ya se envió.
+  - Sin poder mirar el bucket, no envía.
+  - Si no puede apuntarla, la publica igual. Solo si además falla publicar y se entrega otra vez puede llegar dos
+    veces.
+  - El bucket caduca a las 24 horas, como `MOTOR`. Su clave es el bot y el SHA-256 del id del mensaje, sin datos
+    personales.
+  - Lo crea el repositorio `bifrost` (higerotech/bifrost#2), con los permisos del usuario `notifier`.
+  - Los reintentos de Meta de días no llegan hasta aquí: la ingesta del gateway los descarta contra el historial.
+- **Desde dónde responde:** el clasificador pone en el sobre `cuentaDelBot`, el `phone_number_id` al que escribió
+  la persona, que trae el mensaje de Meta. El contrato del sobre pasa a la 1.3.0.
+- **El token de WhatsApp** del bot lo pide al gateway (`GET /chat/{bot_id}/tokens`), con la clave del notificador,
+  el único worker que lo recibe. Lo recuerda 10 minutos, para no pedirlo en cada mensaje, y lo vuelve a pedir si
+  Meta lo rechaza (códigos 0 y 190).
+- **Qué hace con cada error de Meta**, por su `code`, como pide su documentación (consultada el 2026-10-20):
+  - **se reintenta**, con las entregas de Bifröst: saturación, límites de envío y fallos temporales (1, 2, 4,
+    130429, 131000, 131016, 131056 y 80007), los de permisos (10 y 131005), y un 5xx o un 429 sin código;
+  - **se descarta**, porque no irá nunca así: los demás, como 131047 (pasaron las 24 horas de la ventana de
+    atención) o 131026 (el número no puede recibir).
+
+  En la última entrega, lo que aún no salió se descarta y queda en el log.
+- **Solo texto**, sin vista previa de enlaces y sin citar el mensaje de la persona (decisión de Jeremi del
+  2026-10-20), con la Graph API v26.0, la más nueva el 2026-10-20 (`GRAPH_VERSION`).
+- **Messenger e Instagram** se descartan hasta el E10.
+- **El bucle común** pasa a cada worker su conexión con Bifröst al arrancar: el notificador abre con ella el bucket.
+
 ## Condiciones de revisión
 
 - El caudal pide más de un mensaje en vuelo: entonces, un consumidor por grupo de particiones.

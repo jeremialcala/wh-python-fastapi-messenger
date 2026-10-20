@@ -60,6 +60,9 @@ La ADR-0009 cambia lo que dice el primer punto de la sección siguiente: **el te
   - o pasar a Vertex AI en la UE (condición de revisión de ADR-0009).
 - **El stream `MOTOR` de Bifröst** (ADR-0008) guarda el texto 24 horas, con TLS y un usuario por worker. Lo cifra
   JetStream (chachapoly); el disco de midgard no está cifrado.
+- **El bucket `enviados` de Bifröst** (E6) no guarda datos personales: por cada respuesta enviada, el bot y el SHA-256
+  del id de Meta del mensaje que responde, como clave, y el id que Meta dio a la respuesta, con su hora. Caduca a las
+  24 horas.
 - <TODO: revisar si las políticas de WhatsApp Business Platform y Messenger Platform piden informar al usuario de que
   responde un modelo de IA de un tercero, o limitan enviarle su contenido>
 

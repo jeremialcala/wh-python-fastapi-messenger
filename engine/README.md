@@ -31,7 +31,7 @@ Es el esqueleto: el enlace y el evaluador llegan después. El orden está en el
 | Clasificador | **Construido** (E3) | `MENSAJES`, consumidor `classifier` | `motor.clasificado.{p}.{bot}.{contacto}` |
 | Coordinador | **Construido** (E4) | `MOTOR`, consumidor `coordinator` | `motor.pedido.{p}.{bot}.{contacto}` |
 | Respuesta | **Construido** (E5) | `MOTOR`, consumidor `responder` | `motor.respuesta.{p}.{bot}.{contacto}` |
-| Notificador | E6 | `MOTOR`, consumidor `notifier` | `engine.reply.sent.{bot}` y Meta |
+| Notificador | **Construido** (E6) | `MOTOR`, consumidor `notifier` | `engine.reply.sent.{bot}` y Meta |
 
 ### El clasificador
 
@@ -54,6 +54,12 @@ texto fijo según el motivo: la persona siempre recibe algo.
 en el `system`, cacheado, y las vueltas y el mensaje como turnos de la conversación, con los fallbacks del servidor.
 Si no, contesta el texto fijo que pidió el coordinador, o el de «no puedo» si Claude rechaza.
 
+### El notificador
+
+`python -m src.workers.notifier`. Envía el texto por la Cloud API de WhatsApp, con el token del bot que le da el
+gateway, y publica lo enviado para el historial del gateway. Antes de enviar mira el bucket `enviados` de Bifröst, para
+no enviar dos veces la misma respuesta. Messenger e Instagram llegan en el E10.
+
 El sobre que se pasan los workers es el contrato interno del motor,
 [`asyncapi-motor.yaml`](docs/02-design/contracts/asyncapi-motor.yaml).
 
@@ -63,17 +69,20 @@ El sobre que se pasan los workers es el contrato interno del motor,
 src/
 ├── domain/
 │   ├── models/sobre.py              # el sobre de los workers, versión 1
-│   └── ports/                       # ClasificadorDeEntrada, FuenteDelBot, Redactor
+│   └── ports/                       # ClasificadorDeEntrada, FuenteDelBot, Redactor, y los del envío
 ├── infrastructure/
 │   ├── claude/                      # ClaudeClasificador y ClaudeRedactor (SDK anthropic)
 │   ├── gateway/                     # ApiDelGateway: la API de gestión, con la clave del worker
+│   ├── meta/                        # WhatsAppCloud: la Cloud API de WhatsApp
+│   ├── bifrost/                     # EnviadosEnBifrost: el bucket `enviados`
 │   └── adapters/sanitize.py         # el saneado del texto antes de salir
 └── workers/
     ├── runtime.py                   # el bucle común: atarse al consumidor, leer, publicar, confirmar
     ├── settings.py                  # la configuración de cada worker, del entorno
     ├── classifier.py                # el clasificador
     ├── coordinator.py               # el coordinador
-    └── responder.py                 # el de respuesta
+    ├── responder.py                 # el de respuesta
+    └── notifier.py                  # el notificador
 tests/                               # unit, contract e integration (contra un NATS)
 docs/                                # documentación AI-DLC por fase (00 a 06)
 ```
@@ -93,6 +102,7 @@ Del entorno del contenedor. Ningún secreto va en ella:
 | `CLASSIFIER_MODEL`, `CLASSIFIER_EFFORT`, `CLASSIFIER_MAX_TOKENS`, `CLASSIFIER_TIMEOUT`, `CLASSIFIER_MAX_RETRIES` | El clasificador. Por defecto: `claude-haiku-5-5`, `low`, 1024, 7 s y 2 |
 | `GATEWAY_URL`, `GATEWAY_AUDIENCE`, `GATEWAY_PUBLIC_KEYS_FILE`, `GATEWAY_CA_FILE`, `COORDINATOR_TIMEOUT` | El coordinador: la API del gateway, como para `ops.engine_keys`. El timeout, 5 s por llamada |
 | `RESPONDER_MODEL`, `RESPONDER_EFFORT`, `RESPONDER_MAX_TOKENS`, `RESPONDER_TIMEOUT`, `RESPONDER_MAX_RETRIES` | El de respuesta. Por defecto: `claude-opus-5-5`, `medium`, 4096, 50 s y 1 |
+| `GATEWAY_*` (como el coordinador), `GRAPH_URL`, `GRAPH_VERSION`, `NOTIFIER_TIMEOUT` | El notificador. Por defecto: `https://graph.facebook.com`, `v26.0` y 8 s por llamada |
 | `LOG_LEVEL` | `INFO` por defecto. El log va al stdout del contenedor |
 
 La clave de la API de Anthropic de cada worker la lee el worker de Andvari al arrancar, de
