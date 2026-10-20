@@ -250,6 +250,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - Dos contratos OpenAPI: `openapi.yaml` para la gestión y `openapi-webhook.yaml` para el webhook.
 - `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE` solo los exige la API de gestión.
 
+### Seguridad
+- **`certifi` sube a 2026.10.19** en los locks del gateway (GHSA-6q48-6c7w-9gw2, crítica, publicada el 2026-10-20).
+  Las versiones anteriores confían en las raíces de emSign, de las que dependen ocho intermedias cuyas claves privadas
+  se comprometieron: quien tenga una y esté en el camino puede suplantar cualquier sitio HTTPS ante `requests` y `pip`.
+  Se toma con un día, contra la regla de las dos semanas, porque ninguna versión anterior trae el arreglo.
+  `requirements.txt` la fija como mínima. Los locks del motor ya la tenían. La imagen del gateway se reconstruye al
+  fusionar.
+
 ### Corregido
 - **El worker de ingesta se reiniciaba cada pocos minutos.** En midgard, `bots-ingest` llegó a 13 reinicios en unas
   horas (2026-10-20).
