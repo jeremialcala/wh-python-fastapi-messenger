@@ -21,10 +21,10 @@ import nats
 import pytest
 from nats.js.api import AckPolicy, ConsumerConfig, RetentionPolicy, StreamConfig
 
-import bus
+from shared import bus
 import controller.ingestion as ingestion
 import ingest
-from bus.nats_jetstream import NatsPublisher
+from shared.bus.nats_jetstream import NatsPublisher
 from classes import ChatBot, Contact, ConversationMessage
 from controller.incoming import IncomingMessage
 from controller.webhook_event import event_message_id, webhook_event

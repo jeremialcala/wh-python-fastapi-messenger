@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from inspect import currentframe
 from uuid import uuid4, UUID
 
-import bus
+from shared import bus
 from classes import ChatBot
 from classes import Settings, FacebookRequest
 from enums import Status

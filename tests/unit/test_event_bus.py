@@ -9,8 +9,8 @@ from types import SimpleNamespace
 import nats.errors
 import pytest
 
-import bus
-import bus.nats_jetstream as nats_jetstream
+from shared import bus
+from shared.bus import nats_jetstream
 
 
 class FakeClient:

@@ -6,8 +6,8 @@ from uuid import UUID
 from enums import Role, Worker
 from repository import find_signer, remember_token
 
-from .gateway_keys import GatewayKeys
-from .tokens import InvalidToken, verify
+from shared.auth.gateway_keys import GatewayKeys
+from shared.auth.tokens import InvalidToken, verify
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 # ADR-0008: El motor, seis workers sobre Bifröst
 
-* **Estado:** proposed
+* **Estado:** accepted
 * **Fecha:** 2026-10-20
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -8,6 +8,8 @@
 * **ID:** ADR-0008
 * **Supersede:** ADR-0003 (consumo AMQP con un hilo por mensaje y confirmación manual)
 * **OWASP:** A01 (cada worker solo alcanza lo suyo), A04 (TLS hasta Bifröst), A09 (trazas sin datos personales)
+
+Aceptada el 2026-10-20 al fusionar la PR #65.
 
 ## Contexto
 

@@ -23,8 +23,8 @@ from fastapi.testclient import TestClient
 import app as app_module
 import webhook as webhook_module
 import controller.ingestion as ingestion
-from auth import gateway_keys
-from auth.client import build_token, new_signing_key, public_part
+from shared.auth import gateway_keys
+from shared.auth.client import build_token, new_signing_key, public_part
 from auth.client_keys import public_signing_key
 from classes import Client, Contact
 from conftest import GATEWAY_AUDIENCE, GATEWAY_KEYS_FILE

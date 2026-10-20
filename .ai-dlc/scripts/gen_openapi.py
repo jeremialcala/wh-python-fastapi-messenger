@@ -55,6 +55,8 @@ def generar() -> dict:
     """El contrato de cada servicio, por fichero."""
     # Antes que el conftest: este genera la clave del gateway de las pruebas con código de `src`.
     sys.path.insert(0, str(RAIZ / "src"))
+    # Y la raíz, de donde se importa `shared` (ADR-0023).
+    sys.path.insert(1, str(RAIZ))
     runpy.run_path(str(RAIZ / "tests" / "conftest.py"))
     return {destino: volcar(importlib.import_module(modulo).app.openapi()) for modulo, destino in SERVICIOS.items()}
 

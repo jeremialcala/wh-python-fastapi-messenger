@@ -8,6 +8,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- **`shared/`, lo que usan el gateway y el motor** (ADR-0023; E1 del plan de los workers del motor):
+  - **Qué pasa:** el bus, las trazas, los tokens de la API (`shared.auth`), el almacén de claves de Andvari, la regla
+    de destinos y los nombres de los workers. Se mueven con su historia, y el gateway los importa de ahí sin cambiar
+    de comportamiento.
+  - **`shared.contract`:** el contrato v2 en modelos (`IdentifiedMessage`, `SentReply`), probados contra
+    `asyncapi-v2.yaml` desde el gateway.
+  - **Las imágenes:** las dos copian `shared/`. La del motor se construye desde la raíz, con un `.dockerignore`
+    propio.
 - **El CI por rutas y la imagen del motor** (ADR-0023):
   - `ci` y `build` del gateway dejan fuera `engine/`;
   - el motor tiene su propio `engine` (pylint y pruebas con cobertura mínima del 60 %) y su `build-engine`, que

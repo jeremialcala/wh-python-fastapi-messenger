@@ -1,12 +1,12 @@
 # ADR-0005: Rail de entrada con NeMo Guardrails y política fail-closed
 
-* **Estado:** accepted
+* **Estado:** superseded
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcalá
 * **Fase AI-DLC:** 02-design
 * **Versión:** 1.0.0
 * **ID:** ADR-0005
-* **Supersede / Superseded-by:** —
+* **Supersede / Superseded-by:** superseded by ADR-0009 (2026-10-20), salvo la política fail-closed, que se mantiene
 * **Controles OWASP afectados:** A06, A10 · LLM01, LLM10
 
 Decisión retroactiva: implementada en los commits a66e3e9 y 4c7bb9e (junio de 2026).

@@ -16,7 +16,7 @@ gateway solo guarda destinos que no pueden ser la plataforma.
 
 ## La regla
 
-La aplica `classes.destinations.check_destination`. Un destino vale si cumple todo esto:
+La aplica `shared.destinations.check_destination`. Un destino vale si cumple todo esto:
 
 | Condición | Por qué | Rechaza, por ejemplo |
 |---|---|---|

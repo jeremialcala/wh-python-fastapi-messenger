@@ -335,7 +335,7 @@ classDiagram
     NatsPublisher ..|> EventPublisher
 ```
 *Eje estructura · fase 02 · Gate 1. Puertos del diseño. El publicador de RabbitMQ existe como función, no como puerto,
-y se va con Hermod. `EventPublisher` y su adaptador `NatsPublisher` existen desde I2 (`src/bus`): el webhook pasa a
+y se va con Hermod. `EventPublisher` y su adaptador `NatsPublisher` existen desde I2 (`shared/bus`): el webhook pasa a
 usarlos en I3.*
 
 ## Contratos de API
@@ -487,7 +487,7 @@ después de que Meta recibiera su `200` (T27), y Gjallarhorn avisa mucho antes, 
 | I4 | Worker de ingesta, historial y webhook que solo publica | ADR-0017, ADR-0021 | **Hecho** (2026-10-19), en dos partes: I4a, el historial; I4b, el worker de ingesta y el webhook que solo publica. El webhook pasa de 185 ms a 8,3 ms de mediana; la ingesta trata 2,1 notificaciones por segundo ([guía](../03-implementation/bus-de-eventos.md#el-worker-de-ingesta-i4)) |
 | I5 | OpenTelemetry con la regla de los logs | — | **Hecho** (2026-10-19): spans en los tres servicios y una traza del webhook al motor, con la regla de los logs; sin colector todavía ([guía](../03-implementation/trazas.md)) |
 | I6 | Una credencial por worker | ADR-0022 | **I6a hecho** (2026-10-19): cada clave del motor dice su worker y alcanza solo sus rutas (`WORKER_ROUTES`); las claves sin worker siguen con aviso en el log ([guía](../03-implementation/autenticacion.md#dar-paso-al-motor-de-respuestas)). **I6b hecho** (2026-10-19): `ops.engine_keys` da de alta las seis claves de un cliente, con la privada en Andvari (`motor/`) y la pública por la API. Pendiente: I6c, un usuario de Bifröst por worker |
-| I7 | Destinos de los intents | — | **Hecho en el gateway** (2026-10-20): `classes.destinations` valida `apiCall` al guardar y filtra las herramientas; el worker de enlace tendrá que comprobar la resolución al llamar ([guía](../03-implementation/destinos-de-los-intents.md)) |
+| I7 | Destinos de los intents | — | **Hecho en el gateway** (2026-10-20): `shared.destinations` valida `apiCall` al guardar y filtra las herramientas; el worker de enlace tendrá que comprobar la resolución al llamar ([guía](../03-implementation/destinos-de-los-intents.md)) |
 | I8 | Instagram | — | Pendiente |
 
 ## Patrones de seguridad seleccionados (por amenaza DREAD priorizada)

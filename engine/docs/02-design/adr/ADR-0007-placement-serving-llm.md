@@ -1,12 +1,12 @@
 # ADR-0007: Placement de despliegue — serving del LLM
 
-* **Estado:** proposed
+* **Estado:** superseded
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcalá · sponsor y DPO <TODO: confirmar>
 * **Fase AI-DLC:** 02-design
 * **Versión:** 0.1.0
 * **ID:** ADR-0007
-* **Supersede:** —
+* **Supersede:** — · **Superseded by:** ADR-0009 (2026-10-20)
 * **OWASP:** A04 (cifrado y residencia de datos), A02 (endurecimiento del host), A03 · LLM03 (procedencia del modelo), LLM10 (consumo)
 
 Queda en `proposed`: la decisión depende de dos datos que no están en el repositorio, el

@@ -11,7 +11,7 @@ from inspect import currentframe
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
 
-import bus
+from shared import bus
 from classes import ChatBot, FacebookRequest
 from constants import HUB_CHALLENGE, HUB_MODE, HUB_SIGNATURE, HUB_VERIFY_TOKEN, SUBSCRIBE, WEBHOOK_DESCRIPTION
 from controller import RETRY_LATER, ctr_process_messages

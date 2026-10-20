@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-from auth.gateway_keys import GatewayKeys, new_key, public_part, read_file, write_file
+from shared.auth.gateway_keys import GatewayKeys, new_key, public_part, read_file, write_file
 
 
 def generate(path: str) -> dict:

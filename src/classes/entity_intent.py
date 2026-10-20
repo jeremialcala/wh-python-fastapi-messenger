@@ -6,7 +6,7 @@ from inspect import currentframe
 from mongoengine import *
 
 from enums import Status
-from .destinations import is_valid_destination
+from shared.destinations import is_valid_destination
 from .tool_settings import Settings
 
 settings = Settings()
@@ -140,7 +140,7 @@ class Intent(Document):
     def tool_definitions(self) -> list:
         """
             All active actions of this intent as LLM tool definitions. An action whose call goes where no call may
-            (classes.destinations) is left out: it was saved before the rule, or the rule has grown since. The
+            (shared.destinations) is left out: it was saved before the rule, or the rule has grown since. The
             model never learns of it, so the engine never makes that call.
         """
         active = [action for action in self.actions if action.status == Status.ACT.value]

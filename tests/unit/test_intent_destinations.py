@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 import app as app_module
 from classes import Intent
-from classes.destinations import check_destination, is_valid_destination
+from shared.destinations import check_destination, is_valid_destination
 from classes.entity_intent import Action, ApiCall
 
 BOT = {"name": "Mine", "role": "Sales Assistant", "description": "A test chatbot", "tone": "helpful"}

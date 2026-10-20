@@ -17,7 +17,7 @@ import pymongo.collection
 import pytest
 from fastapi.testclient import TestClient
 
-import bus
+from shared import bus
 import webhook as webhook_module
 import controller.facebook as facebook
 import controller.ingestion as ingestion

@@ -28,9 +28,9 @@ from typing import Awaitable, Callable
 import nats
 import nats.errors
 
-import bus
+from shared import bus
 import service  # Settings, logging, the key service and the publisher of this process.
-import tracing
+from shared import tracing
 from controller.ingestion import RETRY_LATER, Unprocessable, ingest_notification, ingest_reply
 from utils import configure_logging, describe
 

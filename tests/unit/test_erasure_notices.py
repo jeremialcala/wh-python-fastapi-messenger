@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator
 
 import app as app_module
-import bus
+from shared import bus
 from classes import ChatBot, Contact
 from repository import TenantRepository
 

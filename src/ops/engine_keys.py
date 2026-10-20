@@ -30,8 +30,8 @@ import requests
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from auth.client import build_token, new_signing_key, public_part
-from crypto.engine_key_store import EngineKeyStore, KeyStoreUnavailable
+from shared.auth.client import build_token, new_signing_key, public_part
+from shared.engine_key_store import EngineKeyStore, KeyStoreUnavailable
 from enums import Worker
 
 TIMEOUT = 10  # seconds

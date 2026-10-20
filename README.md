@@ -87,6 +87,7 @@ su propio [README](engine/README.md).
 ```
 .
 ├── engine/                 # El motor de respuestas: su código, pruebas, docs y Dockerfile (ADR-0023)
+├── shared/                 # Lo que usan el gateway y el motor: contrato v2, bus, trazas, tokens, claves, destinos
 ├── src/                    # La aplicación (es lo único que contiene la imagen)
 │   ├── app.py                  # App FastAPI: middleware, dependencias de autenticación y todas las rutas
 │   ├── logging_config.yaml     # Configuración de logging por entorno

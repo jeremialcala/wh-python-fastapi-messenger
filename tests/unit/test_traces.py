@@ -16,9 +16,9 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 import app as app_module
-import bus
+from shared import bus
 import controller.ingestion as ingestion
-import tracing
+from shared import tracing
 import webhook as webhook_module
 from classes import ChatBot, Contact
 from repository import TenantRepository

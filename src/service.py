@@ -12,9 +12,9 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-import bus
-import tracing
-from bus.nats_jetstream import NatsPublisher
+from shared import bus
+from shared import tracing
+from shared.bus.nats_jetstream import NatsPublisher
 from classes import ResponseData, Settings
 from constants import APPLICATION_JSON, CONTACT, CONTENT_TYPE, PROCESSING_TIME, TERMS
 from crypto.key_service import OpenBaoKeyService

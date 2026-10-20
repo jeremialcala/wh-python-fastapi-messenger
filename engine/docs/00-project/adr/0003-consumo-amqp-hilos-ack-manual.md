@@ -1,12 +1,12 @@
 # ADR-0003: Consumo AMQP con un hilo por mensaje y confirmación manual
 
-* **Estado:** accepted
+* **Estado:** superseded
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcalá
 * **Fase AI-DLC:** 02-design
 * **Versión:** 1.0.0
 * **ID:** ADR-0003
-* **Supersede / Superseded-by:** —
+* **Supersede / Superseded-by:** superseded by ADR-0008 (2026-10-20)
 * **Controles OWASP afectados:** A10, A08
 
 Decisión retroactiva: implementada en los commits 824fdcd, c8a2de3 y 4c7bb9e (junio de 2026).

@@ -13,8 +13,8 @@ from fastapi.testclient import TestClient
 from jwcrypto import jws
 
 import app as app_module
-from auth.client import key_proof, new_signing_key, public_part
-from auth.key_proof import PROOF_TYPE
+from shared.auth.client import key_proof, new_signing_key, public_part
+from shared.auth.key_proof import PROOF_TYPE
 from conftest import GATEWAY_AUDIENCE
 from repository import get_client
 

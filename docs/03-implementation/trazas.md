@@ -10,7 +10,7 @@
 
 Cada servicio del gateway emite spans con OpenTelemetry (SDK 1.45.0). El contexto W3C (`traceparent`) viaja en cada
 evento del bus, así que un mensaje se sigue entero en una sola traza: desde el webhook, por la ingesta, hasta el
-mensaje identificado que lee el motor. Todos los spans salen de `src/tracing`.
+mensaje identificado que lee el motor. Todos los spans salen de `shared/tracing`.
 
 ## Una traza por mensaje
 

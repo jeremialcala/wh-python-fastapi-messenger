@@ -19,6 +19,7 @@ reports = false
 # pytest: la raíz del repo entra en sys.path para que `from src...` resuelva
 # desde cualquier nivel de la pirámide (tests/unit, tests/integration, ...),
 # también con el ejecutable `pytest`, que no añade el directorio de trabajo.
+# `..` es la raíz del monorepo, de donde se importa `shared` (ADR-0023 del gateway).
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".", ".."]
 testpaths = ["tests"]

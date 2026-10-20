@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 from jwcrypto import jwk
 
 import app as app_module
-from auth import gateway_keys
-from auth.client import build_token, new_signing_key, public_part
+from shared.auth import gateway_keys
+from shared.auth.client import build_token, new_signing_key, public_part
 from classes import Client
 from conftest import Caller, GATEWAY_AUDIENCE, GATEWAY_KEYS_FILE
 from enums import Role
@@ -23,6 +23,8 @@ from ops import client as ops_client, gateway_key as ops_gateway_key, operator_k
 from repository import get_client, operator_client
 
 SRC = Path(__file__).resolve().parents[2] / "src"
+# The service imports `shared` from the root of the repository (ADR-0023).
+PATH = os.pathsep.join([str(SRC), str(SRC.parent)])
 
 
 @pytest.fixture
@@ -371,7 +373,7 @@ def test_the_reference_client_runs_without_the_service_settings(tmp_path):
     def run(*arguments) -> str:
         # cwd is a directory with no config.env, so nothing of the service can be picked up by accident.
         done = subprocess.run([sys.executable, "-m", "ops.client", *arguments], capture_output=True, text=True,
-                              cwd=str(tmp_path), env={**bare, "PYTHONPATH": str(SRC)}, timeout=60)
+                              cwd=str(tmp_path), env={**bare, "PYTHONPATH": PATH}, timeout=60)
         assert done.returncode == 0, done.stderr
         return done.stdout.strip()
 

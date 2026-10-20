@@ -8,7 +8,7 @@
 * **ADR:** [ADR-0019](../00-project/adr/0019-nats-jetstream-como-bus.md), [ADR-0021](../00-project/adr/0021-el-webhook-solo-publica.md)
 * **Incremento:** I2 del [plan de la topología de workers](../00-project/plan-topologia-de-workers.md) (R2)
 
-El gateway publica eventos con un puerto, `EventPublisher` (`src/bus`), que no dice qué bus hay detrás. Su adaptador
+El gateway publica eventos con un puerto, `EventPublisher` (`shared/bus`), que no dice qué bus hay detrás. Su adaptador
 es `NatsPublisher`, sobre NATS JetStream, es decir Bifröst.
 
 **Publican el webhook, desde I3, y el worker de ingesta, desde I4.**

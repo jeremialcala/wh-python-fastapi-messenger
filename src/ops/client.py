@@ -25,7 +25,7 @@ import os
 import sys
 from uuid import uuid4
 
-from auth.client import build_token, key_proof, new_signing_key, public_part
+from shared.auth.client import build_token, key_proof, new_signing_key, public_part
 
 
 def new_key(path: str) -> dict:
