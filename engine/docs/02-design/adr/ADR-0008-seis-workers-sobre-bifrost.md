@@ -163,6 +163,35 @@ código. El orden está en `engine/docs/00-project/plan-de-los-workers.md`.
   (`tests/integration/nats-test.conf`), también en el CI. Comprueban también que ese usuario no puede publicar el
   paso de otro.
 
+## Construido (E4, el coordinador, 2026-10-20)
+
+- **El segundo worker:** `python -m src.workers.coordinator`. Lee `motor.clasificado.…` con el consumidor
+  `MOTOR/coordinator` y publica en `motor.pedido.{partición}.{botId}.{contactId}`, con `Nats-Msg-Id =
+  pedido:{botId}:{messageId}`. Usa el mismo bucle que el clasificador.
+- **Lo que pide**, en el sobre (versión 1, con el canal `pedido` en `asyncapi-motor.yaml` 1.1.0):
+  - **si el mensaje sigue**, `respuesta: "claude"`, con la persona del bot y sus reglas y las últimas vueltas (40
+    como mucho, la más antigua primero, sin el mensaje que se responde);
+  - **si no sigue**, un texto fijo según el motivo, sin preguntar nada al gateway (decisión de Jeremi del
+    2026-10-20): `no_puedo` para inyección, abuso, otro y rechazo; `solo_texto` sin texto; `no_disponible` sin
+    veredicto. Los textos los escribe el de respuesta (E5). Así la persona siempre recibe algo.
+- **El gateway lo da por su API**, con la clave del coordinador para el cliente dueño del bot
+  (`src/infrastructure/gateway/api.py`).
+  - Cada llamada lleva un token nuevo, firmado y cifrado con `shared.auth.client`.
+  - La clave privada de cada cliente se lee de Andvari la primera vez y se guarda en memoria; si el gateway la
+    rechaza (401), se lee otra vez.
+  - La clave pública del gateway es la última de `GATEWAY_PUBLIC_KEYS_FILE`.
+  - Las redirecciones no se siguen.
+- **`GET /chat/{bot_id}/rules` cambia en el gateway** (decisión de Jeremi del 2026-10-20). Devolvía un prompt para
+  Llama 2, pensado para el motor de antes, y ahora devuelve los datos: `name`, `role`, `tone`, `description` y
+  `rules`.
+- **Si el gateway falla**, el mensaje queda en espera, y en la última entrega se pide `no_disponible`. Si el bot o el
+  contacto ya no existen (404), el mensaje se descarta: no hay a quién responder.
+- **Lo que el esqueleto deja para después:**
+  - el bucket `contexto` de ADR-0017 del gateway, con el resumen, su cifrado con Transit y la supresión por el bus.
+    El coordinador pide las vueltas al gateway en cada mensaje, que es la fuente de verdad: son dos llamadas al
+    gateway, cada una con su consulta a Atlas (60 ms de ida y vuelta medidos desde midgard). Se mide en el E7;
+  - el enlace y las herramientas.
+
 ## Condiciones de revisión
 
 - El caudal pide más de un mensaje en vuelo: entonces, un consumidor por grupo de particiones.

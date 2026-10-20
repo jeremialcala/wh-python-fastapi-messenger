@@ -1,5 +1,5 @@
 # Contrato AsyncAPI interno del motor: el sobre que se pasan sus workers por el stream MOTOR de Bifröst (ADR-0008,
-# punto 6). Estado: draft (E3, 2026-10-20). Versión: 1.0.0.
+# punto 6). Estado: draft (E3 y E4, 2026-10-20). Versión: 1.1.0.
 #
 # Nace con su primer productor, el clasificador (E3 de docs/00-project/plan-de-los-workers.md), y crece con cada
 # worker: cada paso añade lo suyo al sobre. tests/contract/test_contrato_motor.py valida contra este fichero el
@@ -9,7 +9,7 @@
 asyncapi: 3.0.0
 info:
   title: Sobre interno del motor de respuestas
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Lo que se pasan los workers del motor entre sí. Ninguno guarda estado entre mensajes: todo lo que el siguiente
     necesita viaja en el sobre, y así cualquier réplica atiende cualquier mensaje. Los campos que vienen del gateway
@@ -42,6 +42,21 @@ channels:
     messages:
       mensajeClasificado:
         $ref: '#/components/messages/MensajeClasificado'
+  pedido:
+    address: 'motor.pedido.{particion}.{botId}.{contactId}'
+    description: >-
+      Lo que el coordinador pide al de respuesta: lo clasificado, más cómo responder. Lo lee el de respuesta con el
+      consumidor `MOTOR/responder`, un mensaje en vuelo.
+    parameters:
+      particion:
+        $ref: '#/components/parameters/particion'
+      botId:
+        $ref: '#/components/parameters/botId'
+      contactId:
+        $ref: '#/components/parameters/contactId'
+    messages:
+      mensajePedido:
+        $ref: '#/components/messages/MensajePedido'
 operations:
   publicarClasificado:
     action: send
@@ -51,6 +66,15 @@ operations:
       El clasificador publica cada mensaje identificado de `MENSAJES` con su veredicto, y solo entonces lo confirma.
     messages:
       - $ref: '#/channels/clasificado/messages/mensajeClasificado'
+  publicarPedido:
+    action: send
+    channel:
+      $ref: '#/channels/pedido'
+    summary: >-
+      El coordinador lee cada mensaje clasificado y publica su pedido, y solo entonces lo confirma. Si el mensaje
+      sigue, con la persona del bot y las últimas vueltas que le da el gateway; si no, con un texto fijo.
+    messages:
+      - $ref: '#/channels/pedido/messages/mensajePedido'
 components:
   securitySchemes:
     usuarioPorWorker:
@@ -75,6 +99,14 @@ components:
         $ref: '#/components/schemas/Cabeceras'
       payload:
         $ref: '#/components/schemas/MensajeClasificado'
+    MensajePedido:
+      name: MensajePedido
+      title: Mensaje con lo que hace falta para responderlo
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/Cabeceras'
+      payload:
+        $ref: '#/components/schemas/MensajePedido'
   schemas:
     Cabeceras:
       type: object
@@ -85,7 +117,7 @@ components:
           pattern: '^[a-z]+:[0-9a-f-]{36}:.+$'
           description: >-
             `<paso>:<botId>:<messageId>` (ADR-0008, punto 4): un reintento dentro de la ventana de Bifröst no duplica
-            el mensaje. El clasificador publica con `clasificado:`.
+            el mensaje. El clasificador publica con `clasificado:` y el coordinador con `pedido:`.
         traceparent:
           type: string
           pattern: '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'
@@ -213,3 +245,75 @@ components:
               $ref: '#/components/schemas/Entrada'
             clasificacion:
               $ref: '#/components/schemas/Clasificacion'
+    Persona:
+      type: object
+      required: [nombre, rol, tono, descripcion, reglas]
+      additionalProperties: false
+      description: Quién es el bot y sus reglas, como las guarda el gateway (`GET /chat/{bot_id}/rules`).
+      properties:
+        nombre:
+          type: string
+        rol:
+          type: string
+        tono:
+          type: string
+        descripcion:
+          type: string
+        reglas:
+          type: array
+          items:
+            type: string
+    Vuelta:
+      type: object
+      required: [de, texto, adjuntos, enviadaEn]
+      additionalProperties: false
+      description: >-
+        Un mensaje anterior de la conversación, del historial del gateway (`GET
+        /chat/{bot_id}/contacts/{contact_id}/turns`). Nunca es el mensaje que se responde. Dato personal.
+      properties:
+        de:
+          enum: [persona, bot]
+        texto:
+          type: string
+          maxLength: 4096
+          description: Vacío si el mensaje no traía texto.
+        adjuntos:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+        enviadaEn:
+          type: string
+          format: date-time
+    Pedido:
+      type: object
+      required: [respuesta, persona, vueltas]
+      additionalProperties: false
+      description: >-
+        Cómo se responde. `claude`: el de respuesta escribe con Claude, con la persona y las vueltas. Si no, un texto
+        fijo, sin llamar a Claude, según el motivo por el que el mensaje no sigue (decisión de Jeremi del
+        2026-10-20): `no_puedo` (inyección, abuso, otro o rechazo), `solo_texto` (sin texto) o `no_disponible`
+        (sin veredicto, o sin el gateway en la última entrega). Así la persona siempre recibe algo.
+      properties:
+        respuesta:
+          enum: [claude, no_puedo, solo_texto, no_disponible]
+        persona:
+          description: Solo con `claude`.
+          oneOf:
+            - $ref: '#/components/schemas/Persona'
+            - type: 'null'
+        vueltas:
+          type: array
+          maxItems: 40
+          description: La más antigua primero. Vacío si no es `claude`.
+          items:
+            $ref: '#/components/schemas/Vuelta'
+    MensajePedido:
+      description: Lo que publica el coordinador para el de respuesta.
+      allOf:
+        - $ref: '#/components/schemas/MensajeClasificado'
+        - type: object
+          required: [pedido]
+          properties:
+            pedido:
+              $ref: '#/components/schemas/Pedido'

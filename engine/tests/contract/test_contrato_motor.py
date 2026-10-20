@@ -14,9 +14,10 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
 
-from src.domain.models.sobre import ESQUEMA, Clasificacion, Entidad
+from src.domain.models.sobre import ESQUEMA, Clasificacion, Entidad, Persona, Vuelta
 from src.domain.ports.clasificador_de_entrada import ClasificacionFallida
 from src.workers.classifier import Clasificar
+from src.workers.coordinator import Coordinar
 
 CONTRATO = pathlib.Path(__file__).resolve().parents[2] / "docs" / "02-design" / "contracts" / "asyncapi-motor.yaml"
 DOCUMENTO = yaml.safe_load(CONTRATO.read_text(encoding="utf-8"))
@@ -49,7 +50,7 @@ def resolver(puntero):
 
 
 def test_es_la_version_1_del_sobre():
-    assert (DOCUMENTO["asyncapi"], DOCUMENTO["info"]["version"]) == ("3.0.0", "1.0.0")
+    assert (DOCUMENTO["asyncapi"], DOCUMENTO["info"]["version"]) == ("3.0.0", "1.1.0")
     assert SCHEMAS["Sobre"]["properties"]["schemaVersion"]["const"] == ESQUEMA
 
 
@@ -132,3 +133,35 @@ def test_un_sobre_con_el_nombre_del_contacto_no_cumple_el_contrato():
     sobre = {"uuid": str(uuid4()), "name": "Ana"}
 
     assert not validador("ContactoDelCanal").is_valid(sobre)
+
+
+class Gateway:
+
+    async def persona(self, _client_id, _bot_id):
+        return Persona(nombre="Mine", rol="Sales Assistant", tono="helpful", descripcion="", reglas=["Be kind"])
+
+    async def vueltas(self, _client_id, _bot_id, _contact_id, _sin):
+        return [Vuelta(de="persona", texto="hola", enviadaEn="2026-10-20T08:00:00+00:00"),
+                Vuelta(de="bot", texto="", adjuntos=["image"], enviadaEn="2026-10-20T08:00:05+00:00")]
+
+
+@pytest.mark.parametrize("clasificacion", [
+    Clasificacion(permitido=True, motivo="ninguno", etiqueta="pedido", confianza=0.8, modelo="claude-haiku-5-5"),
+    Clasificacion(permitido=False, motivo="abuso", etiqueta="otro", confianza=0.99, modelo="claude-haiku-5-5"),
+    Clasificacion.sin_veredicto("sin_texto"),
+], ids=["con claude", "no_puedo", "solo_texto"])
+def test_el_pedido_del_coordinador_cumple_el_contrato(clasificacion):
+    bot, contacto = uuid4(), uuid4()
+    clasificado = {"schemaVersion": 1, "botId": str(bot), "clientId": str(uuid4()), "messageId": "wamid.A",
+                   "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{bot}.{contacto}",
+                   "contact": {"uuid": str(contacto), "waId": "12025550143"},
+                   "entrada": {"texto": "hola", "adjuntos": []}, "clasificacion": clasificacion.model_dump()}
+    bifrost = Bifrost()
+    mensaje = Mensaje(clasificado, f"motor.clasificado.3.{bot}.{contacto}")
+
+    asyncio.run(Coordinar(Gateway(), bifrost, 4)(mensaje))
+
+    (subject, sobre, cabeceras), = bifrost.publicado
+    validador("MensajePedido").validate(sobre)
+    validador("Cabeceras").validate(cabeceras)
+    assert subject == f"motor.pedido.3.{bot}.{contacto}"

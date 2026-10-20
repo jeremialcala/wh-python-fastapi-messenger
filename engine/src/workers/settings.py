@@ -39,3 +39,14 @@ class ClassifierSettings(WorkerSettings):
     # consumidor MENSAJES/classifier: si no, Bifröst lo entregaría otra vez mientras aún se clasifica.
     classifier_timeout: float = Field(default=7.0, gt=0, le=8.0)
     classifier_max_retries: int = Field(default=2, ge=0, le=2)
+
+
+class CoordinatorSettings(WorkerSettings):
+    """El coordinador: además, la API de gestión del gateway, con su clave para cada cliente."""
+    # Lo mismo que necesita ops.engine_keys del gateway (docs/03-implementation/autenticacion.md).
+    gateway_url: str = Field(min_length=8)
+    gateway_audience: str = Field(min_length=8)
+    gateway_public_keys_file: str = Field(min_length=1)
+    gateway_ca_file: str | None = None
+    # Por llamada. Son dos por mensaje, muy por debajo de los 30 s del ack_wait de MOTOR/coordinator.
+    coordinator_timeout: float = Field(default=5.0, gt=0, le=10.0)

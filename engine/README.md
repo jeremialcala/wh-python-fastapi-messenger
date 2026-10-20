@@ -29,7 +29,7 @@ Es el esqueleto: el enlace y el evaluador llegan después. El orden está en el
 | Worker | Estado | Lee | Publica |
 |---|---|---|---|
 | Clasificador | **Construido** (E3) | `MENSAJES`, consumidor `classifier` | `motor.clasificado.{p}.{bot}.{contacto}` |
-| Coordinador | E4 | `MOTOR`, consumidor `coordinator` | `motor.pedido.…` |
+| Coordinador | **Construido** (E4) | `MOTOR`, consumidor `coordinator` | `motor.pedido.{p}.{bot}.{contacto}` |
 | Respuesta | E5 | `MOTOR`, consumidor `responder` | `motor.respuesta.…` |
 | Notificador | E6 | `MOTOR`, consumidor `notifier` | `engine.reply.sent.{bot}` y Meta |
 
@@ -42,6 +42,12 @@ estructurada decide si se atiende y cuál es su intención.
 - **Solo el texto sale a Anthropic.**
 - **Publica el sobre para el coordinador** y solo entonces confirma.
 
+### El coordinador
+
+`python -m src.workers.coordinator`. Si el mensaje sigue, pide al gateway la persona del bot con sus reglas y las
+últimas vueltas, con su clave para el cliente dueño del bot, y pide la respuesta con Claude. Si no sigue, pide un
+texto fijo según el motivo: la persona siempre recibe algo.
+
 El sobre que se pasan los workers es el contrato interno del motor,
 [`asyncapi-motor.yaml`](docs/02-design/contracts/asyncapi-motor.yaml).
 
@@ -51,14 +57,16 @@ El sobre que se pasan los workers es el contrato interno del motor,
 src/
 ├── domain/
 │   ├── models/sobre.py              # el sobre de los workers, versión 1
-│   └── ports/                       # ClasificadorDeEntrada
+│   └── ports/                       # ClasificadorDeEntrada, FuenteDelBot
 ├── infrastructure/
 │   ├── claude/                      # ClaudeClasificador (SDK anthropic)
+│   ├── gateway/                     # ApiDelGateway: la API de gestión, con la clave del worker
 │   └── adapters/sanitize.py         # el saneado del texto antes de salir
 └── workers/
     ├── runtime.py                   # el bucle común: atarse al consumidor, leer, publicar, confirmar
     ├── settings.py                  # la configuración de cada worker, del entorno
-    └── classifier.py                # el clasificador
+    ├── classifier.py                # el clasificador
+    └── coordinator.py               # el coordinador
 tests/                               # unit, contract e integration (contra un NATS)
 docs/                                # documentación AI-DLC por fase (00 a 06)
 ```
@@ -76,6 +84,7 @@ Del entorno del contenedor. Ningún secreto va en ella:
 | `ANDVARI_ADDR`, `ANDVARI_CA_FILE` | Andvari |
 | `ENGINE_ROLE_ID`, `ENGINE_SECRET_ID_FILE` | El rol AppRole `motor-<worker>` y el fichero con su `secret_id` |
 | `CLASSIFIER_MODEL`, `CLASSIFIER_EFFORT`, `CLASSIFIER_MAX_TOKENS`, `CLASSIFIER_TIMEOUT`, `CLASSIFIER_MAX_RETRIES` | El clasificador. Por defecto: `claude-haiku-5-5`, `low`, 1024, 7 s y 2 |
+| `GATEWAY_URL`, `GATEWAY_AUDIENCE`, `GATEWAY_PUBLIC_KEYS_FILE`, `GATEWAY_CA_FILE`, `COORDINATOR_TIMEOUT` | El coordinador: la API del gateway, como para `ops.engine_keys`. El timeout, 5 s por llamada |
 | `LOG_LEVEL` | `INFO` por defecto. El log va al stdout del contenedor |
 
 La clave de la API de Anthropic de cada worker la lee el worker de Andvari al arrancar, de

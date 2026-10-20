@@ -13,6 +13,17 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 ## [Unreleased]
 
 ### Añadido
+- **El coordinador, el segundo worker** (E4 del [plan](docs/00-project/plan-de-los-workers.md)):
+  `python -m src.workers.coordinator`.
+  - Lee lo clasificado de `MOTOR` y publica el pedido en `motor.pedido.…`, y solo entonces confirma.
+  - **Si el mensaje sigue**, pide al gateway la persona del bot con sus reglas y las últimas vueltas, con la clave
+    del coordinador para el cliente dueño del bot, y pide la respuesta con Claude.
+  - **Si no sigue**, pide un texto fijo según el motivo, sin preguntar al gateway: la persona siempre recibe algo.
+  - Si el gateway no responde, reintenta con las entregas de Bifröst y, en la última, pide el texto de «no
+    disponible». Si el bot o el contacto ya no existen, descarta el mensaje.
+  - La API del gateway (`src/infrastructure/gateway/`) se prueba contra un servidor local que abre y verifica cada
+    token como el gateway; el worker, contra un NATS con el usuario de Bifröst del coordinador.
+- **El contrato del sobre pasa a la 1.1.0**, con el canal `pedido` y sus esquemas (`Persona`, `Vuelta`, `Pedido`).
 - **El clasificador, el primer worker** (E3a del [plan](docs/00-project/plan-de-los-workers.md)):
   `python -m src.workers.classifier`.
   - Lee cada mensaje identificado de `MENSAJES` y lo clasifica con Claude Haiku 5.5, en una sola llamada con salida
