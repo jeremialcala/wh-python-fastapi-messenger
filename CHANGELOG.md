@@ -199,6 +199,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE` solo los exige la API de gestión.
 
 ### Corregido
+- **El worker de ingesta se reiniciaba cada pocos minutos.** En midgard, `bots-ingest` llegó a 13 reinicios en unas
+  horas (2026-10-20).
+  - **Causa:** nats-py avisa de que no hay nada que leer con su `nats.errors.TimeoutError`, pero a veces lo hace con
+    el `asyncio.TimeoutError` de siempre: cuando el tiempo se agota entre sus dos peticiones a Bifröst. `consume()`
+    solo capturaba el suyo, así que ese error tumbaba el proceso.
+  - **Arreglo:** ahora captura los dos.
+  - **No se perdían mensajes:** JetStream reentrega lo que no se confirmó. El `ConnectionClosedError` del log era
+    la consecuencia: al caerse un bucle, el otro se quedaba sin conexión.
 - Las alertas de CodeQL abiertas en `main` (2026-10-19).
   - **`controller/intents.py`:** las seis funciones respondían desde un `finally` con `return`, que se tragaba
     cualquier excepción salida de los propios `except` y también una cancelación (`asyncio.CancelledError`). La
