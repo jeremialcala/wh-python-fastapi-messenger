@@ -8,6 +8,19 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I6b: el comando que da de alta las claves del motor para un cliente, `python -m ops.engine_keys <client_id>`
+  ([ADR-0022](docs/00-project/adr/0022-una-credencial-por-worker.md)).
+  - **Una clave por worker:** las crea, guarda la parte privada en Andvari y registra la pública por la API como
+    el operador.
+  - **Dónde se guardan:** en un motor KV de Andvari, en `motor/data/clientes/<client_id>/<worker>`. Cada worker lee
+    la suya con su propio rol.
+  - **Se puede repetir:** no rehace lo hecho, termina un alta que quedó a medias y nunca escribe encima de una clave
+    guardada. Nunca imprime ni escribe en disco una clave privada.
+  - **En midgard:** el servicio `engine-keys` del compose de despliegue, en el perfil `operations`, que solo arranca
+    bajo demanda.
+  - **El cliente del KV,** `crypto.engine_key_store`, con sus pruebas de integración contra OpenBao, usa las mismas
+    políticas que el repositorio `andvari`.
+  - **`config.env.example`:** `OPERATOR_CLIENT_ID` y `ENGINE_KEYS_ROLE_ID`.
 - I6a: una credencial por worker del motor ([ADR-0022](docs/00-project/adr/0022-una-credencial-por-worker.md), R5,
   RS21, AB21, T29).
   - **Cada clave del motor dice de qué worker es:** `classifier`, `coordinator`, `link`, `responder`, `evaluator`

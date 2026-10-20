@@ -136,18 +136,49 @@ alcanza los suyos.
 El motor no tiene una credencial para todo. Cada worker del motor tiene una clave por cliente, y con ella solo
 alcanza los bots de ese cliente ([ADR-0016](../00-project/adr/0016-credencial-del-motor-por-cliente.md)) y las
 rutas de ese worker ([ADR-0022](../00-project/adr/0022-una-credencial-por-worker.md)). Para cada cliente al que
-vaya a servir, y para cada worker:
+vaya a servir:
 
-1. El worker crea una clave para ese cliente, igual que un cliente crea la suya, y se queda la parte privada.
-2. El operador registra la parte pública bajo el cliente, diciendo de qué worker es:
+1. El operador da de alta las seis claves de ese cliente con un comando (abajo). Por cada worker, el comando crea
+   una clave, guarda la parte privada en Andvari y registra la pública bajo el cliente, diciendo de qué worker es:
 
    ```
    POST /clients/{client_id}/service-keys
    {"signingKey": {"kty": "EC", "crv": "P-256", "x": "...", "y": "..."}, "worker": "notifier"}
    ```
 
+2. Cada worker lee su clave privada de Andvari, en `motor/data/clientes/<client_id>/<worker>` (campo `jwk`), con
+   su propio rol de AppRole, `motor-<worker>`. Solo alcanza la suya, la de cualquier cliente.
 3. El worker firma sus tokens con esa clave y pone como emisor el identificador del cliente. El formato es el
    mismo de cualquier cliente. Qué cliente es lo dice cada mensaje de la cola, en `clientId`.
+
+#### El comando que da de alta las claves de un cliente
+
+`python -m ops.engine_keys <client_id>`, en midgard, desde la imagen del gateway:
+
+```bash
+cd /srv/apps/bots-gateway
+# La clave privada del operador solo se monta para esta ejecución.
+IMAGE_TAG=<la etiqueta que corre> docker compose --profile operations run --rm \
+    -v /ruta/operador.json:/run/operator/key.json:ro engine-keys <client_id>
+```
+
+- **Lo que hace con cada worker:**
+  - si ya tiene la clave guardada y registrada, la deja como está;
+  - si la tiene guardada pero no registrada, la registra;
+  - solo si no tiene ninguna, crea una nueva.
+
+  Por eso se puede volver a ejecutar cuando se para a medias. Una clave guardada no se escribe nunca encima: lo
+  impide el check-and-set del KV y lo impide la política `motor-claves`, que solo crea y lee.
+- **Guarda antes de registrar.** Así, una clave registrada siempre tiene su parte privada en Andvari.
+- **Nunca imprime ni escribe en disco una clave privada.** Imprime, por worker, el `kid` y qué hizo: `kept` y
+  `registered`, cada uno `new` o `already`. Si un worker falla, lo dice en `error` y el comando acaba con 1.
+- **Configuración** (en el `.env` o en el compose):
+  - `GATEWAY_URL`, `GATEWAY_AUDIENCE` y `GATEWAY_PUBLIC_KEYS_FILE` (la salida de `python -m ops.gateway_key show`);
+  - `OPERATOR_KEY_FILE` y `OPERATOR_CLIENT_ID`;
+  - `ANDVARI_ADDR` y `ANDVARI_CA_FILE`;
+  - `ENGINE_KEYS_ROLE_ID` y `ENGINE_KEYS_SECRET_ID_FILE`.
+
+  El rol y su `secret_id` los crea `motor/instalar.sh` del repositorio `andvari`.
 
 Qué worker firma lo dice el registro, no el token: el `kid` dice qué clave es, y la clave, de qué worker. Cada
 worker alcanza sus rutas, y cualquier otra le responde `403`:
@@ -202,8 +233,8 @@ responde `422`. Al terminar el refactor se borran con `DELETE /clients/{client_i
 
 - **El motor de respuestas no lo usa todavía.** El gateway ya le da paso con una clave por cliente y por worker;
   pedir la configuración y los tokens es trabajo de su repositorio.
-- **Registrar las seis claves de un cliente es a mano**, una petición por worker. El comando que las genera y las
-  registra de una vez es I6b.
+- **El comando no rota las claves**: da de alta las que faltan. Rotar la de un worker pide escribir una versión
+  nueva en Andvari, y la política `motor-claves` no lo permite a propósito. Está pendiente.
 - **No hay límite de tasa.** Los intentos fallidos se registran, pero nada los frena; es RS10, en el borde.
 - **Un cliente no se puede desactivar por la API.** Revocar sus claves lo deja fuera; el estado del cliente solo se
   cambia en la base.
