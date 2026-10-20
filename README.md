@@ -1,7 +1,8 @@
 # Hive
 
 > **Hive** es el nombre del producto: un BaaS de chatbots para WhatsApp, Messenger e Instagram, con su API de gestión
-> en `https://hive.higerotech.com` ([ADR-0024](docs/00-project/adr/0024-el-producto-se-llama-hive.md)). Este
+> en `https://hive-api.higerotech.com` y el webhook de Meta en `https://hive-webhook.higerotech.com`
+> ([ADR-0024](docs/00-project/adr/0024-el-producto-se-llama-hive.md)). Este
 > repositorio, `wh-python-fastapi-messenger`, guarda sus dos partes: el gateway, en la raíz, y el motor de respuestas,
 > en `engine/`.
 

@@ -8,6 +8,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- **ADR-0024, versión 0.2.0: un subdominio por superficie** (decisión de Jeremi del 2026-10-20). La API de gestión
+  pasa a `https://hive-api.higerotech.com`, que es la audiencia de los tokens, y el webhook de Meta va en
+  `https://hive-webhook.higerotech.com`. `hive.higerotech.com` queda reservado para el producto.
 - **[ADR-0024](docs/00-project/adr/0024-el-producto-se-llama-hive.md) (aceptada): el producto se llama Hive**, con
   su API de gestión en `https://hive.higerotech.com`, que es también la audiencia de los tokens (decisión de Jeremi
   del 2026-10-20). Los componentes conservan sus nombres, y no se renombran el repositorio, las imágenes ni los

@@ -12,7 +12,7 @@ del modelo BaaS que todavía no tienen representación en el código.
 
 | Término | Definición | Contexto acotado |
 |---|---|---|
-| **Hive** | El nombre del producto: el gateway y el motor de respuestas juntos, como los ve el cliente. Su API de gestión está en `https://hive.higerotech.com`, que es también la audiencia de los tokens (ADR-0024). | Clientes y acceso |
+| **Hive** | El nombre del producto: el gateway y el motor de respuestas juntos, como los ve el cliente. Su API de gestión está en `https://hive-api.higerotech.com`, que es también la audiencia de los tokens, y el webhook de Meta en `https://hive-webhook.higerotech.com` (ADR-0024). | Clientes y acceso |
 | **Cliente** | Empresa que contrata el servicio. Dueña de sus bots y responsable del tratamiento de los datos de sus usuarios finales. Sin construir: hoy los bots no tienen dueño. | Clientes y acceso |
 | **Operador** | Quien opera la plataforma. Encargado del tratamiento frente a los clientes. Hoy es el único con credencial de gestión. | Clientes y acceso |
 | **Registro del cliente** | El alta de un cliente en la plataforma y lo que cuelga de ella: su clave pública de firma, sus bots y los datos de sus bots. Es lo que permite controlar los elementos de cada cliente por separado (ADR-0004). Sin construir. | Clientes y acceso |
