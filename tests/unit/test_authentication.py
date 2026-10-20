@@ -16,8 +16,8 @@ from fastapi.testclient import TestClient
 from jwcrypto import jwe, jwk, jws
 
 import app as app_module
-from auth import gateway_keys, tokens
-from auth.client import new_signing_key
+from shared.auth import gateway_keys, tokens
+from shared.auth.client import new_signing_key
 from classes import Client, SeenToken
 from conftest import GATEWAY_AUDIENCE, GATEWAY_KEYS_FILE
 from enums import Status

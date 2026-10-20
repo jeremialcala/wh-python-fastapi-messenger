@@ -16,8 +16,8 @@ import nats
 import pytest
 from nats.js.api import StreamConfig
 
-import bus
-from bus.nats_jetstream import NatsPublisher
+from shared import bus
+from shared.bus.nats_jetstream import NatsPublisher
 from controller import erasure_notices
 
 ADDRESS = os.environ.get("NATS_TEST_ADDR")

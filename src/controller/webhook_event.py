@@ -10,9 +10,10 @@ import logging
 import secrets
 from datetime import datetime, timezone
 
-import bus
-import tracing
 from classes import ChatBot, Settings
+from shared import bus, tracing
+# The version of the events, written once for the gateway and the engine.
+from shared.contract import SCHEMA_VERSION
 
 from .incoming import MESSENGER, WHATSAPP, IncomingMessage
 
@@ -22,7 +23,6 @@ log = logging.getLogger(Settings().environment)
 
 # The kind of object Meta notifies about, and the channel it is on the bus: the last token of the subject.
 CHANNELS = {WHATSAPP: "whatsapp", MESSENGER: "messenger"}
-SCHEMA_VERSION = 2
 
 
 def event_message_id(bot: ChatBot, messages: list[IncomingMessage]) -> str:

@@ -12,8 +12,8 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-import bus
-import tracing
+from shared import bus
+from shared import tracing
 from classes import Settings
 
 from .webhook_event import SCHEMA_VERSION, traceparent

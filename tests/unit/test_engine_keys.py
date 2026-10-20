@@ -13,11 +13,11 @@ from fastapi.testclient import TestClient
 
 import app as app_module
 import ops.engine_keys as engine_keys
-from auth import gateway_keys
-from auth.client import build_token
+from shared.auth import gateway_keys
+from shared.auth.client import build_token
 from classes import Client
 from conftest import GATEWAY_AUDIENCE, GATEWAY_KEYS_FILE
-from crypto.engine_key_store import KeyStoreUnavailable
+from shared.engine_key_store import KeyStoreUnavailable
 from enums import Worker
 
 WORKERS = [worker.value for worker in Worker]
@@ -150,7 +150,7 @@ def test_a_key_kept_by_another_run_in_between_is_the_one_registered(acme, call, 
     def another_run_first(client_id, worker, key):
         # Another run keeps its key for the coordinator just before this one does.
         if worker == "coordinator" and not theirs:
-            from auth.client import new_signing_key
+            from shared.auth.client import new_signing_key
             theirs.update(new_signing_key())
             original(client_id, worker, theirs)
         return original(client_id, worker, key)
@@ -176,7 +176,7 @@ def test_without_andvari_no_key_is_made_nor_registered(acme, call, store):
 
 
 def test_a_worker_that_already_has_two_keys_is_reported_and_the_others_are_issued(http, operator, acme, call, store):
-    from auth.client import new_signing_key, public_part
+    from shared.auth.client import new_signing_key, public_part
 
     for _ in range(2):
         added = http.post(f"/clients/{acme.client_id}/service-keys", headers=operator.auth,

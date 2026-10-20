@@ -10,9 +10,9 @@ from inspect import currentframe
 from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from auth.gateway_keys import GatewayKeys
+from shared.auth.gateway_keys import GatewayKeys
 from auth.principal import Principal, authenticate
-from auth.tokens import InvalidToken
+from shared.auth.tokens import InvalidToken
 from classes import (BotCredentialsRequest, BotResponse, ChatbotPhoneRequest, ChatbotRequest, ClientRequest,
                      ContactSearchRequest, IntentRequest, OwnedKeyRequest, ResponseData, RulesRequest,
                      ServiceKeyRequest, SigningKeyRequest)

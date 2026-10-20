@@ -1,12 +1,12 @@
 # ADR-0004: Detección de intención con un LLM autoalojado y salida tratada como no confiable
 
-* **Estado:** accepted
+* **Estado:** superseded
 * **Fecha:** 2026-10-12
 * **Decisores:** Jeremi Alcalá
 * **Fase AI-DLC:** 02-design
 * **Versión:** 1.0.0
 * **ID:** ADR-0004
-* **Supersede / Superseded-by:** —
+* **Supersede / Superseded-by:** superseded by ADR-0009 (2026-10-20)
 * **Controles OWASP afectados:** A05, A06, A04 · LLM01, LLM05, LLM10
 
 Decisión retroactiva: implementada en el commit a66e3e9 (junio de 2026). Dónde se ejecuta el

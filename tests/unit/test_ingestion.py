@@ -18,7 +18,7 @@ import yaml
 from jsonschema import Draft202012Validator
 from pymongo.errors import ServerSelectionTimeoutError
 
-import bus
+from shared import bus
 import controller.facebook as facebook
 import controller.ingestion as ingestion
 import ingest
@@ -26,6 +26,7 @@ from classes import ChatBot, Contact, ConversationMessage
 from controller.incoming import IncomingMessage
 from controller.webhook_event import webhook_event
 from repository import NotFound, TenantRepository
+from shared.contract import IdentifiedMessage, SentReply, identified_subject
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONTRACT = yaml.safe_load((ROOT / "docs" / "02-design" / "contracts" / "asyncapi-v2.yaml").read_text(encoding="utf-8"))
@@ -124,6 +125,10 @@ def test_a_message_is_identified_stored_and_published_for_the_engine(bot, bifros
     assert identified.payload["contact"] == {"uuid": str(contact._uuid), "name": "Ana", "waId": NUMBER}
     assert identified.payload["orderKey"] == f"{bot.uuid}.{contact._uuid}"
     assert [error.message for error in IDENTIFIED.iter_errors(identified.payload)] == []
+    # The engine's classifier reads it with the shared model (ADR-0023), from where the shared subject says.
+    read = IdentifiedMessage.model_validate(identified.payload)
+    assert (read.botId, read.contact.uuid, read.contact.waId) == (bot.uuid, contact._uuid, NUMBER)
+    assert identified.subject == identified_subject(where, bot.uuid, contact._uuid)
     assert [envelope["messageId"] for envelope in queue] == ["wamid.A"]
     assert ConversationMessage.objects.get().contactId == contact._uuid
 
@@ -417,6 +422,19 @@ def reply_now(event):
 
 def test_the_answer_used_here_is_the_one_of_the_contract(ana):
     assert [error.message for error in ANSWER.iter_errors(answer_to(ana))] == []
+
+
+def test_an_answer_built_with_the_shared_model_is_the_one_of_the_contract_and_is_stored(ana, repo):
+    """What the engine's notifier will build (shared.contract.SentReply), through the gateway: ADR-0023."""
+    sent = SentReply(schemaVersion=2, botId=ana.botId, clientId=ana.clientId, contactId=ana._uuid, channel="whatsapp",
+                     inReplyTo="wamid.A", messageId="wamid.SHARED",
+                     sentAt=datetime(2026, 10, 20, 9, 0, tzinfo=timezone.utc), text="hola", attachments=[{"type": "image"}])
+    published = json.loads(sent.model_dump_json())
+
+    assert [error.message for error in ANSWER.iter_errors(published)] == []
+    assert reply_now(published) == {"stored": True}
+    assert repo.history(ana)[1]["messageId"] == "wamid.SHARED"
+    assert SentReply.model_validate(answer_to(ana)).inReplyTo == "wamid.A"
 
 
 def test_an_answer_is_stored_as_the_contacts_conversation_going_out(ana, repo):

@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from .destinations import MAX_LENGTH, check_destination
+from shared.destinations import MAX_LENGTH, check_destination
 from .tool_settings import Settings
 
 settings = Settings()
@@ -22,7 +22,7 @@ class ActionParameterRequest(BaseModel):
 class ApiCallRequest(BaseModel):
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"] = Field(default="GET")
     # Where the worker of the engine calls: https, a public host written out, never the platform's own network
-    # (classes.destinations, T11). Placeholders like {order_id} only go in the path or the query.
+    # (shared.destinations, T11). Placeholders like {order_id} only go in the path or the query.
     url: str = Field(max_length=MAX_LENGTH, examples=["https://api.example.com/orders/{order_id}"])
     headers: dict = Field(default={})
     query: dict = Field(default={})

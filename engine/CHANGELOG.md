@@ -13,6 +13,12 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 ## [Unreleased]
 
 ### Añadido
+- **El motor usa `shared/`**, el código que comparte con el gateway (E1 del [plan](docs/00-project/plan-de-los-workers.md)):
+  - lo que necesita está en sus `requirements` (`nats-py`, OpenTelemetry, `requests`), con las versiones del gateway,
+    y `jwcrypto` sube a 1.6.1, la del gateway;
+  - las pruebas lo importan desde la raíz del monorepo;
+  - la imagen se construye desde la raíz (`docker build -f engine/Dockerfile .`), con `Dockerfile.dockerignore`.
+- ADR-0008 y ADR-0009 aceptadas. Las ADR-0003, 0004, 0005 y 0007 quedan superadas.
 - **El diseño del motor en seis workers** (E0 del [plan](docs/00-project/plan-de-los-workers.md)), en propuesta:
   - [ADR-0008](docs/02-design/adr/ADR-0008-seis-workers-sobre-bifrost.md): clasificador, coordinador, enlace,
     respuesta, evaluador y notificador, en una imagen y un contenedor por worker. Se pasan el mensaje por Bifröst en

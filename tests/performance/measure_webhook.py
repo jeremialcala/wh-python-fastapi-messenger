@@ -61,7 +61,7 @@ def management(method: str, route: str, body: dict) -> dict:
 
 
 def key() -> None:
-    from auth.gateway_keys import GatewayKeys
+    from shared.auth.gateway_keys import GatewayKeys
     from ops.client import new_key
     if not os.path.exists(path("operator.json")):
         with open(path("operator-public.json"), "w", encoding="utf-8") as file:

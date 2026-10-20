@@ -131,6 +131,31 @@ repositorio `ms-python-metamsghandler` se archiva.
   - solo copia el código.
 - **Pendiente:** el paquete `shared/`.
 
+## Construido (`shared/`, 2026-10-20; E1 del plan de los workers del motor)
+
+- **Pasan a `shared/` con `git mv`, con su historia:**
+  - `bus` (el puerto y `NatsPublisher`) y `tracing`;
+  - `auth.client`, `tokens`, `key_proof` y `gateway_keys`, que forman `shared.auth`;
+  - el almacén de claves de Andvari, como `shared.engine_key_store`;
+  - la regla de destinos, como `shared.destinations`;
+  - los nombres de los workers, como `shared.workers`.
+
+  Lo que solo es del gateway se queda en `src/`: quién llama según el registro (`auth.principal`), la validación de
+  las claves de los clientes (`auth.client_keys`) y el registro de tokens usados (`repository.tokens`).
+- **El gateway importa de `shared.*`, sin capas intermedias:** 64 imports en 35 ficheros. Su comportamiento no
+  cambia, y la cobertura del CI mide `src` y `shared`.
+- **El contrato v2 en modelos:** `shared.contract` tiene `IdentifiedMessage` (lo que lee el clasificador),
+  `SentReply` (lo que escribirá el notificador), `SCHEMA_VERSION` y los sujetos. Las pruebas de la ingesta comprueban
+  que lo que publica el gateway se lee con el modelo, y que lo construido con `SentReply` valida contra
+  `asyncapi-v2.yaml` y se guarda en el historial.
+- **El motor importa `shared`:**
+  - en las pruebas, porque su `pythonpath` incluye la raíz;
+  - en la imagen, que se construye desde la raíz (`docker build -f engine/Dockerfile .`) con
+    `engine/Dockerfile.dockerignore`, de modo que en el contexto solo entra el código del motor y `shared/`.
+
+  Sus dependencias para `shared` son las mismas versiones que las del gateway.
+- **CI:** los workflows del motor se disparan también con cambios en `shared/`, y los del gateway ya lo hacían.
+
 ## Condiciones de revisión
 
 - Otro equipo o persona pasa a mantener uno de los dos componentes por su cuenta.

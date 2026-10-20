@@ -21,7 +21,7 @@ python-dotenv==1.2.2      # .env support for pydantic-settings
 PyYAML==6.0.1             # logging configuration (logging_config.yaml)
 
 # Security (JWE / JWK)
-jwcrypto==1.5.7
+jwcrypto==1.6.1
 cryptography==50.0.2
 cffi==2.0.0
 pycparser==2.22
@@ -34,3 +34,11 @@ ollama==0.3.3
 # En la imagen Docker (Linux) compila con build-essential; en Windows usar
 # Docker/WSL para el desarrollo y los tests.
 nemoguardrails==0.22.0
+
+# What `shared/` needs (ADR-0023): the bus, the traces and the tokens of the gateway's API. The same versions as
+# the gateway's requirements.lock, so both sides run the shared code on the same libraries.
+nats-py==2.16.0
+opentelemetry-api==1.45.0
+opentelemetry-sdk==1.45.0
+opentelemetry-exporter-otlp-proto-http==1.45.0
+requests==2.34.2

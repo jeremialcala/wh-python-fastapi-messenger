@@ -17,6 +17,8 @@ import app as app_module
 import webhook as webhook_module
 
 SRC = Path(__file__).resolve().parents[2] / "src"
+# The service imports `shared` from the root of the repository (ADR-0023).
+PATH = os.pathsep.join([str(SRC), str(SRC.parent)])
 # What only the management API needs: the gateway's key pair, the audience of its tokens and the register of
 # erasures.
 MANAGEMENT_ONLY = ("GATEWAY_KEYS_FILE", "GATEWAY_AUDIENCE", "ERASURES_DIR")
@@ -50,7 +52,7 @@ def test_both_have_the_health_check():
 def start(module: str, tmp_path, without=()) -> subprocess.CompletedProcess:
     """Imports one service in a process of its own, with the test settings minus those named."""
     env = {name: value for name, value in os.environ.items() if name not in without}
-    env["PYTHONPATH"] = str(SRC)
+    env["PYTHONPATH"] = PATH
     probe = (f"import sys, {module}; from repository import erasures; "
              "print('loaded:', ','.join(sorted(m for m in ('app', 'webhook') if m in sys.modules))); "
              "print('erasures:', erasures._directory)")

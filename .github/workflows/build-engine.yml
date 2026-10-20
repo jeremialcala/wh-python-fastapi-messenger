@@ -13,6 +13,7 @@ on:
     branches: [main]
     paths:
       - "engine/**"
+      - "shared/**"
       - ".github/workflows/build-engine.yml"
   workflow_dispatch:
 
@@ -70,7 +71,9 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: engine
+          # From the root, where shared/ is (ADR-0023); engine/Dockerfile.dockerignore says what goes in.
+          context: .
+          file: engine/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

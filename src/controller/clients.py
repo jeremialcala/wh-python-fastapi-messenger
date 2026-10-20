@@ -9,10 +9,10 @@ import time
 from fastapi import HTTPException, status
 
 from auth.client_keys import public_signing_key
-from auth.key_proof import verify_key_proof
+from shared.auth.key_proof import verify_key_proof
 from auth.principal import Principal
-from auth.tokens import InvalidToken
-from auth.gateway_keys import GatewayKeys
+from shared.auth.tokens import InvalidToken
+from shared.auth.gateway_keys import GatewayKeys
 from classes import Client, ClientRequest, OwnedKeyRequest, ResponseData, ServiceKeyRequest, Settings, SigningKeyRequest
 from enums import Status, Worker
 from repository import (Conflict, NotFound, RegisterUnavailable, add_service_key, add_signing_key, delete_client,

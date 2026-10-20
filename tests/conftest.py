@@ -6,7 +6,7 @@
 import os
 import tempfile
 
-from auth import gateway_keys  # Needs neither settings nor database.
+from shared.auth import gateway_keys  # Needs neither settings nor database.
 
 # A key pair for the gateway, made for this run and thrown away with it.
 GATEWAY_KEYS_FILE = os.path.join(tempfile.mkdtemp(prefix="gateway-keys-"), "gateway-keys.json")
@@ -195,7 +195,7 @@ class Caller:
         self.kid = client.signingKeys[0]["kid"]
 
     def token(self, **changes) -> str:
-        from auth.client import build_token
+        from shared.auth.client import build_token
 
         gateway_key = gateway_keys.GatewayKeys.load(GATEWAY_KEYS_FILE).public_set()["keys"][0]
         return build_token(self.key, self.client_id, GATEWAY_AUDIENCE, gateway_key, **changes)
@@ -209,7 +209,7 @@ class Caller:
         """What POST /keys takes to add `new_key` (private): the headers and the body, with the proof it signs."""
         from uuid import uuid4
 
-        from auth.client import key_proof, public_part
+        from shared.auth.client import key_proof, public_part
 
         jti = str(uuid4())
         proof = key_proof(new_key, self.client_id, GATEWAY_AUDIENCE, jti, **proof_changes)
@@ -220,7 +220,7 @@ class Caller:
 @pytest.fixture
 def register():
     """Returns a function that registers a client with a new key pair and gives back its Caller."""
-    from auth.client import new_signing_key, public_part
+    from shared.auth.client import new_signing_key, public_part
     from auth.client_keys import public_signing_key
     from repository import register_client
 
@@ -234,7 +234,7 @@ def register():
 @pytest.fixture
 def operator():
     """The operator, with a signing key registered the way the server command does it."""
-    from auth.client import new_signing_key, public_part
+    from shared.auth.client import new_signing_key, public_part
     from auth.client_keys import public_signing_key
     from repository import add_signing_key, operator_client
 

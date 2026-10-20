@@ -17,7 +17,7 @@ import yaml
 from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator, FormatChecker
 
-import bus
+from shared import bus
 import controller.facebook as facebook
 import controller.ingestion as ingestion
 import webhook as webhook_module

@@ -1,6 +1,6 @@
 # ADR-0009: Claude, por la API de Anthropic, como LLM del motor
 
-* **Estado:** proposed
+* **Estado:** accepted
 * **Fecha:** 2026-10-20
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -10,6 +10,9 @@
   política fail-closed, que se mantiene; ADR-0007 (placement del serving del LLM)
 * **OWASP:** A02 (la clave de la API), A04 (TLS hasta la API) · LLM01 (inyección de prompt), LLM02 (datos personales
   hacia un tercero), LLM05 (salida no confiable), LLM10 (consumo sin límite)
+
+Aceptada el 2026-10-20 al fusionar la PR #65, con lo que proponía: el clasificador sustituye a NeMo y Ollama, y el de
+respuesta lleva los *fallbacks* del servidor.
 
 ## Contexto
 

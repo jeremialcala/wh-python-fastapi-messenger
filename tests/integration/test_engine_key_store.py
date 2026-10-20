@@ -18,8 +18,8 @@ from uuid import uuid4
 import pytest
 import requests
 
-from auth.client import new_signing_key
-from crypto.engine_key_store import EngineKeyStore, KeyStoreUnavailable
+from shared.auth.client import new_signing_key
+from shared.engine_key_store import EngineKeyStore, KeyStoreUnavailable
 
 ADDRESS, ROOT_TOKEN = os.environ.get("OPENBAO_TEST_ADDR"), os.environ.get("OPENBAO_TEST_TOKEN")
 # The same as politicas/motor-claves.hcl and politicas/motor-<worker>.hcl in the andvari repository.

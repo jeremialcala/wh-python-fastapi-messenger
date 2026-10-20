@@ -24,7 +24,7 @@ import webhook as webhook_module
 import controller.clients as clients_controller
 import controller.facebook as facebook
 import controller.ingestion as ingestion
-from auth.client import new_signing_key, public_part
+from shared.auth.client import new_signing_key, public_part
 from classes import ChatBot, Contact
 from controller import BrokerUnavailable
 from repository import TenantRepository

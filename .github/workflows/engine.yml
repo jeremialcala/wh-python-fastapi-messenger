@@ -1,11 +1,13 @@
 # Tests, lint and a throwaway image build of the response engine (engine/, ADR-0023) for every pull request that
-# touches it. The gateway's own workflow, `ci`, leaves engine/ out; the security gates (`Seguridad`) cover both.
+# touches it or the code it shares with the gateway (shared/, which also runs `ci`). The gateway's own workflow,
+# `ci`, leaves engine/ out; the security gates (`Seguridad`) cover both.
 name: engine
 
 on:
   pull_request:
     paths:
       - "engine/**"
+      - "shared/**"
       - ".github/workflows/engine.yml"
       - ".github/workflows/build-engine.yml"
 
@@ -50,7 +52,9 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: engine
+          # From the root, where shared/ is (ADR-0023); engine/Dockerfile.dockerignore says what goes in.
+          context: .
+          file: engine/Dockerfile
           push: false
           # A scope of its own, so the engine's cache and the gateway's do not evict each other.
           cache-from: type=gha,scope=engine

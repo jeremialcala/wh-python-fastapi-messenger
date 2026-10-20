@@ -22,12 +22,12 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
-import bus
-import tracing
 from classes import ChatBot, Contact, MessageBody, QueueMessage, Settings
 from classes.entity_conversation_message import INCOMING, OUTGOING
 from crypto.key_service import KeyServiceUnavailable
 from repository import NotFound, TenantRepository, database_failed
+from shared import bus, tracing
+from shared.contract import identified_subject
 from utils import describe
 
 from .amqp_broker import BrokerUnavailable, send_message_to_queue
@@ -154,7 +154,7 @@ def identified_event(event: dict, item: dict, contact: Contact, message: Incomin
 async def _publish(event: dict, item: dict, contact: Contact, message: IncomingMessage) -> None:
     if bus.configured():
         await bus.publisher().publish(
-            f"gateway.message.{partition(event['botId'], contact._uuid)}.{event['botId']}.{contact._uuid}",
+            identified_subject(partition(event["botId"], contact._uuid), event["botId"], contact._uuid),
             json.dumps(identified_event(event, item, contact, message), separators=(",", ":")).encode("utf-8"),
             f"{event['botId']}:{item['messageId']}", headers={"traceparent": traceparent()})
     body = MessageBody(botId=event["botId"], clientId=event["clientId"], type=_KINDS[event["channel"]],
