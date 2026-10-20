@@ -32,6 +32,20 @@ python .ai-dlc/scripts/gen_openapi.py
 Los `.lock` no se editan a mano. El último paso regenera el contrato OpenAPI, que puede cambiar con la versión del
 framework. El CI falla si un lock no fija los mismos paquetes que se declaran.
 
+**Bórralo antes de regenerarlo.** Si el `.lock` ya existe, `uv pip compile` reutiliza sus versiones como preferencia.
+El CI compila desde cero, así que un lock regenerado encima del anterior puede fijar paquetes distintos y romper esa
+comprobación.
+
+El motor de respuestas, en `engine/` (ADR-0023), tiene sus propios `requirements` y locks. Se regeneran igual, desde
+`engine/`, y se prueban en Linux, porque `nemoguardrails` arrastra `annoy`, que no tiene wheel para Windows:
+
+```bash
+cd engine
+rm -f requirements.lock requirements-dev.lock
+uv pip compile --universal --python-version 3.12 --generate-hashes requirements.txt -o requirements.lock
+uv pip compile --universal --python-version 3.12 --generate-hashes requirements-dev.txt -o requirements-dev.lock
+```
+
 ## Cobertura
 
 El CI exige una cobertura por ramas del 80 %, que es lo que pide el Gate 2, y rompe el build por debajo.

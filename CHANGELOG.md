@@ -8,6 +8,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- **El CI por rutas y la imagen del motor** (ADR-0023):
+  - `ci` y `build` del gateway dejan fuera `engine/`;
+  - el motor tiene su propio `engine` (pylint y pruebas con cobertura mínima del 60 %) y su `build-engine`, que
+    publica `ghcr.io/jeremialcala/chatbot-engine`. No se llama `build`, porque ese nombre es el que despliega el
+    gateway;
+  - `Seguridad` audita también los locks del motor;
+  - el umbral de CodeQL trata `engine/tests/` como pruebas.
 - **El motor de respuestas, en `engine/`**, con sus 13 commits de historia: el repositorio pasa a ser un monorepo
   (ADR-0023). gitleaks no encontró nada en esa historia. El motor conserva sus dependencias, sus pruebas, su
   Dockerfile, sus docs y su CHANGELOG.
