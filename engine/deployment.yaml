@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wapp-pooling
+  namespace: chatters-pro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wapp-pooling
+  template:
+    metadata:
+      labels:
+        app: wapp-pooling
+    spec:
+      containers:
+      - name: wapp-pooling
+        image: rgx01.chatters.pro/ms-python-pooling:latest
+      imagePullSecrets:
+        - name: regcred
