@@ -3,7 +3,10 @@
     La API de gestión del gateway para un worker del motor. Cada llamada lleva un token nuevo, firmado con la clave
     que ese worker tiene para el cliente dueño del bot y cifrado para el gateway (`shared.auth.client`,
     docs/03-implementation/autenticacion.md del gateway). Qué rutas alcanza lo decide el gateway por el worker de la
-    clave: al coordinador le deja las reglas, las herramientas y las vueltas.
+    clave: al coordinador le deja las reglas, las herramientas y las vueltas; al notificador, los tokens de Meta.
+
+    El token de Meta de cada bot se recuerda unos minutos, para no pedirlo en cada mensaje: cada entrega queda en el
+    log del gateway. Si Meta lo rechaza, el notificador lo olvida y se pide otra vez.
 
     La clave privada de cada cliente se lee de Andvari la primera vez que hace falta y se guarda en memoria. Si el
     gateway la rechaza (401), se vuelve a leer una vez: puede haber cambiado.
@@ -12,6 +15,7 @@
 """
 import asyncio
 import json
+import time
 from datetime import datetime
 from uuid import UUID
 
@@ -21,9 +25,11 @@ from pydantic import ValidationError
 from shared.auth.client import build_token
 from shared.engine_key_store import EngineKeyStore, KeyStoreUnavailable
 from src.domain.models.sobre import MAX_VUELTAS, Persona, Vuelta
+from src.domain.ports.envio import TokensDelBot
 from src.domain.ports.fuente_del_bot import FuenteDelBot, FuenteNoDisponible, NoEncontrado
 
-TIMEOUT = 5  # segundos por llamada
+TIMEOUT = 5            # segundos por llamada
+RECORDAR_TOKEN = 600   # segundos que se recuerda el token de Meta de un bot
 
 
 def clave_publica_del_gateway(path: str) -> dict:
@@ -38,7 +44,7 @@ def clave_publica_del_gateway(path: str) -> dict:
     return claves[-1]
 
 
-class ApiDelGateway(FuenteDelBot):
+class ApiDelGateway(FuenteDelBot, TokensDelBot):
     """La API de gestión del gateway con la clave de un worker, para los clientes que haga falta."""
 
     def __init__(self, url: str, audience: str, gateway_key: dict, store: EngineKeyStore, worker: str,
@@ -51,6 +57,7 @@ class ApiDelGateway(FuenteDelBot):
         self._verify = ca_file or True
         self._timeout = timeout
         self._claves: dict[UUID, dict] = {}
+        self._tokens: dict[UUID, tuple[str, float]] = {}
 
     def _clave(self, client_id: UUID, otra_vez: bool = False) -> dict:
         if otra_vez or client_id not in self._claves:
@@ -113,3 +120,18 @@ class ApiDelGateway(FuenteDelBot):
             # ValidationError es un ValueError.
             raise FuenteNoDisponible("vueltas inesperadas") from None
         return vueltas[-MAX_VUELTAS:]
+
+    async def token_de_whatsapp(self, client_id: UUID, bot_id: UUID) -> str:
+        recordado = self._tokens.get(bot_id)
+        if recordado and time.monotonic() < recordado[1]:
+            return recordado[0]
+        datos = await asyncio.to_thread(self._get, client_id, f"/chat/{bot_id}/tokens")
+        token = datos.get("whatsappToken") if isinstance(datos, dict) else None
+        if not isinstance(token, str) or not token:
+            # Un bot sin token de WhatsApp no puede responder por WhatsApp hasta que su cliente lo guarde.
+            raise NoEncontrado("token de WhatsApp")
+        self._tokens[bot_id] = (token, time.monotonic() + RECORDAR_TOKEN)
+        return token
+
+    def olvidar(self, bot_id: UUID) -> None:
+        self._tokens.pop(bot_id, None)

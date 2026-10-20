@@ -141,7 +141,7 @@ def main() -> None:
     """El worker: su configuración y su bucle sobre MOTOR."""
     settings = ResponderSettings()
     asyncio.run(ejecutar(NOMBRE, settings, STREAM, CONSUMIDOR,
-                         lambda max_deliver: preparar(settings, max_deliver)))
+                         lambda max_deliver, _conexion: preparar(settings, max_deliver)))
 
 
 if __name__ == "__main__":

@@ -63,3 +63,17 @@ class ResponderSettings(WorkerSettings):
     # MOTOR/responder.
     responder_timeout: float = Field(default=50.0, gt=0, le=55.0)
     responder_max_retries: int = Field(default=1, ge=0, le=1)
+
+
+class NotifierSettings(WorkerSettings):
+    """El notificador: la API del gateway, para los tokens de Meta, y la Graph API de Meta."""
+    gateway_url: str = Field(min_length=8)
+    gateway_audience: str = Field(min_length=8)
+    gateway_public_keys_file: str = Field(min_length=1)
+    gateway_ca_file: str | None = None
+    graph_url: str = "https://graph.facebook.com"
+    # La más nueva el 2026-10-20. Meta retira cada versión a los dos años: subirla es cambiar esto.
+    graph_version: str = Field(default="v26.0", pattern=r"^v[0-9]{2}[.]0$")
+    # Por llamada, a Meta y al gateway. Las tres de un mensaje en el peor caso (el gateway dos veces tras un 401, y
+    # Meta) quedan por debajo de los 30 s del ack_wait de MOTOR/notifier.
+    notifier_timeout: float = Field(default=8.0, gt=0, le=9.0)

@@ -52,7 +52,7 @@ def resolver(puntero):
 
 
 def test_es_la_version_1_del_sobre():
-    assert (DOCUMENTO["asyncapi"], DOCUMENTO["info"]["version"]) == ("3.0.0", "1.2.0")
+    assert (DOCUMENTO["asyncapi"], DOCUMENTO["info"]["version"]) == ("3.0.0", "1.3.0")
     assert SCHEMAS["Sobre"]["properties"]["schemaVersion"]["const"] == ESQUEMA
 
 
@@ -203,3 +203,51 @@ def test_la_respuesta_cumple_el_contrato(respuesta, redaccion):
     validador("MensajeRespondido").validate(sobre)
     validador("Cabeceras").validate(cabeceras)
     assert subject == f"motor.respuesta.3.{bot}.{contacto}"
+
+
+# --- Lo que el notificador devuelve al gateway, según el contrato v2 de este ----------------------------------------
+
+V2 = yaml.safe_load((pathlib.Path(__file__).resolve().parents[3] / "docs" / "02-design" / "contracts"
+                     / "asyncapi-v2.yaml").read_text(encoding="utf-8"))
+
+
+def test_lo_que_publica_el_notificador_cumple_el_contrato_v2_del_gateway():
+    from src.workers.notifier import Notificar  # pylint: disable=import-outside-toplevel
+
+    class Tokens:
+        async def token_de_whatsapp(self, _cliente, _bot):
+            return "EAAG-wa"
+
+        def olvidar(self, _bot):
+            pass
+
+    class Meta:
+        async def enviar_texto(self, _token, _cuenta, _destinatario, _texto):
+            return "wamid.ENVIADO"
+
+    class Registro:
+        async def enviado(self, _bot, _mensaje):
+            return None
+
+        async def apuntar(self, _bot, _mensaje, _envio):
+            pass
+
+    bot, contacto = uuid4(), uuid4()
+    respondido = {"schemaVersion": 1, "botId": str(bot), "clientId": str(uuid4()), "messageId": "wamid.A",
+                  "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{bot}.{contacto}",
+                  "contact": {"uuid": str(contacto), "waId": "12025550143"}, "cuentaDelBot": "106540352242922",
+                  "entrada": {"texto": "hola", "adjuntos": []},
+                  "clasificacion": Clasificacion.sin_veredicto("sin_texto").model_dump(),
+                  "respuesta": {"texto": "Por ahora solo puedo leer mensajes de texto.", "fuente": "fijo",
+                                "modelo": None}}
+    validador("MensajeRespondido").validate(respondido)
+    bifrost = Bifrost()
+
+    asyncio.run(Notificar(Tokens(), Meta(), Registro(), bifrost, 5)(
+        Mensaje(respondido, f"motor.respuesta.3.{bot}.{contacto}")))
+
+    (subject, evento, cabeceras), = bifrost.publicado
+    assert subject == f"engine.reply.sent.{bot}"
+    Draft202012Validator({"$ref": "#/components/schemas/RespuestaEnviada", "components": V2["components"]},
+                         format_checker=FormatChecker()).validate(evento)
+    assert cabeceras["Nats-Msg-Id"] == f"{bot}:wamid.ENVIADO"

@@ -119,6 +119,9 @@ class _Sobre(_Estricto):
     receivedAt: datetime
     orderKey: str = Field(min_length=1)
     contact: ContactoDelCanal
+    # Desde dónde se responde: el `phone_number_id` de WhatsApp, o el id de la página de Messenger o de la cuenta de
+    # Instagram, al que escribió la persona. No es un dato personal: es del negocio.
+    cuentaDelBot: Optional[str] = Field(default=None, pattern=r"^[0-9]{1,32}$")
 
 
 class MensajeClasificado(_Sobre):
