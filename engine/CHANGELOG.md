@@ -13,6 +13,17 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 ## [Unreleased]
 
 ### Añadido
+- **El diseño del motor en seis workers** (E0 del [plan](docs/00-project/plan-de-los-workers.md)), en propuesta:
+  - [ADR-0008](docs/02-design/adr/ADR-0008-seis-workers-sobre-bifrost.md): clasificador, coordinador, enlace,
+    respuesta, evaluador y notificador, en una imagen y un contenedor por worker. Se pasan el mensaje por Bifröst en
+    un stream propio, `MOTOR`, de 24 h, deduplicado por paso y en orden por conversación. Supera la ADR-0003;
+  - [ADR-0009](docs/02-design/adr/ADR-0009-claude-como-llm.md): Claude por la API de Anthropic, con Haiku 5.5 para
+    clasificar y Opus 5.5 para responder y evaluar. El clasificador hace en una llamada lo que hacían NeMo y Ollama,
+    con salida estructurada y fail-closed. Una clave por worker en Andvari. Supera las ADR-0004, 0005 y 0007;
+  - el plan del esqueleto, E0 a E10: primero un mensaje de WhatsApp con respuesta real, después el evaluador, el
+    enlace y los demás canales;
+  - la clasificación de datos con Anthropic como encargado del tratamiento: qué sale, qué no, dónde y cuánto se
+    guarda.
 - Estructura AI-DLC en variante polyrepo: `.ai-dlc/` (gates 0 a 5 con su estado, plantillas,
   mapeo OWASP con anexo del servicio) y `docs/00-project` a `docs/06-monitoring` (ADR-0001).
 - Fase 00: charter con mapa mental del alcance, glosario del lenguaje ubicuo y clasificación
