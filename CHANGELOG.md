@@ -8,6 +8,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- **El túnel propio de Hive**, `hive-tunel` (E7; ADR-0024): publica `hive-webhook.higerotech.com` hacia el webhook y
+  `hive-api.higerotech.com` hacia la API de gestión. Llega a ellos por una red, `publico`, que solo los une a ellos
+  dos. Solo arranca con `COMPOSE_PROFILES=tunel`, y su token es `TUNNEL_TOKEN` en el `.env`.
 - **ADR-0024, versión 0.2.0: un subdominio por superficie** (decisión de Jeremi del 2026-10-20). La API de gestión
   pasa a `https://hive-api.higerotech.com`, que es la audiencia de los tokens, y el webhook de Meta va en
   `https://hive-webhook.higerotech.com`. `hive.higerotech.com` queda reservado para el producto.
