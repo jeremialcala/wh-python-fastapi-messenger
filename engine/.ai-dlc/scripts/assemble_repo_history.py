@@ -2,7 +2,8 @@
 import sys
 
 raw_path, out_path = sys.argv[1], sys.argv[2]
-lines = open(raw_path, encoding="utf-8").read().splitlines()
+with open(raw_path, encoding="utf-8") as fh:
+    lines = fh.read().splitlines()
 
 seen, fixed, dropped = set(), [], 0
 for line in lines:
