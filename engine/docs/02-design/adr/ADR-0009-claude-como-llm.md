@@ -164,6 +164,37 @@ Opus 5.5 para responder y evaluar.
 - **La cobertura mínima del CI** sube del 60 % al 80 %, la del gateway (ADR-0023, punto 5). Con el código de antes
   fuera, el motor tiene el 91 %.
 
+## Construido (E5, el de respuesta, 2026-10-20)
+
+- **El de respuesta:** `ClaudeRedactor` (`src/infrastructure/claude/redactor.py`) y el worker
+  `python -m src.workers.responder`. Hace una llamada a `claude-opus-5-5` con esfuerzo `medium`, por
+  `beta.messages`.
+- **El `system` es estable por bot y lleva su punto de caché** (`cache_control` efímero). Contiene las instrucciones
+  del motor, la persona del bot y sus reglas, en ese orden, y nada que cambie de un mensaje a otro. El mínimo
+  cacheable de Opus 5.5 es de 512 tokens: un bot con pocas reglas puede no llegar, y entonces no se cachea, sin
+  error. El log dice los tokens que vienen del caché, para verlo en el E7.
+- **La conversación:**
+  - las vueltas de la persona van como turnos de usuario y las del bot como turnos del asistente;
+  - el último turno es siempre el mensaje que se responde;
+  - empieza en la persona, dos seguidos del mismo lado se juntan (la documentación de la API se contradice sobre si
+    los admite), y un adjunto se nombra por su tipo.
+- **Los fallbacks del servidor:** `fallbacks: "default"` con la beta `server-side-fallback-2026-07-01`, y no el
+  modelo fijado: así la API elige el sustituto según el motivo del rechazo. Si cambia de modelo, solo vale lo que
+  escribió el que terminó, lo que va tras el último bloque `fallback`. Si rechazan todos, se contesta el texto fijo
+  de «no puedo».
+- **`max_tokens` es 4096, no 1024.** El pensamiento de Opus 5.5 no se puede apagar y cuenta en `max_tokens`, y la
+  guía de Anthropic pide dimensionarlo con él. A 20 dólares el millón de tokens de salida, el peor caso son 8
+  céntimos; lo que gasta de verdad se mide en el E7.
+- **La salida no es de confianza:** solo se toma el texto, y se recorta a 4096 caracteres, lo que admite WhatsApp.
+  Una respuesta cortada por `max_tokens` o vacía no se envía: se reintenta, y en la última entrega se contesta «no
+  disponible».
+- **Los textos fijos** (`no_puedo`, `solo_texto` y `no_disponible`) están en español, en el worker. Cuando un bot
+  pueda tener los suyos, saldrán de su configuración.
+- **Los límites:** 50 s por intento y un reintento del SDK. El peor caso queda por debajo de los 120 s del
+  `ack_wait` de `MOTOR/responder`.
+- **El sobre** que publica, `motor.respuesta.…`, no lleva la persona ni las vueltas: el notificador solo necesita
+  el texto y a quién.
+
 ## Condiciones de revisión
 
 - Llega el primer cliente real: entonces, ZDR y el DPA firmados, o pasar a Vertex AI en la UE.

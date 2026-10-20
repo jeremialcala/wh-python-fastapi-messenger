@@ -14,18 +14,22 @@
 """
 import asyncio
 import enum
+import json
 import logging
 import pathlib
+import re
 import signal
 import ssl
 import sys
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, TypeVar
 
 import nats
 import nats.errors
+from pydantic import BaseModel, ValidationError
 
 from shared import tracing
 from shared.bus.nats_jetstream import NatsPublisher
+from src.domain.models.sobre import ESQUEMA, PARTICION
 from src.workers.settings import WorkerSettings
 
 log = logging.getLogger(__name__)
@@ -42,6 +46,34 @@ class Resultado(enum.Enum):
 
 
 Atender = Callable[[object], Awaitable[Resultado]]
+Sobre = TypeVar("Sobre", bound=BaseModel)
+_PARTICION = re.compile(PARTICION)
+
+
+class Descartado(Exception):
+    """Un mensaje que nunca se podrá atender. Lleva por qué, nunca qué traía."""
+
+
+def leer_del_motor(mensaje, modelo: type[Sobre], paso: str) -> tuple[Sobre, str]:
+    """
+        El sobre que dejó el paso anterior en `motor.<paso>.{partición}.{botId}.{contactId}`, y su partición,
+        comprobando que el sujeto dice el mismo bot y contacto que el sobre.
+    """
+    try:
+        datos = json.loads(mensaje.data)
+    except (ValueError, UnicodeDecodeError):
+        raise Descartado("no es JSON") from None
+    try:
+        sobre = modelo.model_validate(datos)
+    except ValidationError as e:
+        # Sus errores llevan los valores: solo se dice cuántos.
+        raise Descartado(f"no cumple el sobre v{ESQUEMA} ({e.error_count()} errores)") from None
+    partes = (mensaje.subject or "").split(".")
+    if len(partes) != 5 or partes[:2] != ["motor", paso] or not _PARTICION.match(partes[2]):
+        raise Descartado("sujeto inesperado")
+    if partes[3] != str(sobre.botId) or partes[4] != str(sobre.contact.uuid):
+        raise Descartado("el sujeto no es el del sobre")
+    return sobre, partes[2]
 
 
 def entregas(mensaje) -> int:

@@ -1,5 +1,5 @@
 # Contrato AsyncAPI interno del motor: el sobre que se pasan sus workers por el stream MOTOR de Bifröst (ADR-0008,
-# punto 6). Estado: draft (E3 y E4, 2026-10-20). Versión: 1.1.0.
+# punto 6). Estado: draft (E3 a E5, 2026-10-20). Versión: 1.2.0.
 #
 # Nace con su primer productor, el clasificador (E3 de docs/00-project/plan-de-los-workers.md), y crece con cada
 # worker: cada paso añade lo suyo al sobre. tests/contract/test_contrato_motor.py valida contra este fichero el
@@ -9,7 +9,7 @@
 asyncapi: 3.0.0
 info:
   title: Sobre interno del motor de respuestas
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Lo que se pasan los workers del motor entre sí. Ninguno guarda estado entre mensajes: todo lo que el siguiente
     necesita viaja en el sobre, y así cualquier réplica atiende cualquier mensaje. Los campos que vienen del gateway
@@ -57,6 +57,21 @@ channels:
     messages:
       mensajePedido:
         $ref: '#/components/messages/MensajePedido'
+  respuesta:
+    address: 'motor.respuesta.{particion}.{botId}.{contactId}'
+    description: >-
+      Lo que se le contesta a la persona. Lo lee el notificador con el consumidor `MOTOR/notifier`, un mensaje en
+      vuelo, y lo envía a Meta. Cuando llegue el evaluador (E8), el notificador leerá `motor.aprobada.…` en su lugar.
+    parameters:
+      particion:
+        $ref: '#/components/parameters/particion'
+      botId:
+        $ref: '#/components/parameters/botId'
+      contactId:
+        $ref: '#/components/parameters/contactId'
+    messages:
+      mensajeRespondido:
+        $ref: '#/components/messages/MensajeRespondido'
 operations:
   publicarClasificado:
     action: send
@@ -75,6 +90,15 @@ operations:
       sigue, con la persona del bot y las últimas vueltas que le da el gateway; si no, con un texto fijo.
     messages:
       - $ref: '#/channels/pedido/messages/mensajePedido'
+  publicarRespuesta:
+    action: send
+    channel:
+      $ref: '#/channels/respuesta'
+    summary: >-
+      El de respuesta lee cada pedido y publica la contestación, y solo entonces lo confirma: la de Claude, o el
+      texto fijo del motivo.
+    messages:
+      - $ref: '#/channels/respuesta/messages/mensajeRespondido'
 components:
   securitySchemes:
     usuarioPorWorker:
@@ -107,6 +131,14 @@ components:
         $ref: '#/components/schemas/Cabeceras'
       payload:
         $ref: '#/components/schemas/MensajePedido'
+    MensajeRespondido:
+      name: MensajeRespondido
+      title: Mensaje con lo que se le contesta
+      contentType: application/json
+      headers:
+        $ref: '#/components/schemas/Cabeceras'
+      payload:
+        $ref: '#/components/schemas/MensajeRespondido'
   schemas:
     Cabeceras:
       type: object
@@ -117,7 +149,8 @@ components:
           pattern: '^[a-z]+:[0-9a-f-]{36}:.+$'
           description: >-
             `<paso>:<botId>:<messageId>` (ADR-0008, punto 4): un reintento dentro de la ventana de Bifröst no duplica
-            el mensaje. El clasificador publica con `clasificado:` y el coordinador con `pedido:`.
+            el mensaje. El clasificador publica con `clasificado:`, el coordinador con `pedido:` y el de respuesta
+            con `respuesta:`.
         traceparent:
           type: string
           pattern: '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'
@@ -317,3 +350,36 @@ components:
           properties:
             pedido:
               $ref: '#/components/schemas/Pedido'
+    Contestacion:
+      type: object
+      required: [texto, fuente, modelo]
+      additionalProperties: false
+      description: >-
+        Lo que se le envía a la persona: solo texto (ADR-0009, punto 5), del tamaño que admite WhatsApp. Dato
+        personal: es parte de su conversación.
+      properties:
+        texto:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        fuente:
+          enum: [claude, fijo]
+          description: >-
+            `claude`, escrito por Claude. `fijo`, uno de los textos fijos del de respuesta: para un mensaje que no
+            sigue, cuando Claude rechaza, o cuando no hubo respuesta en ninguna entrega.
+        modelo:
+          type: [string, 'null']
+          description: >-
+            El modelo que lo escribió, que puede ser el que sustituyó a Opus 5.5 tras un rechazo. Nulo si es un
+            texto fijo.
+    MensajeRespondido:
+      description: >-
+        Lo que publica el de respuesta para el notificador: lo clasificado y la contestación. Sin la persona del bot
+        ni las vueltas, que el notificador no necesita.
+      allOf:
+        - $ref: '#/components/schemas/MensajeClasificado'
+        - type: object
+          required: [respuesta]
+          properties:
+            respuesta:
+              $ref: '#/components/schemas/Contestacion'

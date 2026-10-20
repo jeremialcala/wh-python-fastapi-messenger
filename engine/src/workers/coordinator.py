@@ -19,52 +19,22 @@
     gateway): pide las vueltas al gateway en cada mensaje.
 """
 import asyncio
-import json
 import logging
-import re
-
-from pydantic import ValidationError
 
 from shared import bus, tracing
 from shared.engine_key_store import EngineKeyStore
 from shared.workers import Worker
-from src.domain.models.sobre import (
-    ESQUEMA, PARTICION, RESPUESTA_POR_MOTIVO, MensajeClasificado, MensajePedido, Pedido, subject_pedido,
-)
+from src.domain.models.sobre import RESPUESTA_POR_MOTIVO, MensajeClasificado, MensajePedido, Pedido, subject_pedido
 from src.domain.ports.fuente_del_bot import FuenteDelBot, FuenteNoDisponible, NoEncontrado
 from src.infrastructure.gateway import ApiDelGateway
 from src.infrastructure.gateway.api import clave_publica_del_gateway
-from src.workers.runtime import Resultado, ejecutar, entregas, publicador
+from src.workers.runtime import Descartado, Resultado, ejecutar, entregas, leer_del_motor, publicador
 from src.workers.settings import CoordinatorSettings
 
 log = logging.getLogger(__name__)
 
 NOMBRE = Worker.COORDINATOR.value
 STREAM, CONSUMIDOR = "MOTOR", NOMBRE
-_PARTICION = re.compile(PARTICION)
-
-
-class Descartado(Exception):
-    """Un mensaje que nunca se podrá coordinar. Lleva por qué, nunca qué traía."""
-
-
-def leer(mensaje) -> tuple[MensajeClasificado, str]:
-    """El sobre del clasificador y su partición, comprobando que el sujeto dice lo mismo que el sobre."""
-    try:
-        datos = json.loads(mensaje.data)
-    except (ValueError, UnicodeDecodeError):
-        raise Descartado("no es JSON") from None
-    try:
-        sobre = MensajeClasificado.model_validate(datos)
-    except ValidationError as e:
-        # Sus errores llevan los valores: solo se dice cuántos.
-        raise Descartado(f"no cumple el sobre v{ESQUEMA} ({e.error_count()} errores)") from None
-    partes = (mensaje.subject or "").split(".")
-    if len(partes) != 5 or partes[:2] != ["motor", "clasificado"] or not _PARTICION.match(partes[2]):
-        raise Descartado("sujeto inesperado")
-    if partes[3] != str(sobre.botId) or partes[4] != str(sobre.contact.uuid):
-        raise Descartado("el sujeto no es el del sobre")
-    return sobre, partes[2]
 
 
 class Coordinar:
@@ -81,7 +51,7 @@ class Coordinar:
 
     async def __call__(self, mensaje) -> Resultado:
         try:
-            sobre, particion = leer(mensaje)
+            sobre, particion = leer_del_motor(mensaje, MensajeClasificado, "clasificado")
         except Descartado as e:
             log.warning("Un mensaje de %s se descarta: %s", STREAM, e)
             return Resultado.DESCARTADO
