@@ -96,7 +96,10 @@ async def consume(subscription, stop: asyncio.Event, feed: Feed = NOTIFICATIONS)
         ALIVE_FILE.touch()
         try:
             messages = await subscription.fetch(BATCH, timeout=WAIT)
-        except nats.errors.TimeoutError:
+        except asyncio.TimeoutError:
+            # Nothing to fetch in WAIT seconds. nats-py says so with its own TimeoutError, a subclass of this one,
+            # and sometimes with this one itself: when the time runs out between its two requests to Bifröst.
+            # Catching only its own let that one through, and the worker died every few minutes.
             continue
         except nats.errors.Error as e:
             # The connection is reconnecting, or Bifröst is restarting: the client recovers on its own.

@@ -365,6 +365,25 @@ def test_the_worker_ingests_what_it_is_handed_and_keeps_asking(bot, bifrost, que
     assert (tmp_path / "alive").exists()
 
 
+def test_a_plain_timeout_of_the_client_is_nothing_to_fetch_too(bot, bifrost, queue, monkeypatch, tmp_path, caplog):
+    """
+        nats-py also says "nothing in time" with asyncio's own TimeoutError, not only with its subclass: when the
+        time runs out between its two requests (nats/js/client.py, _fetch_n). It used to stop the worker.
+    """
+    monkeypatch.setattr(ingest, "ALIVE_FILE", tmp_path / "alive")
+    first = delivered(event_of(bot, whatsapp_message("wamid.A")))
+
+    async def run():
+        stop = asyncio.Event()
+        subscription = Subscription(stop, asyncio.TimeoutError(), [first])
+        await ingest.consume(subscription, stop)
+        return subscription.asked
+
+    assert asyncio.run(run()) == 3
+    assert first.done == "ack"
+    assert "Waiting for" not in caplog.text
+
+
 def test_the_worker_does_not_start_without_the_bus(monkeypatch):
     monkeypatch.setattr(ingest.settings, "nats_url", None)
 
