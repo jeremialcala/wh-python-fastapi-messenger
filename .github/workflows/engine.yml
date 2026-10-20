@@ -1,0 +1,57 @@
+# Tests, lint and a throwaway image build of the response engine (engine/, ADR-0023) for every pull request that
+# touches it. The gateway's own workflow, `ci`, leaves engine/ out; the security gates (`Seguridad`) cover both.
+name: engine
+
+on:
+  pull_request:
+    paths:
+      - "engine/**"
+      - ".github/workflows/engine.yml"
+      - ".github/workflows/build-engine.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: engine/requirements-dev.lock
+
+      # From the lock and with hashes: the tests run against exactly what was pinned. annoy, which nemoguardrails
+      # pulls in, builds with the compilers the runner already has.
+      - run: pip install --require-hashes -r requirements-dev.lock
+
+      - run: pylint --rcfile=pyproject.toml src main.py
+
+      # The engine starts at the coverage it has, 60 %, and goes up to the gateway's 80 % before its Gate 3
+      # (ADR-0023, point 5).
+      - run: python -m pytest --cov=src --cov-branch --cov-fail-under=60
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: engine
+          push: false
+          # A scope of its own, so the engine's cache and the gateway's do not evict each other.
+          cache-from: type=gha,scope=engine
+          cache-to: type=gha,mode=max,scope=engine

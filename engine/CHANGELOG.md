@@ -41,8 +41,25 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 - `pyproject.toml` configura pytest (`pythonpath`, `testpaths`) para que `from src...` resuelva
   también con el ejecutable `pytest`.
 - README: mapa de la documentación AI-DLC y estructura actualizada.
+- **CI propio dentro del monorepo:** pylint y pruebas con cobertura de ramas mínima del 60 % en cada PR que toca
+  `engine/` (workflow `engine`). La imagen `ghcr.io/jeremialcala/chatbot-engine` se publica desde `main`
+  (`build-engine`).
+- **Dependencias:** las de ejecución en `requirements.txt` y las de desarrollo en `requirements-dev.txt`, cada una
+  fijada con hashes en su `.lock`. flake8, tox y pycobertura dejan de instalarse.
+- **Dockerfile en dos etapas**, con las bases por digest: las dependencias se compilan desde el lock con hashes y la
+  imagen final es `python:3.12-slim`, sin compiladores y solo con el código. Ya no instala rustup.
 
 ### Seguridad
+- **Siete dependencias con vulnerabilidades conocidas pasan a versiones corregidas**, todas con más de dos semanas:
+  - `cryptography` 42.0.8 → 50.0.2, con `cffi` 1.16.0 → 2.0.0;
+  - `pillow` 10.3.0 → 12.3.0;
+  - `pymongo` 4.7.3 → 4.18.2, con `dnspython` 2.6.1 → 2.8.0;
+  - `jwcrypto` 1.5.6 → 1.5.7;
+  - `python-dotenv` 1.0.1 → 1.2.2;
+  - `pytest` 8.2.2 → 9.0.3.
+
+  pip-audit no encuentra ninguna en los locks nuevos, y los gates del repositorio los auditan en cada PR. Es el SCA
+  que pedía T8; siguen pendientes el SBOM y la firma de la imagen.
 - Documentadas, sin corregir, las brechas halladas al reconstruir el threat model: datos
   personales en el log del publicador (T3), AMQP sin TLS (T5), pérdida silenciosa de mensajes
   por falta de DLQ y de confirmaciones (T6), llamada del rail sin timeout (T7) y ausencia de

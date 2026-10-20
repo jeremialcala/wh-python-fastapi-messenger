@@ -10,6 +10,12 @@ name: build
 on:
   push:
     branches: [main]
+    # A push to main that only changes the response engine does not redeploy the gateway: its image is the same.
+    # The engine is published by `build-engine` (ADR-0023).
+    paths-ignore:
+      - "engine/**"
+      - ".github/workflows/engine.yml"
+      - ".github/workflows/build-engine.yml"
   workflow_dispatch:
 
 permissions:

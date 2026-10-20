@@ -55,7 +55,7 @@ repositorio `ms-python-metamsghandler` se archiva.
    motor. Lo que necesita el motor (`nemoguardrails`, que compila C++ y solo funciona en Linux, `ollama` y un
    `pydantic` fijado) no entra en la imagen del gateway.
 4. **Un solo CI, filtrado por rutas.** Los jobs del gateway corren con cambios en lo suyo; los del motor, con cambios
-   en `engine/`; y cualquier cambio en `shared/` o en los contratos dispara los dos. CodeQL, gitleaks, SCA y Trivy
+   en `engine/`; y cualquier cambio en `shared/` o en los contratos dispara los dos. CodeQL, gitleaks y SCA
    miran el repositorio entero.
 5. **El motor pasa los gates del repositorio con un umbral propio y temporal.** Su cobertura mínima empieza en la que
    tiene (60 %), y sube al 80 % del gateway antes de cerrar su Gate 3. Nada más se relaja: CodeQL y gitleaks se
@@ -99,10 +99,37 @@ repositorio `ms-python-metamsghandler` se archiva.
   pasan desde `engine/`.
 - **`engine/.github/` se retira.** GitHub solo lee el de la raíz, cuyo `CODEOWNERS` ya cubre todo el repositorio. El
   workflow de gates del motor era un esqueleto que solo imprimía «PENDIENTE».
-- **Pendiente:**
-  - el CI por rutas y la imagen del motor;
-  - el paquete `shared/`;
-  - archivar `ms-python-metamsghandler` en GitHub.
+- **Archivado:** `ms-python-metamsghandler` se archivó en GitHub el 2026-10-20, con un aviso en su README que apunta
+  aquí.
+
+## Construido (el CI por rutas y la imagen del motor, 2026-10-20)
+
+- **Corrección:** el punto 4 decía que Trivy miraba el repositorio. No es así: el CI del gateway no tiene Trivy.
+- **Workflows del motor:**
+  - `engine`, en cada PR que toca `engine/`: pylint, pruebas con cobertura de ramas mínima del 60 % y una imagen
+    de prueba;
+  - `build-engine`, en `main`: publica `ghcr.io/jeremialcala/chatbot-engine` con las etiquetas `sha-<7>` y `latest`.
+
+  No se llama `build`, porque ese nombre es el que despliega el gateway.
+- **El gateway deja fuera `engine/`:** `ci` y `build` tienen un `paths-ignore`, así que un cambio que solo toca el
+  motor no redespliega el gateway.
+- **Gates del repositorio:**
+  - `Seguridad` audita también los locks del motor y comprueba que corresponden a lo declarado;
+  - el umbral de CodeQL trata `engine/tests/` como código de pruebas.
+- **Dependencias del motor:**
+  - se separan las de ejecución (`requirements.txt`) y las de desarrollo (`requirements-dev.txt`), cada una con su
+    lock de hashes;
+  - siete paquetes tenían vulnerabilidades conocidas y subieron a versiones de más de dos semanas: `cryptography`
+    50.0.2 (con `cffi` 2.0.0), `pillow` 12.3.0, `pymongo` 4.18.2 (con `dnspython` 2.8.0), `jwcrypto` 1.5.7,
+    `python-dotenv` 1.2.2 y `pytest` 9.0.3;
+  - pip-audit ya no encuentra ninguna.
+- **Dockerfile del motor:**
+  - dos etapas: la de dependencias compila `annoy` desde el lock con hashes, y la imagen final es `slim`, sin
+    compiladores;
+  - las dos bases van por digest;
+  - ya no descarga rustup con un `curl | bash`;
+  - solo copia el código.
+- **Pendiente:** el paquete `shared/`.
 
 ## Condiciones de revisión
 

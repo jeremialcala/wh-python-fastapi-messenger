@@ -96,7 +96,7 @@ docs/                                # documentación AI-DLC por fase (00 a 06)
 | Seguridad IA | NVIDIA NeMo Guardrails (`nemoguardrails`) |
 | Validación / Settings | `pydantic`, `pydantic-settings` |
 | Base de datos | MongoDB (`mongoengine`) — para JWK/JWE |
-| Testing / Calidad | `pytest`, `pytest-cov`, `pylint`, `flake8`, `tox` |
+| Testing / Calidad | `pytest`, `pytest-cov`, `pylint` (fijados en `requirements-dev.lock`) |
 | Contenerización | Docker, Kubernetes |
 
 ---
@@ -119,17 +119,19 @@ Requisitos de ejecución: **RabbitMQ** accesible y **Ollama** con el modelo desc
 
 ## Desarrollo y pruebas (Docker / WSL)
 
-> ⚠️ `nemoguardrails` arrastra `annoy`, una extensión nativa **sin wheel para Windows** que requiere un compilador C++. Por eso el desarrollo y los tests se ejecutan en **Docker/WSL (Linux)**, donde `annoy` compila con `build-essential`. La imagen está fijada a **Python 3.12** para respetar los *pins* de `requirements.txt`.
+> ⚠️ `nemoguardrails` arrastra `annoy`, una extensión nativa **sin wheel para Windows** que requiere un compilador C++. Por eso el desarrollo y los tests se ejecutan en **Docker/WSL (Linux)**, con **Python 3.12**. Las dependencias se instalan desde los locks, con hashes (`requirements.lock` y `requirements-dev.lock`; cómo regenerarlos, en el `CONTRIBUTING.md` de la raíz).
 
 ```bash
-# Construir la imagen (instala dependencias, compila annoy)
-docker build -t ms-metamsg .
+# Desde engine/. Pruebas, cobertura y pylint, como en el CI (workflow `engine`)
+docker run --rm -v "$PWD:/src:ro" python:3.12 bash -c \
+  'cp -r /src /work && cd /work && pip install -q --require-hashes -r requirements-dev.lock \
+   && pylint --rcfile=pyproject.toml src main.py && python -m pytest --cov=src --cov-branch --cov-fail-under=60'
 
-# Ejecutar la batería de pruebas con cobertura dentro del contenedor
-docker run --rm ms-metamsg pytest --cov=src tests/ -p no:warnings
+# La imagen del servicio: solo el código y lo de ejecución, sin las pruebas
+docker build -t chatbot-engine .
 
 # Ejecutar el servicio (montando config.env)
-docker run --rm --env-file config.env ms-metamsg
+docker run --rm --env-file config.env chatbot-engine
 ```
 
 Las pruebas unitarias mockean Ollama y el motor de guardrails, por lo que **no requieren** servicios externos.
