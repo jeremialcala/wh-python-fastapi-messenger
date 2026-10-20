@@ -6,7 +6,8 @@
 > `ms-python-metamsghandler`, donde nació, queda archivado con su historia, que también está aquí. Las órdenes de
 > este README se ejecutan desde `engine/`.
 
-Responde los mensajes que las personas envían a los chatbots por WhatsApp, Messenger e Instagram. Son seis workers de
+Es la mitad de **Hive** que responde ([ADR-0024](../docs/00-project/adr/0024-el-producto-se-llama-hive.md)): contesta
+los mensajes que las personas envían a los chatbots por WhatsApp, Messenger e Instagram. Son seis workers de
 una misma imagen, uno por contenedor, que se pasan cada mensaje por Bifröst, el NATS JetStream de midgard
 ([ADR-0008](docs/02-design/adr/ADR-0008-seis-workers-sobre-bifrost.md)). Usan Claude por la API de Anthropic
 ([ADR-0009](docs/02-design/adr/ADR-0009-claude-como-llm.md)).

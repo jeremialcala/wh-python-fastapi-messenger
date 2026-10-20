@@ -95,7 +95,7 @@ docker run --rm -v /srv/apps/bots-gateway/keys:/keys <imagen> python -m ops.gate
 
 # 2. En el .env: la ruta del fichero dentro del contenedor y la audiencia que pondrán los clientes en sus tokens.
 #    GATEWAY_KEYS_FILE=/run/gateway/gateway-keys.json
-#    GATEWAY_AUDIENCE=https://bots.example.com
+#    GATEWAY_AUDIENCE=https://hive.higerotech.com     (ADR-0024)
 
 # 3. La primera clave del operador. Se crea en la máquina del operador, y al servidor solo va la parte pública.
 python -m ops.client new-key operador.json > operador-publica.json

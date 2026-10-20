@@ -7,6 +7,7 @@
 * **Versión:** 0.2.0
 * **Sponsor:** Jeremi Alcala
 * **Owner del proyecto:** Jeremi Alcala
+* **Producto:** Hive, en `https://hive.higerotech.com` ([ADR-0024](adr/0024-el-producto-se-llama-hive.md), 2026-10-20)
 
 ## Visión
 

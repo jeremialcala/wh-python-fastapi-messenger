@@ -7,14 +7,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
-### Cambiado
-- **`GET /chat/{bot_id}/rules` devuelve datos, no un prompt** (E4 del plan de los workers del motor; decisión de
-  Jeremi del 2026-10-20). Antes armaba un prompt para Llama 2 (`<s> <<SYS>> Tu nombre es… <</SYS>>`), pensado para el
-  motor de antes, con Ollama. Ahora `data` es `{"name", "role", "tone", "description", "rules": [...]}`, y el motor
-  escribe con ellos el `system` de Claude. **Es un cambio incompatible** para quien leyera la cadena: el único que lo
-  hacía era ese motor, que ya no existe, y el contrato OpenAPI no documentaba la respuesta.
-
 ### Añadido
+- **[ADR-0024](docs/00-project/adr/0024-el-producto-se-llama-hive.md) (aceptada): el producto se llama Hive**, con
+  su API de gestión en `https://hive.higerotech.com`, que es también la audiencia de los tokens (decisión de Jeremi
+  del 2026-10-20). Los componentes conservan sus nombres, y no se renombran el repositorio, las imágenes ni los
+  contenedores. La URL del webhook de Meta se decide en el E7. El README, el charter, el glosario y la guía de
+  autenticación lo dicen.
 - **Para el clasificador del motor** (E3a del plan de los workers):
   - `shared.contract.what_was_said`: lo que dice un mensaje identificado, su texto y sus adjuntos. Era de la
     ingesta, que lo usa igual para el historial; así el motor lee el mismo texto que el gateway guarda.
@@ -224,6 +222,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   Instagram se conecta con Facebook Login a través de la página del cliente.
 
 ### Cambiado
+- **`GET /chat/{bot_id}/rules` devuelve datos, no un prompt** (E4 del plan de los workers del motor; decisión de
+  Jeremi del 2026-10-20). Antes armaba un prompt para Llama 2 (`<s> <<SYS>> Tu nombre es… <</SYS>>`), pensado para el
+  motor de antes, con Ollama. Ahora `data` es `{"name", "role", "tone", "description", "rules": [...]}`, y el motor
+  escribe con ellos el `system` de Claude. **Es un cambio incompatible** para quien leyera la cadena: el único que lo
+  hacía era ese motor, que ya no existe, y el contrato OpenAPI no documentaba la respuesta.
 - **Incompatible para la API de gestión (I7):** en `apiCall`, `method` solo admite `GET`, `POST`, `PUT`, `PATCH` o
   `DELETE` en mayúsculas; `authType`, `none`, `bearer`, `api_key` o `basic`; `timeout`, de 1 a 30 segundos; y
   `headers` no puede fijar `Host`. Antes se guardaba cualquier valor.
