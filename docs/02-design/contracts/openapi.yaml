@@ -56,6 +56,11 @@ components:
           title: Authref
           type: string
         authType:
+          enum:
+          - none
+          - bearer
+          - api_key
+          - basic
           title: Authtype
           type: string
         body:
@@ -67,6 +72,12 @@ components:
           title: Headers
           type: object
         method:
+          enum:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
           title: Method
           type: string
         query:
@@ -74,9 +85,12 @@ components:
           title: Query
           type: object
         timeout:
+          maximum: 30.0
+          minimum: 1.0
           title: Timeout
           type: integer
         url:
+          maxLength: 2048
           title: Url
           type: string
       required:

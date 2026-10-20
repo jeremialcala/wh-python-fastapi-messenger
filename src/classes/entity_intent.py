@@ -6,6 +6,7 @@ from inspect import currentframe
 from mongoengine import *
 
 from enums import Status
+from .destinations import is_valid_destination
 from .tool_settings import Settings
 
 settings = Settings()
@@ -137,6 +138,16 @@ class Intent(Document):
         }
 
     def tool_definitions(self) -> list:
-        """All active actions of this intent as LLM tool definitions."""
-        return [action.to_tool_schema() for action in self.actions
-                if action.status == Status.ACT.value]
+        """
+            All active actions of this intent as LLM tool definitions. An action whose call goes where no call may
+            (classes.destinations) is left out: it was saved before the rule, or the rule has grown since. The
+            model never learns of it, so the engine never makes that call.
+        """
+        active = [action for action in self.actions if action.status == Status.ACT.value]
+        allowed = [action for action in active
+                   if action.apiCall is None or is_valid_destination(action.apiCall.url)]
+        if len(allowed) < len(active):
+            # Neither the url nor the name of the action: both are what the client wrote.
+            log.warning(f"Intent {self.uuid}: {len(active) - len(allowed)} action(s) left out of the tools, "
+                        f"their destination is not allowed")
+        return [action.to_tool_schema() for action in allowed]

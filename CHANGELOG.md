@@ -8,6 +8,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- I7: adónde puede llamar una acción de un intent (R6, RS16, AB09, T11;
+  [guía](docs/03-implementation/destinos-de-los-intents.md)).
+  - **La regla** (`classes.destinations`): `https`, sin usuario ni contraseña y con el host escrito, sin
+    marcadores. El host tiene que ser una IP pública o un nombre de al menos dos etiquetas que no cuelgue de un
+    dominio de red local. Así no se alcanzan `andvari`, `bots-gateway`, `192.168.10.1`, el servicio de metadatos de
+    la nube, ni las formas numéricas de 127.0.0.1.
+  - **Se comprueba al guardar o cambiar un intent** (`422` sin repetir la URL) **y al entregar las herramientas al
+    motor**: una acción guardada antes, con un destino prohibido, no sale en `GET /chat/{bot_id}/tools`.
+  - **Lo que queda para el worker de enlace:** resolver el nombre en cada llamada y comprobar cada dirección.
 - I6b: el comando que da de alta las claves del motor para un cliente, `python -m ops.engine_keys <client_id>`
   ([ADR-0022](docs/00-project/adr/0022-una-credencial-por-worker.md)).
   - **Una clave por worker:** las crea, guarda la parte privada en Andvari y registra la pública por la API como
@@ -181,6 +190,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   Instagram se conecta con Facebook Login a través de la página del cliente.
 
 ### Cambiado
+- **Incompatible para la API de gestión (I7):** en `apiCall`, `method` solo admite `GET`, `POST`, `PUT`, `PATCH` o
+  `DELETE` en mayúsculas; `authType`, `none`, `bearer`, `api_key` o `basic`; `timeout`, de 1 a 30 segundos; y
+  `headers` no puede fijar `Host`. Antes se guardaba cualquier valor.
 - **Incompatible para la API de gestión (I6a):**
   - **`POST /clients/{client_id}/service-keys` exige el campo `worker`.** Sin él, o con uno que no existe, responde
     `422`.
