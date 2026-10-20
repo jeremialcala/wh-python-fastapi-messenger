@@ -8,7 +8,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
-- [ADR-0023](docs/00-project/adr/0023-monorepo-del-gateway-y-el-motor.md) (propuesta): el gateway y el motor de
+- **El motor de respuestas, en `engine/`**, con sus 13 commits de historia: el repositorio pasa a ser un monorepo
+  (ADR-0023). gitleaks no encontró nada en esa historia. El motor conserva sus dependencias, sus pruebas, su
+  Dockerfile, sus docs y su CHANGELOG.
+- [ADR-0023](docs/00-project/adr/0023-monorepo-del-gateway-y-el-motor.md) (aceptada): el gateway y el motor de
   respuestas pasan a un solo repositorio, este. El motor entra en `engine/` con su historia, el gateway se queda
   en la raíz y el código común irá a `shared/`. Cada componente tiene sus dependencias, su imagen, su CHANGELOG y
   sus etiquetas. El CI es uno solo, filtrado por rutas.

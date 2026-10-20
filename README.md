@@ -80,8 +80,13 @@ Las dependencias se declaran en [requirements.txt](requirements.txt) y se fijan 
 
 ## Estructura del proyecto
 
+Es un monorepo ([ADR-0023](docs/00-project/adr/0023-monorepo-del-gateway-y-el-motor.md)): el gateway en la raíz y el
+motor de respuestas en `engine/`, cada uno con sus dependencias, sus pruebas, su imagen y su CHANGELOG. El motor tiene
+su propio [README](engine/README.md).
+
 ```
 .
+├── engine/                 # El motor de respuestas: su código, pruebas, docs y Dockerfile (ADR-0023)
 ├── src/                    # La aplicación (es lo único que contiene la imagen)
 │   ├── app.py                  # App FastAPI: middleware, dependencias de autenticación y todas las rutas
 │   ├── logging_config.yaml     # Configuración de logging por entorno

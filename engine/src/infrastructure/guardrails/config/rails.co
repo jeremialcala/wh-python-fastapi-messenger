@@ -1,0 +1,13 @@
+# Flujos Colang para la capa de seguridad de entrada.
+# Cuando el rail "self check input" determina que la entrada debe bloquearse,
+# el bot responde con un sentinel determinista que NeMoGuardrailsPolicy detecta.
+
+define bot refuse to respond
+  "GUARDRAIL_BLOQUEADO"
+
+define flow self check input
+  $allowed = execute self_check_input
+
+  if not $allowed
+    bot refuse to respond
+    stop
