@@ -18,6 +18,8 @@ from src.domain.models.sobre import ESQUEMA, Clasificacion, Entidad, Persona, Vu
 from src.domain.ports.clasificador_de_entrada import ClasificacionFallida
 from src.workers.classifier import Clasificar
 from src.workers.coordinator import Coordinar
+from src.workers.responder import Responder
+from src.domain.ports.redactor import Redaccion
 
 CONTRATO = pathlib.Path(__file__).resolve().parents[2] / "docs" / "02-design" / "contracts" / "asyncapi-motor.yaml"
 DOCUMENTO = yaml.safe_load(CONTRATO.read_text(encoding="utf-8"))
@@ -50,7 +52,7 @@ def resolver(puntero):
 
 
 def test_es_la_version_1_del_sobre():
-    assert (DOCUMENTO["asyncapi"], DOCUMENTO["info"]["version"]) == ("3.0.0", "1.1.0")
+    assert (DOCUMENTO["asyncapi"], DOCUMENTO["info"]["version"]) == ("3.0.0", "1.2.0")
     assert SCHEMAS["Sobre"]["properties"]["schemaVersion"]["const"] == ESQUEMA
 
 
@@ -165,3 +167,39 @@ def test_el_pedido_del_coordinador_cumple_el_contrato(clasificacion):
     validador("MensajePedido").validate(sobre)
     validador("Cabeceras").validate(cabeceras)
     assert subject == f"motor.pedido.3.{bot}.{contacto}"
+
+
+class ClaudeQueResponde:
+
+    def __init__(self, redaccion):
+        self._redaccion = redaccion
+
+    async def redactar(self, _persona, _vueltas, _texto):
+        return self._redaccion
+
+
+@pytest.mark.parametrize("respuesta, redaccion", [
+    ("claude", Redaccion(texto="Sí, tenemos zapatos rojos.", modelo="claude-opus-5-5")),
+    ("claude", Redaccion(texto=None, modelo="claude-opus-4-8")),
+    ("solo_texto", None),
+], ids=["de claude", "rechazo", "texto fijo"])
+def test_la_respuesta_cumple_el_contrato(respuesta, redaccion):
+    bot, contacto = uuid4(), uuid4()
+    pedido = {"schemaVersion": 1, "botId": str(bot), "clientId": str(uuid4()), "messageId": "wamid.A",
+              "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{bot}.{contacto}",
+              "contact": {"uuid": str(contacto), "waId": "12025550143"},
+              "entrada": {"texto": "hola", "adjuntos": []},
+              "clasificacion": Clasificacion(permitido=True, motivo="ninguno", etiqueta="saludo", confianza=0.9,
+                                             modelo="claude-haiku-5-5").model_dump(),
+              "pedido": {"respuesta": respuesta,
+                         "persona": ({"nombre": "Mine", "rol": "Sales", "tono": "helpful", "descripcion": "",
+                                      "reglas": []} if respuesta == "claude" else None),
+                         "vueltas": []}}
+    bifrost = Bifrost()
+
+    asyncio.run(Responder(ClaudeQueResponde(redaccion), bifrost, 4)(Mensaje(pedido, f"motor.pedido.3.{bot}.{contacto}")))
+
+    (subject, sobre, cabeceras), = bifrost.publicado
+    validador("MensajeRespondido").validate(sobre)
+    validador("Cabeceras").validate(cabeceras)
+    assert subject == f"motor.respuesta.3.{bot}.{contacto}"

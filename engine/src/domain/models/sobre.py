@@ -11,6 +11,7 @@
 
         motor.clasificado.{partición}.{botId}.{contactId}    MensajeClasificado, del clasificador al coordinador
         motor.pedido.{partición}.{botId}.{contactId}         MensajePedido, del coordinador al de respuesta
+        motor.respuesta.{partición}.{botId}.{contactId}      MensajeRespondido, del de respuesta al notificador
 """
 from datetime import datetime
 from typing import Literal, Optional
@@ -55,6 +56,11 @@ def subject_clasificado(particion: str, bot_id, contact_id) -> str:
 def subject_pedido(particion: str, bot_id, contact_id) -> str:
     """Dónde publica el coordinador, en el stream MOTOR."""
     return f"motor.pedido.{particion}.{bot_id}.{contact_id}"
+
+
+def subject_respuesta(particion: str, bot_id, contact_id) -> str:
+    """Dónde publica el de respuesta, en el stream MOTOR."""
+    return f"motor.respuesta.{particion}.{bot_id}.{contact_id}"
 
 
 class _Estricto(BaseModel):
@@ -151,3 +157,20 @@ class Pedido(_Estricto):
 class MensajePedido(MensajeClasificado):
     """Lo que publica el coordinador: lo clasificado y lo que hace falta para responderlo."""
     pedido: Pedido
+
+
+class Contestacion(_Estricto):
+    """Lo que se le envía a la persona: solo texto (ADR-0009, punto 5), del tamaño que admite WhatsApp."""
+    texto: str = Field(min_length=1, max_length=4096)
+    # De Claude, o uno de los textos fijos del de respuesta.
+    fuente: Literal["claude", "fijo"]
+    # El modelo que lo escribió, o None si es un texto fijo.
+    modelo: Optional[str] = None
+
+
+class MensajeRespondido(MensajeClasificado):
+    """
+        Lo que publica el de respuesta: lo clasificado y la contestación. Sin la persona del bot ni las vueltas del
+        pedido: el notificador no las necesita, y son datos personales que no tienen por qué seguir viajando.
+    """
+    respuesta: Contestacion

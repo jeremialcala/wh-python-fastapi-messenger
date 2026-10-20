@@ -13,6 +13,19 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 ## [Unreleased]
 
 ### Añadido
+- **El de respuesta, el tercer worker** (E5 del [plan](docs/00-project/plan-de-los-workers.md)):
+  `python -m src.workers.responder`.
+  - Lee cada pedido de `MOTOR` y publica la contestación en `motor.respuesta.…`, y solo entonces confirma.
+  - **Con Claude**, Opus 5.5 (esfuerzo `medium`) escribe con la persona del bot y sus reglas en un `system` estable
+    por bot y cacheado, y con las vueltas y el mensaje como turnos de la conversación. Lleva los fallbacks del
+    servidor (`fallbacks: "default"`): si Opus rechaza, la API lo intenta con otro modelo en la misma llamada.
+  - **Si no**, contesta el texto fijo que pidió el coordinador (`no_puedo`, `solo_texto` o `no_disponible`), o el
+    de «no puedo» si Claude y sus sustitutos rechazan.
+  - Si Claude no contesta, o su respuesta se corta o viene vacía, reintenta con las entregas de Bifröst y, en la
+    última, contesta «no disponible».
+  - El sobre que publica no lleva la persona ni las vueltas.
+  - `max_tokens` es 4096 por el pensamiento de Opus 5.5, que no se puede apagar (ADR-0009, «Construido»).
+- **El contrato del sobre pasa a la 1.2.0**, con el canal `respuesta` y su esquema (`Contestacion`).
 - **El coordinador, el segundo worker** (E4 del [plan](docs/00-project/plan-de-los-workers.md)):
   `python -m src.workers.coordinator`.
   - Lee lo clasificado de `MOTOR` y publica el pedido en `motor.pedido.…`, y solo entonces confirma.
@@ -81,6 +94,8 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 - `.ai-dlc/scripts/`: generadores del contrato AsyncAPI y del historial del repo.
 
 ### Cambiado
+- La lectura del sobre de un paso del motor (`leer_del_motor`) pasa al bucle común: la usan el coordinador y el de
+  respuesta.
 - **La imagen, en una sola etapa** sobre `python:3.12-slim`, con solo ruedas (`--only-binary=:all:`): sin NeMo ni
   `annoy` no hay nada que compilar. Por defecto arranca el clasificador; cada contenedor dice su worker.
 - **La cobertura mínima del CI sube del 60 % al 80 %**, la del gateway. `build-engine` levanta también el NATS, así
