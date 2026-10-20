@@ -1,0 +1,320 @@
+# Contrato AsyncAPI de ms-python-metamsghandler (fase 02-design, Gate 1).
+# Estado: review. Fecha: 2026-10-12. Versión: 0.2.0.
+# Los esquemas ResultadoClasificado, Intencion, Adjunto, Origen y TipoRespuesta se
+# generan con model_json_schema() desde src/domain/models: regenerar, no editar a mano.
+# WebhookMeta y SobreCustomWhatsApp describen solo lo que leen los parsers.
+asyncapi: 3.0.0
+info:
+  title: ms-python-metamsghandler
+  version: 0.2.0
+  description: Contrato de mensajería del worker de clasificación de mensajes de Meta. Consume webhooks
+    de una cola de RabbitMQ y publica un ResultadoClasificado en otra. Los esquemas de salida se generan
+    desde los modelos pydantic de src/domain/models.
+defaultContentType: application/json
+servers:
+  rabbitmq:
+    host: '{qms_server}:{qms_port}'
+    protocol: amqp
+    protocolVersion: 0.9.1
+    description: Broker compartido con el receptor de webhooks y el servicio de respuesta. Hoy sin TLS
+      (amenaza T5).
+    variables:
+      qms_server:
+        description: Host del broker (variable qms_server).
+      qms_port:
+        description: Puerto del broker (variable qms_port).
+        default: '5672'
+    security:
+    - $ref: '#/components/securitySchemes/usuarioBroker'
+channels:
+  entrada:
+    address: '{queue_name}'
+    description: Cola durable con los webhooks crudos. Contenido no confiable.
+    parameters:
+      queue_name:
+        description: Nombre de la cola de entrada (variable queue_name).
+    messages:
+      webhookMeta:
+        $ref: '#/components/messages/WebhookMeta'
+      sobreCustomWhatsApp:
+        $ref: '#/components/messages/SobreCustomWhatsApp'
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          durable: true
+          exclusive: false
+          autoDelete: false
+        bindingVersion: 0.3.0
+  salida:
+    address: meta-classified
+    description: Cola durable con los resultados. El nombre es el valor por defecto de output_queue_name;
+      la clave de enrutado por defecto es meta.classified.
+    messages:
+      resultadoClasificado:
+        $ref: '#/components/messages/ResultadoClasificado'
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: meta-classified
+          durable: true
+          exclusive: false
+          autoDelete: false
+        bindingVersion: 0.3.0
+operations:
+  recibirWebhook:
+    action: receive
+    channel:
+      $ref: '#/channels/entrada'
+    summary: Consume un webhook, con confirmación manual y prefetch 1.
+    description: ACK cuando el pipeline termina, también si el payload se descarta por origen no soportado
+      o por ser inválido. NACK sin reencolar ante una excepción.
+    messages:
+    - $ref: '#/channels/entrada/messages/webhookMeta'
+    - $ref: '#/channels/entrada/messages/sobreCustomWhatsApp'
+    bindings:
+      amqp:
+        ack: true
+        bindingVersion: 0.3.0
+  publicarResultado:
+    action: send
+    channel:
+      $ref: '#/channels/salida'
+    summary: Publica el resultado de clasificar un mensaje.
+    description: Un resultado por mensaje procesado, también cuando los guardrails lo bloquean (permitido
+      = false). Hoy sin confirmación del broker ni mensajes persistentes (amenaza T6).
+    messages:
+    - $ref: '#/channels/salida/messages/resultadoClasificado'
+components:
+  securitySchemes:
+    usuarioBroker:
+      type: userPassword
+      description: Usuario y contraseña del broker (qms_user, qms_password).
+  messages:
+    WebhookMeta:
+      name: WebhookMeta
+      title: Webhook de Messenger, WhatsApp o Instagram
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WebhookMeta'
+    SobreCustomWhatsApp:
+      name: SobreCustomWhatsApp
+      title: Sobre custom de WhatsApp (jwe_body)
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SobreCustomWhatsApp'
+    ResultadoClasificado:
+      name: ResultadoClasificado
+      title: Resultado de la clasificación
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ResultadoClasificado'
+  schemas:
+    Adjunto:
+      description: Archivo recibido junto a un mensaje (imagen, PDF, audio, vídeo, etc.).
+      properties:
+        tipo:
+          description: 'Tipo declarado por la plataforma: image, audio, video, document...'
+          title: Tipo
+          type: string
+        url_o_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: URL pública o media-id de la plataforma para descargar el archivo.
+          title: Url O Id
+        mime_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: MIME type cuando la plataforma lo informa.
+          title: Mime Type
+      required:
+      - tipo
+      title: Adjunto
+      type: object
+    Intencion:
+      description: Resultado de la detección de intención sobre un `MensajeEntrante`.
+      properties:
+        etiqueta:
+          description: 'Nombre/etiqueta de la intención detectada (ej: consulta_stock).'
+          title: Etiqueta
+          type: string
+        tipo_respuesta:
+          allOf:
+          - $ref: '#/components/schemas/TipoRespuesta'
+          description: 'Estrategia de salida sugerida: texto, action o adjunto.'
+        confianza:
+          default: 0.0
+          description: Confianza del modelo en la clasificación, en el rango [0, 1].
+          maximum: 1.0
+          minimum: 0.0
+          title: Confianza
+          type: number
+        entidades:
+          description: Entidades/slots extraídos del mensaje.
+          title: Entidades
+          type: object
+        razonamiento:
+          default: ''
+          description: Explicación breve provista por el modelo (auditoría).
+          title: Razonamiento
+          type: string
+      required:
+      - etiqueta
+      - tipo_respuesta
+      title: Intencion
+      type: object
+    Origen:
+      description: "Plataforma de Meta de la que proviene el mensaje.\n\n    MESSENGER   -> webhook con\
+        \ object == \"page\"\n    WHATSAPP    -> webhook con object == \"whatsapp_business_account\"\n\
+        \    INSTAGRAM   -> webhook con object == \"instagram\"\n    DESCONOCIDO -> no se pudo identificar\
+        \ el origen"
+      enum:
+      - messenger
+      - whatsapp
+      - instagram
+      - desconocido
+      title: Origen
+      type: string
+    ResultadoClasificado:
+      description: 'Salida del pipeline. Se serializa a JSON y se publica en la cola de
+
+        salida para que un servicio aguas abajo entregue la respuesta al usuario.'
+      properties:
+        mensaje_id:
+          description: Identificador del mensaje de origen.
+          title: Mensaje Id
+          type: string
+        origen:
+          allOf:
+          - $ref: '#/components/schemas/Origen'
+          description: Plataforma de Meta del mensaje.
+        remitente:
+          description: Identificador del remitente al que responder.
+          title: Remitente
+          type: string
+        tipo_respuesta:
+          allOf:
+          - $ref: '#/components/schemas/TipoRespuesta'
+          description: Estrategia de respuesta determinada.
+        permitido:
+          default: true
+          description: False cuando la entrada fue bloqueada por los guardrails.
+          title: Permitido
+          type: boolean
+        motivo_bloqueo:
+          default: ''
+          description: Motivo del bloqueo cuando permitido es False.
+          title: Motivo Bloqueo
+          type: string
+        intencion:
+          anyOf:
+          - $ref: '#/components/schemas/Intencion'
+          - type: 'null'
+          default: null
+          description: Intención detectada (ausente cuando la entrada fue bloqueada).
+        payload:
+          description: 'Datos para el servicio aguas abajo. Hoy: `texto` (string saneado) y `adjuntos`
+            (lista de Adjunto). Vacío cuando la entrada fue bloqueada.'
+          title: Payload
+          type: object
+        procesado_en:
+          description: Momento en que se produjo el resultado.
+          format: date-time
+          title: Procesado En
+          type: string
+      required:
+      - mensaje_id
+      - origen
+      - remitente
+      - tipo_respuesta
+      title: ResultadoClasificado
+      type: object
+    SobreCustomWhatsApp:
+      type: object
+      description: Sobre que emite el receptor aguas arriba para WhatsApp. Pese al nombre del campo, el
+        contenido llega en claro. El servicio solo lee jwe_body.type y jwe_body.message.messages[0].
+      required:
+      - jwe_body
+      additionalProperties: true
+      properties:
+        eventId:
+          type: string
+          description: Identificador del evento aguas arriba. Hoy no se propaga.
+        jwe_body:
+          type: object
+          required:
+          - type
+          - message
+          additionalProperties: true
+          properties:
+            type:
+              type: string
+              enum:
+              - whatsapp_business_account
+            botId:
+              type: string
+              description: Bot destinatario. Hoy no se propaga.
+            contact:
+              type: object
+              additionalProperties: true
+              description: Nombre y waId del contacto. Dato personal; no se usa.
+            message:
+              type: object
+              additionalProperties: true
+              properties:
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+    TipoRespuesta:
+      description: "Clasificación de la salida del pipeline:\n\n    TEXTO   -> consulta común / flujo\
+        \ conversacional simple; se responde directo.\n    ACTION  -> requiere lógica de negocio externa\
+        \ (ej: consultar stock).\n    ADJUNTO -> recepción de archivos (imágenes, PDFs, audios, etc.)."
+      enum:
+      - texto
+      - action
+      - adjunto
+      title: TipoRespuesta
+      type: string
+    WebhookMeta:
+      type: object
+      description: Webhook estándar de Meta. El servicio solo lee los campos listados y procesa el primer
+        mensaje válido; el resto del documento se ignora.
+      required:
+      - object
+      - entry
+      additionalProperties: true
+      properties:
+        object:
+          type: string
+          enum:
+          - page
+          - instagram
+          - whatsapp_business_account
+          description: 'Identifica la plataforma: page es Messenger.'
+        entry:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              messaging:
+                type: array
+                description: 'Messenger e Instagram: eventos con sender.id, timestamp en ms y message
+                  (mid, text, attachments).'
+                items:
+                  type: object
+                  additionalProperties: true
+              changes:
+                type: array
+                description: 'WhatsApp Cloud API: value.messages[] con id, from, timestamp en s, type
+                  y el cuerpo según el tipo.'
+                items:
+                  type: object
+                  additionalProperties: true

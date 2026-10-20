@@ -3,7 +3,7 @@
 # secciones INI entre las claves de tox/testenv y las de pylint.
 
 [tool.pylint.main]
-ignore = ["test"]
+ignore = ["tests"]
 
 [tool.pylint."messages control"]
 # Desactiva la categoría "refactor" (R): too-few-public-methods (interfaces/puertos),
@@ -15,3 +15,10 @@ max-line-length = 120
 
 [tool.pylint.reports]
 reports = false
+
+# pytest: la raíz del repo entra en sys.path para que `from src...` resuelva
+# desde cualquier nivel de la pirámide (tests/unit, tests/integration, ...),
+# también con el ejecutable `pytest`, que no añade el directorio de trabajo.
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

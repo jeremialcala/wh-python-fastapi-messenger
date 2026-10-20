@@ -1,0 +1,6 @@
+# Owners por ruta. Hoy hay un único mantenedor: el dual review exige sumar un segundo revisor.
+/docs/                @jeremialcala
+/.ai-dlc/             @jeremialcala
+/src/                 @jeremialcala
+/tests/               @jeremialcala
+/.github/             @jeremialcala
