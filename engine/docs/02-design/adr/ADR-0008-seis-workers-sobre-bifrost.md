@@ -135,6 +135,34 @@ código. El orden está en `engine/docs/00-project/plan-de-los-workers.md`.
 - **Supresión:** los workers no guardan estado. El stream `MOTOR` caduca a las 24 h y no se purga por contacto: lo
   que se borra antes de caducar lo dice la clasificación de datos.
 
+## Construido (E3a, el clasificador, 2026-10-20)
+
+- **El primer worker:** `python -m src.workers.classifier`. Lee `MENSAJES` con el consumidor `classifier` de
+  Bifröst (E2) y publica en `motor.clasificado.{partición}.{botId}.{contactId}`, con `Nats-Msg-Id =
+  clasificado:{botId}:{messageId}`. Confirma después de publicar.
+- **El bucle común** de los workers está en `src/workers/runtime.py`. Se ata al consumidor sin crearlo, lee un
+  mensaje cada vez y hace con él lo que diga su resultado:
+  - **confirmado:** se confirma;
+  - **descartado:** se termina;
+  - **en espera:** no se confirma, y Bifröst lo entrega otra vez.
+
+  Un fallo no previsto lo deja en espera. Mientras vive, el worker toca `/tmp/<worker>-alive`, para la comprobación
+  de salud del contenedor.
+- **Lo que se descarta:** un mensaje que no es JSON, que no cumple el contrato v2, o cuyo sujeto no dice el mismo
+  bot y contacto que el evento.
+- **El sobre, versión 1**, en `src/domain/models/sobre.py` y en
+  [`asyncapi-motor.yaml`](../contracts/asyncapi-motor.yaml), validado por `tests/contract/test_contrato_motor.py`:
+  - lleva los campos del mensaje identificado con sus nombres del contrato v2, menos el `message` de Meta;
+  - el contacto va sin el nombre;
+  - añade `entrada`, con el texto saneado y el tipo de los adjuntos, y `clasificacion`.
+
+  El texto lo lee `shared.contract.what_was_said`, el mismo código con el que el gateway lo guarda en el historial.
+- **La traza** sigue el `traceparent` del evento, en un span `engine.classifier` con los atributos de la lista del
+  gateway, y lo pasa al sobre.
+- **Las pruebas de integración** corren contra un NATS con el usuario `classifier` y sus permisos de Bifröst
+  (`tests/integration/nats-test.conf`), también en el CI. Comprueban también que ese usuario no puede publicar el
+  paso de otro.
+
 ## Condiciones de revisión
 
 - El caudal pide más de un mensaje en vuelo: entonces, un consumidor por grupo de particiones.

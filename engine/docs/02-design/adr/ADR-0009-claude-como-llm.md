@@ -114,6 +114,46 @@ Opus 5.5 para responder y evaluar.
   - **T7** (timeouts): fijados;
   - **T12** (secretos): la clave en Andvari.
 
+## Construido (E3a, el clasificador, 2026-10-20)
+
+- **El clasificador:** `ClaudeClasificador` (`src/infrastructure/claude/`), con el SDK `anthropic` 1.11.0 y el cliente
+  asíncrono.
+  - Hace una llamada por mensaje con texto, a `claude-haiku-5-5` con esfuerzo `low`.
+  - Solo envía el texto, en el turno de usuario.
+  - La salida va atada a un esquema con `output_config.format`, y se vuelve a validar al leerla, porque la API no
+    admite límites de longitud ni de rango en el esquema.
+- **Un puerto, no dos:** `ClasificadorDeEntrada` sustituye a `GuardrailsPolicy` e `IntentEngine`. Las consecuencias
+  de arriba decían «detrás de los mismos puertos», pero la decisión 3 es una sola llamada que decide las dos cosas,
+  y dos puertos obligaban a dos llamadas o a compartir el resultado por debajo.
+- **`max_tokens` es 1024, no 256.** Haiku 5.5 piensa por defecto (pensamiento adaptativo), y lo que piensa cuenta en
+  `max_tokens`: con 256, una respuesta podía cortarse antes del JSON. La guía de Anthropic recomienda bajar el
+  esfuerzo y dejar sitio, no apagar el pensamiento. Lo que piensa a esfuerzo `low` se mide en el esqueleto (E7). Una
+  respuesta cortada no se interpreta: es un fallo.
+- **Ningún texto libre del modelo sale del clasificador:**
+  - el motivo es uno de `ninguno`, `inyeccion`, `abuso` u `otro`;
+  - la intención es una de seis genéricas (`saludo`, `pregunta`, `pedido`, `queja`, `despedida`, `otro`), mientras
+    el clasificador no lea los intents del bot;
+  - las entidades son pares `nombre`/`valor` con un formato fijo, y una mal formada se descarta sola.
+
+  Fuera de taxonomía, el clasificador no decide si un mensaje está fuera de tema: sin las reglas del bot no lo puede
+  saber.
+- **Fail-closed, con reintentos.** El mensaje sigue solo si Claude lo permite **y** no da motivo para pararlo. Una
+  respuesta incoherente no sigue.
+  - Un rechazo (`stop_reason: "refusal"`) sale a la primera con el motivo `rechazo`. Haiku 5.5 no tiene *fallback*
+    del servidor.
+  - Un fallo de la API, una respuesta que no valida o una cortada no se confirman. Bifröst entrega el mensaje otra
+    vez (30 s, 1 min, 5 min), y solo en la última entrega (`max_deliver` 4) sale con el motivo `error`. Así una caída
+    de minutos de la API no deja sin respuesta a nadie.
+  - Un mensaje sin texto (una imagen sin pie) no llega a Claude: sale con el motivo `sin_texto`.
+- **La clave**, en Andvari, en `motor/data/anthropic/classifier`, campo `key`. El worker la lee al arrancar con su rol
+  `motor-classifier` (`EngineKeyStore.api_key`, en `shared/`). Sin clave no arranca. La política del rol se amplía en
+  el repositorio `andvari` (higerotech/andvari#4), y el operador pone la clave con `motor/clave-anthropic.sh`.
+- **Los límites:** timeout de 7 s por intento y 2 reintentos del SDK. El peor caso queda por debajo de los 30 s del
+  `ack_wait` del consumidor, y la configuración no deja pasar valores que lo rompan.
+- **El log** dice los tokens de entrada y de salida de cada llamada, para medir el coste, y nunca el texto, la
+  respuesta ni el error de la API.
+- Pendiente (E3b): retirar NeMo, Ollama, `annoy`, sus adaptadores y el consumidor AMQP.
+
 ## Condiciones de revisión
 
 - Llega el primer cliente real: entonces, ZDR y el DPA firmados, o pasar a Vertex AI en la UE.

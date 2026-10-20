@@ -7,7 +7,7 @@
 
     They read what comes in strictly: a field missing or of another type is a broken event, not a default.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
 
@@ -77,3 +77,41 @@ class SentReply(_Event):
     sentAt: datetime
     text: str = Field(max_length=4096)
     attachments: list[SentAttachment] = []
+
+
+# --- What a message says ----------------------------------------------------------------------------------------------
+
+def _first(items) -> dict:
+    return items[0] if isinstance(items, list) and items and isinstance(items[0], dict) else {}
+
+
+def _text(value) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def what_was_said(channel: str, content: dict) -> tuple[str | None, tuple, datetime | None]:
+    """
+        What a message says, from the `message` of a MensajeIdentificado: its text, the type of each attachment and
+        when Meta says it was sent. Of an attachment, never its address (ADR-0017). The history keeps this, and the
+        engine's classifier reads the same, so both agree on what the person said.
+    """
+    if channel == "whatsapp":
+        message = _first(content.get("messages"))
+        kind = message.get("type")
+        body = message.get(kind) if isinstance(message.get(kind), dict) else {}
+        reply = body.get("button_reply") or body.get("list_reply") or {}
+        text = (_text(body.get("body")) if kind == "text" else
+                _text(reply.get("title")) if kind == "interactive" else
+                _text(body.get("text")) if kind == "button" else
+                _text(body.get("caption")))
+        attachments = () if kind in ("text", "interactive", "button") or not _text(kind) else (kind,)
+        sent = message.get("timestamp")
+        sent_at = datetime.fromtimestamp(int(sent), timezone.utc) if str(sent).isdigit() else None
+    else:
+        message = content.get("message") if isinstance(content.get("message"), dict) else {}
+        text = _text(message.get("text"))
+        attachments = tuple(_text(each.get("type")) or "unknown" for each in message.get("attachments") or []
+                            if isinstance(each, dict))
+        sent = content.get("timestamp")
+        sent_at = datetime.fromtimestamp(sent / 1000, timezone.utc) if isinstance(sent, (int, float)) else None
+    return text, attachments, sent_at
