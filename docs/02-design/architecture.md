@@ -7,7 +7,7 @@
 * **Versión:** 0.3.0
 * **Gate:** 1
 * **Estilo arquitectónico:** monolito modular en capas (rutas → controladores → entidades), con puertos y adaptadores como objetivo para las piezas nuevas
-* **ADRs relacionadas:** ADR-0002 a ADR-0022, en [`docs/00-project/adr/`](../00-project/adr/)
+* **ADRs relacionadas:** ADR-0002 a ADR-0023, en [`docs/00-project/adr/`](../00-project/adr/)
 
 Este documento describe **dos cosas a la vez**: lo que el gateway es hoy y lo que el diseño pide. En cada vista se
 marca qué existe y qué falta. La lista completa de diferencias está en
