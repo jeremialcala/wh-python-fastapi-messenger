@@ -19,7 +19,7 @@
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 
 from classes import ChatBot, Contact, MessageBody, QueueMessage, Settings
@@ -27,7 +27,7 @@ from classes.entity_conversation_message import INCOMING, OUTGOING
 from crypto.key_service import KeyServiceUnavailable
 from repository import NotFound, TenantRepository, database_failed
 from shared import bus, tracing
-from shared.contract import identified_subject
+from shared.contract import identified_subject, what_was_said
 from utils import describe
 
 from .amqp_broker import BrokerUnavailable, send_message_to_queue
@@ -97,33 +97,6 @@ def incoming(channel: str, item: dict) -> IncomingMessage:
     if not sender:
         raise ValueError("a message without sender")
     return IncomingMessage(message_id=item["messageId"], sender=sender, name=name, content=content)
-
-
-def what_was_said(channel: str, content: dict) -> tuple[str | None, tuple, datetime | None]:
-    """
-        What goes to the history of a message: its text, the type of each attachment and when Meta says it was
-        sent. Of an attachment, never its address (ADR-0017).
-    """
-    if channel == "whatsapp":
-        message = _first(content.get("messages"))
-        kind = message.get("type")
-        body = message.get(kind) if isinstance(message.get(kind), dict) else {}
-        reply = body.get("button_reply") or body.get("list_reply") or {}
-        text = (_text(body.get("body")) if kind == "text" else
-                _text(reply.get("title")) if kind == "interactive" else
-                _text(body.get("text")) if kind == "button" else
-                _text(body.get("caption")))
-        attachments = () if kind in ("text", "interactive", "button") or not _text(kind) else (kind,)
-        sent = message.get("timestamp")
-        sent_at = datetime.fromtimestamp(int(sent), timezone.utc) if str(sent).isdigit() else None
-    else:
-        message = content.get("message") if isinstance(content.get("message"), dict) else {}
-        text = _text(message.get("text"))
-        attachments = tuple(_text(each.get("type")) or "unknown" for each in message.get("attachments") or []
-                            if isinstance(each, dict))
-        sent = content.get("timestamp")
-        sent_at = datetime.fromtimestamp(sent / 1000, timezone.utc) if isinstance(sent, (int, float)) else None
-    return text, attachments, sent_at
 
 
 # --- Each step --------------------------------------------------------------------------------------------------------

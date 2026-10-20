@@ -24,7 +24,8 @@ from shared.engine_key_store import EngineKeyStore, KeyStoreUnavailable
 ADDRESS, ROOT_TOKEN = os.environ.get("OPENBAO_TEST_ADDR"), os.environ.get("OPENBAO_TEST_TOKEN")
 # The same as politicas/motor-claves.hcl and politicas/motor-<worker>.hcl in the andvari repository.
 COMMAND_POLICY = 'path "motor/data/clientes/+/+" { capabilities = ["create", "read"] }'
-WORKER_POLICY = 'path "motor/data/clientes/+/{worker}" {{ capabilities = ["read"] }}'
+WORKER_POLICY = ('path "motor/data/clientes/+/{worker}" {{ capabilities = ["read"] }}\n'
+                 'path "motor/data/anthropic/{worker}" {{ capabilities = ["read"] }}')
 
 
 def as_root(method: str, path: str, body: dict | None = None, allowed=(200, 204)) -> dict:
@@ -109,6 +110,18 @@ def test_a_worker_reads_its_own_key_of_any_client_and_nobody_else_s(command, rol
         notifier.read(client, "classifier")
     with pytest.raises(KeyStoreUnavailable, match="create refused: 403"):
         notifier.create(uuid4(), "notifier", new_signing_key())
+
+
+def test_a_worker_reads_its_own_key_of_the_anthropic_api_and_nobody_else_s(roles):
+    # The operator puts them there, with a root token (andvari, motor/clave-anthropic.sh).
+    as_root("POST", "motor/data/anthropic/classifier", {"options": {"cas": 0}, "data": {"key": "sk-ant-classifier"}},
+            allowed=(200, 204, 400))
+    classifier, notifier = EngineKeyStore(ADDRESS, *roles["classifier"]), EngineKeyStore(ADDRESS, *roles["notifier"])
+
+    assert classifier.api_key("classifier") == "sk-ant-classifier"
+    assert notifier.api_key("notifier") is None
+    with pytest.raises(KeyStoreUnavailable, match="read refused: 403"):
+        notifier.api_key("classifier")
 
 
 def test_the_store_logs_in_again_when_its_token_is_revoked(command):

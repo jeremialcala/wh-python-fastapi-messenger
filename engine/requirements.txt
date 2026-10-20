@@ -15,7 +15,7 @@ pillow==12.3.0            # required by mongoengine ImageField
 pydantic==2.7.4
 pydantic_core==2.18.4
 annotated-types==0.7.0
-typing_extensions==4.12.2
+typing_extensions==4.16.0  # anthropic asks for >=4.14
 pydantic-settings==2.3.3
 python-dotenv==1.2.2      # .env support for pydantic-settings
 PyYAML==6.0.1             # logging configuration (logging_config.yaml)
@@ -42,3 +42,9 @@ opentelemetry-api==1.45.0
 opentelemetry-sdk==1.45.0
 opentelemetry-exporter-otlp-proto-http==1.45.0
 requests==2.34.2
+
+# Claude, por la API de Anthropic (ADR-0009): la versión más nueva con dos semanas publicada. httpx2, su cliente
+# HTTP, y truststore, que este usa, se fijan aquí porque sus versiones más nuevas tienen días.
+anthropic==1.11.0
+httpx2==2.13.1
+truststore==0.10.4

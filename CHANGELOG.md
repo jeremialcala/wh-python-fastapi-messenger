@@ -8,6 +8,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- **Para el clasificador del motor** (E3a del plan de los workers):
+  - `shared.contract.what_was_said`: lo que dice un mensaje identificado, su texto y sus adjuntos. Era de la
+    ingesta, que lo usa igual para el historial; así el motor lee el mismo texto que el gateway guarda.
+  - `EngineKeyStore.api_key`: la clave de la API de Anthropic de un worker, en `motor/data/anthropic/<worker>` de
+    Andvari, probada contra OpenBao con la política de cada worker.
 - **`shared/`, lo que usan el gateway y el motor** (ADR-0023; E1 del plan de los workers del motor):
   - **Qué pasa:** el bus, las trazas, los tokens de la API (`shared.auth`), el almacén de claves de Andvari, la regla
     de destinos y los nombres de los workers. Se mueven con su historia, y el gateway los importa de ahí sin cambiar

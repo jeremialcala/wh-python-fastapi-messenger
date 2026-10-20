@@ -13,6 +13,26 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 ## [Unreleased]
 
 ### Añadido
+- **El clasificador, el primer worker** (E3a del [plan](docs/00-project/plan-de-los-workers.md)):
+  `python -m src.workers.classifier`.
+  - Lee cada mensaje identificado de `MENSAJES` y lo clasifica con Claude Haiku 5.5, en una sola llamada con salida
+    estructurada: si se atiende y cuál es su intención. Publica el sobre en `motor.clasificado.…` y solo entonces
+    confirma.
+  - **Fail-closed:** solo sigue lo que Claude permite sin motivo para pararlo. Un rechazo no sigue. Sin veredicto, el
+    mensaje se reintenta con las entregas de Bifröst y, en la última, sale sin seguir con el motivo `error`.
+  - A Claude solo le llega el texto. El sobre no lleva el nombre del contacto, y el log no lleva ni el texto ni el
+    número.
+  - La clave de la API, del worker, la lee de Andvari al arrancar.
+  - Lo construido y lo que cambió respecto a las ADR está en
+    [ADR-0008](docs/02-design/adr/ADR-0008-seis-workers-sobre-bifrost.md) y
+    [ADR-0009](docs/02-design/adr/ADR-0009-claude-como-llm.md): `max_tokens` 1024 por el pensamiento de Haiku 5.5,
+    y un puerto en vez de dos.
+- **El sobre interno, versión 1**, y su contrato,
+  [`asyncapi-motor.yaml`](docs/02-design/contracts/asyncapi-motor.yaml), con pruebas de contrato.
+- **El bucle común de los workers** (`src/workers/runtime.py`), probado contra un NATS con los permisos de Bifröst,
+  también en el CI.
+- Dependencias: `anthropic` 1.11.0, con `httpx2` y `truststore` fijados porque sus versiones más nuevas tienen días;
+  `typing_extensions` sube a 4.16.0; y `jsonschema` para las pruebas de contrato.
 - **El motor usa `shared/`**, el código que comparte con el gateway (E1 del [plan](docs/00-project/plan-de-los-workers.md)):
   - lo que necesita está en sus `requirements` (`nats-py`, OpenTelemetry, `requests`), con las versiones del gateway,
     y `jwcrypto` sube a 1.6.1, la del gateway;

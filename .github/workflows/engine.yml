@@ -27,6 +27,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The bus, set up like Bifröst with each worker's user (engine/tests/integration/nats-test.conf), as in `ci`.
+      - name: NATS JetStream
+        run: |
+          docker run -d --name nats -p 4222:4222 -p 8222:8222 \
+            -v "$PWD/tests/integration/nats-test.conf:/etc/nats/test.conf:ro" \
+            nats:2.14.8-alpine@sha256:f9512b17aae6d41b6a615a7afad7b328633639ddae025744623e69b26fe686be \
+            -c /etc/nats/test.conf
+          for _ in $(seq 1 30); do
+            curl -fs "http://127.0.0.1:8222/healthz?js-enabled-only=true" && exit 0
+            sleep 1
+          done
+          docker logs nats
+          exit 1
+
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -42,6 +56,10 @@ jobs:
       # The engine starts at the coverage it has, 60 %, and goes up to the gateway's 80 % before its Gate 3
       # (ADR-0023, point 5).
       - run: python -m pytest --cov=src --cov-branch --cov-fail-under=60
+        env:
+          NATS_TEST_ADDR: 127.0.0.1:4222
+          # Here the integration tests must run: without this they would be skipped without a word.
+          NATS_TEST_REQUIRED: "1"
 
   image:
     runs-on: ubuntu-latest
