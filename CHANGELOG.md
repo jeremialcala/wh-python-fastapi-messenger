@@ -7,6 +7,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Cambiado
+- **`GET /chat/{bot_id}/rules` devuelve datos, no un prompt** (E4 del plan de los workers del motor; decisión de
+  Jeremi del 2026-10-20). Antes armaba un prompt para Llama 2 (`<s> <<SYS>> Tu nombre es… <</SYS>>`), pensado para el
+  motor de antes, con Ollama. Ahora `data` es `{"name", "role", "tone", "description", "rules": [...]}`, y el motor
+  escribe con ellos el `system` de Claude. **Es un cambio incompatible** para quien leyera la cadena: el único que lo
+  hacía era ese motor, que ya no existe, y el contrato OpenAPI no documentaba la respuesta.
+
 ### Añadido
 - **Para el clasificador del motor** (E3a del plan de los workers):
   - `shared.contract.what_was_said`: lo que dice un mensaje identificado, su texto y sus adjuntos. Era de la

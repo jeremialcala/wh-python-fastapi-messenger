@@ -21,8 +21,6 @@ __all__ = ["ctr_create_chatbot", "ctr_get_chatbot_from_uuid", "ctr_add_phone_cha
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
-B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
-B_SEN, E_SEN = "<s>", "</s>"
 
 
 async def ctr_create_chatbot(repo: TenantRepository, request: ChatbotRequest, eventId: str = None) -> Response:
@@ -262,9 +260,13 @@ async def ctr_get_chatbot_phones(repo: TenantRepository, bot_uuid: str, environm
 
 
 async def ctr_get_chatbot_rules_from_uuid(repo: TenantRepository, _uuid: str, eventId: str = None) -> Response:
+    """
+        The persona of a chatbot and its rules, as data: the response engine writes Claude's `system` with them
+        (ADR-0009 of the engine). Until E4 this was a prompt already formatted for Llama 2, for the engine of
+        before.
+    """
     log.info(f"Starting: {currentframe().f_code.co_name}")
     body = ResponseData(code=status.HTTP_400_BAD_REQUEST, message="BAD REQUEST", data=None)
-    rules_size = 0
     _action = uuid4()
     if eventId is not None:
         ensure_future(ctr_notify_action(
@@ -282,19 +284,10 @@ async def ctr_get_chatbot_rules_from_uuid(repo: TenantRepository, _uuid: str, ev
 
     try:
         _chatbot = repo.get_bot(_uuid)
-        rules = (f"{B_SEN} "
-                 f"{B_SYS} "
-                 f"Tu nombre es {_chatbot.name} "
-                 f"to rol es {_chatbot.role} "
-                 f"el tono de tu conversación es {_chatbot.tone} ")
-
         body = ResponseData(code=status.HTTP_200_OK, message="Process completed successfully",
-                            data=None)
-
-        for rule in repo.list_rules(_uuid):
-            rules += f"{rule.rule} "
-        rules += f" {E_SYS}"
-        body.data = rules
+                            data={"name": _chatbot.name, "role": _chatbot.role, "tone": _chatbot.tone,
+                                  "description": _chatbot.description,
+                                  "rules": [rule.rule for rule in repo.list_rules(_uuid)]})
 
     except (ValueError, NotFound) as e:
         log.error(describe(e))
@@ -315,7 +308,7 @@ async def ctr_get_chatbot_rules_from_uuid(repo: TenantRepository, _uuid: str, ev
 
         response.status_code = body.code
         response.body = body.json(exclude_none=True).encode()
-        response.headers[CONTENT_LENGTH] = str(len(response.body) + rules_size)
+        response.headers[CONTENT_LENGTH] = str(len(response.body))
         response.headers[CONTENT_TYPE] = APPLICATION_JSON
 
         log.info(f"Ending: {currentframe().f_code.co_name} code:{response.status_code}")

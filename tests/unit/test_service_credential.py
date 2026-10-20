@@ -165,7 +165,10 @@ def test_the_engine_gets_the_rest_of_what_it_answers_with(http, engine, bot):
     keys = http.get("/gateway/keys", headers=engine.auth)
 
     assert (rules.status_code, tools.status_code, keys.status_code) == (200, 200, 200)
-    assert "Be kind" in rules.json()["data"]
+    # The persona and the rules as data, for the engine to write Claude's system with: no prompt of Llama 2.
+    assert rules.json()["data"] == {"name": "Mine", "role": "Sales Assistant", "tone": "helpful",
+                                    "description": "A test chatbot", "rules": ["Be kind"]}
+    assert "<<SYS>>" not in rules.text and "<s>" not in rules.text
     assert [tool["name"] for tool in tools.json()["data"]] == ["get_order"]
     assert keys.json()["data"]["audience"] == GATEWAY_AUDIENCE
 

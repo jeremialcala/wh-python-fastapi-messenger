@@ -10,6 +10,7 @@
     sobre roto, no un valor por defecto.
 
         motor.clasificado.{partición}.{botId}.{contactId}    MensajeClasificado, del clasificador al coordinador
+        motor.pedido.{partición}.{botId}.{contactId}         MensajePedido, del coordinador al de respuesta
 """
 from datetime import datetime
 from typing import Literal, Optional
@@ -35,9 +36,25 @@ Etiqueta = Literal["saludo", "pregunta", "pedido", "queja", "despedida", "otro"]
 ETIQUETAS = ("saludo", "pregunta", "pedido", "queja", "despedida", "otro")
 
 
+# Cómo se responde (E4, decisión de Jeremi del 2026-10-20): con Claude, o con un texto fijo del de respuesta, sin
+# llamarlo, cuando el mensaje no sigue. Así la persona siempre recibe algo.
+Respuesta = Literal["claude", "no_puedo", "solo_texto", "no_disponible"]
+RESPUESTA_POR_MOTIVO = {"inyeccion": "no_puedo", "abuso": "no_puedo", "otro": "no_puedo", "rechazo": "no_puedo",
+                        "sin_texto": "solo_texto", "error": "no_disponible"}
+
+# Las vueltas que el coordinador pasa como mucho: las 10 últimas de la persona y lo que vino después (RF15 del
+# gateway) caben de sobra.
+MAX_VUELTAS = 40
+
+
 def subject_clasificado(particion: str, bot_id, contact_id) -> str:
     """Dónde publica el clasificador, en el stream MOTOR."""
     return f"motor.clasificado.{particion}.{bot_id}.{contact_id}"
+
+
+def subject_pedido(particion: str, bot_id, contact_id) -> str:
+    """Dónde publica el coordinador, en el stream MOTOR."""
+    return f"motor.pedido.{particion}.{bot_id}.{contact_id}"
 
 
 class _Estricto(BaseModel):
@@ -102,3 +119,35 @@ class MensajeClasificado(_Sobre):
     """Lo que publica el clasificador: el mensaje, lo que dijo la persona y el veredicto."""
     entrada: Entrada
     clasificacion: Clasificacion
+
+
+class Persona(_Estricto):
+    """Quién es el bot y sus reglas, como las guarda el gateway (`GET /chat/{bot_id}/rules`)."""
+    nombre: str
+    rol: str
+    tono: str
+    descripcion: str = ""
+    reglas: list[str] = Field(default_factory=list)
+
+
+class Vuelta(_Estricto):
+    """Un mensaje anterior de la conversación, de la persona o del bot, como lo guarda el historial del gateway."""
+    de: Literal["persona", "bot"]
+    texto: str = Field(max_length=4096)
+    adjuntos: list[str] = Field(default_factory=list, max_length=10)
+    enviadaEn: datetime
+
+
+class Pedido(_Estricto):
+    """
+        Lo que el coordinador pide al de respuesta. Con `claude`, la persona del bot y las vueltas anteriores, la más
+        antigua primero; con un texto fijo, ninguna de las dos: no hacen falta.
+    """
+    respuesta: Respuesta
+    persona: Optional[Persona] = None
+    vueltas: list[Vuelta] = Field(default_factory=list, max_length=MAX_VUELTAS)
+
+
+class MensajePedido(MensajeClasificado):
+    """Lo que publica el coordinador: lo clasificado y lo que hace falta para responderlo."""
+    pedido: Pedido

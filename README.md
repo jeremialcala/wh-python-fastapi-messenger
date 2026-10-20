@@ -185,7 +185,7 @@ Campos de `ChatbotRequest`: `name`, `role`, `description`, `tone`.
 | `GET`  | `/chat/{bot_id}/info` | Devuelve la información guardada del bot (`chatbot_info()`) y su token de verificación. De las credenciales de Meta solo dice cuáles están cargadas. |
 | `PUT`  | `/chat/{bot_id}/credentials` | Carga o rota las credenciales de Meta del bot (`BotCredentialsRequest`: `facebookToken`, `whatsappToken`, `appSecret`). No las devuelve. |
 | `GET`  | `/chat/{bot_id}/tokens` | Los tokens de Meta del bot, **solo para el notificador del motor de respuestas**, con la clave que tiene para el cliente dueño del bot. Cada entrega queda en el log. |
-| `GET`  | `/chat/{bot_id}/rules` | Construye y devuelve el system prompt del LLM a partir de la persona del bot y sus reglas. |
+| `GET`  | `/chat/{bot_id}/rules` | La persona del bot y sus reglas, como datos (`name`, `role`, `tone`, `description`, `rules`): el motor escribe con ellos el `system` de Claude. |
 | `POST` | `/chat/{bot_id}/rules` | Añade una o varias reglas al bot (`RulesRequest.rules: list[str]`). |
 
 ### Contactos — etiqueta `Contacts`

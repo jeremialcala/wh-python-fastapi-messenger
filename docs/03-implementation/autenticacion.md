@@ -185,7 +185,7 @@ worker alcanza sus rutas, y cualquier otra le responde `403`:
 
 | Ruta | Qué obtiene | `classifier` | `coordinator` | `link` | `responder` | `evaluator` | `notifier` |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|
-| `GET /chat/{bot_id}/rules` | El system prompt del bot | ✓ | ✓ | | ✓ | ✓ | |
+| `GET /chat/{bot_id}/rules` | La persona del bot y sus reglas | ✓ | ✓ | | ✓ | ✓ | |
 | `GET /chat/{bot_id}/tools` | Sus herramientas | | ✓ | ✓ | | | |
 | `GET /chat/{bot_id}/tokens` | Los tokens de Meta con los que envía la respuesta | | | | | | ✓ |
 | `GET /chat/{bot_id}/contacts/{contact_id}/turns` | Las 10 últimas vueltas de una conversación, para que el coordinador rehaga su contexto cuando no lo tiene (RF15) | | ✓ | | | | |
