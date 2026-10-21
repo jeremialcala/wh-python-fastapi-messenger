@@ -20,7 +20,7 @@
 import asyncio
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 import requests
@@ -118,18 +118,26 @@ class ApiDelGateway(FuenteDelBot, TokensDelBot):
         self._personas[(client_id, bot_id)] = (persona, time.monotonic() + RECORDAR_REGLAS)
         return persona
 
-    async def vueltas(self, client_id: UUID, bot_id: UUID, contact_id: UUID, sin: str) -> list[Vuelta]:
+    async def vueltas(self, client_id: UUID, bot_id: UUID, contact_id: UUID, sin: str,
+                      hasta: datetime) -> list[Vuelta]:
         datos = await asyncio.to_thread(self._get, client_id, f"/chat/{bot_id}/contacts/{contact_id}/turns")
+        hasta = hasta if hasta.tzinfo else hasta.replace(tzinfo=timezone.utc)
         try:
+            mensajes = datos["messages"]
+            # El gateway da las últimas vueltas de ahora. Un mensaje atendido con retraso ya tiene detrás lo que la
+            # persona escribió después, y lo que el bot le respondió: las vueltas terminan antes de él. La ingesta lo
+            # guarda justo después de publicarlo, así que puede no estar todavía: entonces cuenta cuándo llegó.
+            suyo = next((n for n, mensaje in enumerate(mensajes)
+                         if mensaje["direction"] == "in" and mensaje.get("messageId") == sin), None)
             vueltas = [Vuelta(de="persona" if mensaje["direction"] == "in" else "bot",
                               texto=(mensaje.get("text") or "")[:4096],
                               adjuntos=[str(tipo) for tipo in mensaje.get("attachments") or []][:10],
                               enviadaEn=datetime.fromisoformat(mensaje["sentAt"]),
-                              ) for mensaje in datos["messages"]
-                       # La ingesta guarda el mensaje justo después de publicarlo: puede estar ya en el historial.
-                       if not (mensaje["direction"] == "in" and mensaje.get("messageId") == sin)]
+                              ) for mensaje in (mensajes if suyo is None else mensajes[:suyo])]
+            if suyo is None:
+                vueltas = [vuelta for vuelta in vueltas if vuelta.enviadaEn <= hasta]
         except (KeyError, TypeError, ValueError, AttributeError):
-            # ValidationError es un ValueError.
+            # ValidationError es un ValueError. TypeError también cubre una fecha sin zona del gateway.
             raise FuenteNoDisponible("vueltas inesperadas") from None
         return vueltas[-MAX_VUELTAS:]
 

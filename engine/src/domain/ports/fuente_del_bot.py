@@ -5,6 +5,7 @@
     de cada worker para el cliente dueño del bot (ADR-0022 del gateway).
 """
 from abc import ABC, abstractmethod
+from datetime import datetime
 from uuid import UUID
 
 from src.domain.models.sobre import Persona, Vuelta
@@ -33,10 +34,14 @@ class FuenteDelBot(ABC):
         """
 
     @abstractmethod
-    async def vueltas(self, client_id: UUID, bot_id: UUID, contact_id: UUID, sin: str) -> list[Vuelta]:
+    async def vueltas(self, client_id: UUID, bot_id: UUID, contact_id: UUID, sin: str,
+                      hasta: datetime) -> list[Vuelta]:
         """
         :param sin: el id de Meta del mensaje que se responde, que no es una vuelta anterior aunque ya esté guardado.
-        :return: las últimas vueltas de la conversación, la más antigua primero.
+        :param hasta: cuándo llegó ese mensaje al webhook.
+        :return: las últimas vueltas de la conversación antes del mensaje que se responde, la más antigua primero.
+            Lo que la persona escribió después, o lo que el bot le respondió, no es contexto de este mensaje,
+            aunque ya esté guardado cuando se atiende con retraso.
         :raises NoEncontrado: si el contacto ya no existe.
         :raises FuenteNoDisponible: si no se pudo saber.
         """

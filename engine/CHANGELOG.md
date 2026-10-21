@@ -171,6 +171,14 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 
   `jwcrypto` y `cryptography` se quedan: los usa `shared.auth`. `PyYAML` pasa a las dependencias de desarrollo.
 
+### Corregido
+- **Un mensaje atendido con retraso tenía por contexto lo que vino después.** El gateway da las últimas vueltas en el
+  momento de la consulta. En midgard (2026-10-21), con el gateway colgado, el coordinador atendió cuatro mensajes
+  minutos tarde, y la respuesta al primero llevó en sus vueltas los otros tres, que la persona escribió después.
+  Ahora las vueltas terminan antes del mensaje que se responde, por su posición en el historial. Si la ingesta aún no
+  lo guardó, se quedan las enviadas hasta su `receivedAt`; una hora sin zona cuenta como UTC. Si llegaron muchos
+  mensajes después, quedan menos de diez vueltas: el gateway cuenta las diez desde el último.
+
 ### Seguridad
 - **Siete dependencias con vulnerabilidades conocidas pasan a versiones corregidas**, todas con más de dos semanas:
   - `cryptography` 42.0.8 → 50.0.2, con `cffi` 1.16.0 → 2.0.0;

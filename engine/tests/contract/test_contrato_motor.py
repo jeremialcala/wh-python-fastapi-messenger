@@ -142,7 +142,7 @@ class Gateway:
     async def persona(self, _client_id, _bot_id):
         return Persona(nombre="Mine", rol="Sales Assistant", tono="helpful", descripcion="", reglas=["Be kind"])
 
-    async def vueltas(self, _client_id, _bot_id, _contact_id, _sin):
+    async def vueltas(self, _client_id, _bot_id, _contact_id, _sin, _hasta):
         return [Vuelta(de="persona", texto="hola", enviadaEn="2026-10-20T08:00:00+00:00"),
                 Vuelta(de="bot", texto="", adjuntos=["image"], enviadaEn="2026-10-20T08:00:05+00:00")]
 

@@ -68,7 +68,8 @@ class Coordinar:
             return Pedido(respuesta=RESPUESTA_POR_MOTIVO[sobre.clasificacion.motivo])
         try:
             persona = await self._fuente.persona(sobre.clientId, sobre.botId)
-            vueltas = await self._fuente.vueltas(sobre.clientId, sobre.botId, sobre.contact.uuid, sobre.messageId)
+            vueltas = await self._fuente.vueltas(sobre.clientId, sobre.botId, sobre.contact.uuid, sobre.messageId,
+                                                 sobre.receivedAt)
         except NoEncontrado as e:
             log.warning("El bot %s o su contacto ya no existen (%s): el mensaje se descarta", sobre.botId, e)
             return Resultado.DESCARTADO

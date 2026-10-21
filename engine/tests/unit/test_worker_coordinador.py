@@ -73,8 +73,8 @@ class Gateway(FuenteDelBot):
             raise self._fallo
         return PERSONA
 
-    async def vueltas(self, client_id, bot_id, contact_id, sin):
-        self.preguntas.append(("vueltas", client_id, bot_id, contact_id, sin))
+    async def vueltas(self, client_id, bot_id, contact_id, sin, hasta):
+        self.preguntas.append(("vueltas", client_id, bot_id, contact_id, sin, hasta))
         return VUELTAS
 
 
@@ -95,7 +95,9 @@ def test_un_mensaje_que_sigue_se_pide_con_claude_la_persona_y_las_vueltas():
     assert sobre.pedido.persona == PERSONA and sobre.pedido.vueltas == VUELTAS
     # Lo del clasificador sigue en el sobre.
     assert sobre.entrada.texto == "¿tienen zapatos rojos?" and sobre.clasificacion == PERMITIDO
-    assert gateway.preguntas == [("persona", CLIENTE, BOT), ("vueltas", CLIENTE, BOT, CONTACTO, "wamid.A")]
+    # Las vueltas, hasta que llegó el mensaje que se responde.
+    assert gateway.preguntas == [("persona", CLIENTE, BOT), ("vueltas", CLIENTE, BOT, CONTACTO, "wamid.A",
+                                                           datetime(2026, 10, 20, 9, tzinfo=timezone.utc))]
 
 
 def test_la_traza_sigue_el_hilo_del_mensaje():
