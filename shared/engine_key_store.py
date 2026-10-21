@@ -8,11 +8,6 @@
     and reads only its own with an AppRole of its own. The command that issues them (ops.engine_keys) creates them
     and reads them back to finish an issue left halfway, and nothing else: a key that is kept is never written
     over, so a worker never loses the one it signs with.
-
-    The workers that call Claude also find there their key of the Anthropic API, one per worker, which the operator
-    puts in Andvari (ADR-0009 of the engine). Each one reads only its own, with the same AppRole:
-
-        motor/data/anthropic/<worker>                {"key": <the API key>}
 """
 import time
 from uuid import UUID
@@ -93,21 +88,6 @@ class EngineKeyStore:
         if not isinstance(key, dict):
             raise KeyStoreUnavailable("unexpected answer")
         return key
-
-    def api_key(self, worker: str) -> str | None:
-        """The key of the Anthropic API of that worker, or None if the operator has not put one there yet."""
-        response = self._call("GET", f"{self._mount}/data/anthropic/{worker}")
-        if response.status_code == 404:
-            return None
-        if response.status_code != 200:
-            raise KeyStoreUnavailable(f"read refused: {response.status_code}")
-        try:
-            key = response.json()["data"]["data"]["key"]
-        except (ValueError, KeyError, TypeError):
-            raise KeyStoreUnavailable("unexpected answer") from None
-        if not isinstance(key, str) or not key.strip():
-            raise KeyStoreUnavailable("unexpected answer")
-        return key.strip()
 
     def create(self, client_id: UUID, worker: str, key: dict) -> bool:
         """

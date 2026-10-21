@@ -261,6 +261,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - Dos contratos OpenAPI: `openapi.yaml` para la gestión y `openapi-webhook.yaml` para el webhook.
 - `GATEWAY_KEYS_FILE` y `GATEWAY_AUDIENCE` solo los exige la API de gestión.
 
+### Eliminado
+- **`EngineKeyStore.api_key`** (`shared/engine_key_store.py`), que leía de Andvari la clave de la API de Anthropic de
+  un worker. El motor ya no usa Claude (ADR-0010 del motor), y Andvari borró esas claves
+  (`motor/retirar-anthropic.sh` de andvari).
+
 ### Seguridad
 - **`certifi` sube a 2026.10.19** en los locks del gateway (GHSA-6q48-6c7w-9gw2, crítica, publicada el 2026-10-20).
   Las versiones anteriores confían en las raíces de emSign, de las que dependen ocho intermedias cuyas claves privadas
