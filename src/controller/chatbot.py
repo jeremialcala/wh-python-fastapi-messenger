@@ -259,7 +259,7 @@ async def ctr_get_chatbot_phones(repo: TenantRepository, bot_uuid: str, environm
     return response
 
 
-async def ctr_get_chatbot_rules_from_uuid(repo: TenantRepository, _uuid: str, eventId: str = None) -> Response:
+def ctr_get_chatbot_rules_from_uuid(repo: TenantRepository, _uuid: str, eventId: str = None) -> Response:
     """
         The persona of a chatbot and its rules, as data: the response engine writes Claude's `system` with them
         (ADR-0009 of the engine). Until E4 this was a prompt already formatted for Llama 2, for the engine of

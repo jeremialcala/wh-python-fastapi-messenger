@@ -94,7 +94,7 @@ async def ctr_export_contact(repo: TenantRepository, bot_id: str, contact_id: st
     return _read(CONTACT_NOT_FOUND, lambda: contact_export(repo, repo.get_contact(bot_id, contact_id)))
 
 
-async def ctr_last_turns(repo: TenantRepository, bot_id: str, contact_id: str, engine) -> JSONResponse:
+def ctr_last_turns(repo: TenantRepository, bot_id: str, contact_id: str, engine) -> JSONResponse:
     """
         The last 10 turns of a conversation, for the engine's coordinator to rebuild its context with (RF15). Who
         took them is logged, like who takes the tokens: they carry what the person wrote.

@@ -6,16 +6,12 @@ from uuid import uuid4
 from mongoengine import *
 from enums import Status
 from .tool_settings import Settings
+from .tool_database import connect_database
 from .entity_jwk import Jwk
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
-connect(
-    db=settings.db_name,
-    username=settings.db_username,
-    password=settings.db_password,
-    host=settings.db_host
-)
+connect_database(settings)
 
 
 class Event(Document):

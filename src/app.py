@@ -69,11 +69,15 @@ WORKER_ROUTES = {
 SERVICE_ROUTES = set().union(*WORKER_ROUTES.values())
 
 
-async def get_principal(request: Request,
-                        credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> Principal:
+def get_principal(request: Request,
+                  credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> Principal:
     """
         Everything in this service but the health check depends on this. The answer to a token
         that is not accepted is always the same 401: the reason only goes to the log.
+
+        A function, not a coroutine: authenticating reads MongoDB, which blocks. FastAPI runs a function in its pool
+        of threads, so a slow read holds up only its own request, never the event loop and every other request with
+        it. The same goes for get_repository and for the routes of the response engine.
     """
     try:
         principal = authenticate(credentials.credentials if credentials else None, GATEWAY_KEYS,
@@ -104,7 +108,7 @@ async def require_service(principal: Principal = Depends(get_principal)) -> Prin
     return principal
 
 
-async def get_repository(principal: Principal = Depends(get_principal)) -> TenantRepository:
+def get_repository(principal: Principal = Depends(get_principal)) -> TenantRepository:
     """
         What the endpoints of a client get: the repository of whoever is authenticated, the only way they have
         to reach data. The operator is a client too, and reaches its own.
@@ -225,31 +229,31 @@ async def search_contacts(search: ContactSearchRequest, repo: TenantRepository =
 
 
 @app.get(path="/chat/{bot_id}/tokens", tags=["Chat"], response_model=ResponseData)
-async def get_chatbot_tokens(bot_id: str, engine: Principal = Depends(require_service)):
+def get_chatbot_tokens(bot_id: str, engine: Principal = Depends(require_service)):
     """
         The Meta tokens of a chatbot, for the response engine to send its answers with. Only the engine gets
         them, with the key it holds for the client that owns the chatbot, and every time it does is logged.
     """
-    return await ctr_get_bot_tokens(TenantRepository(engine.client_id), bot_id, engine)
+    return ctr_get_bot_tokens(TenantRepository(engine.client_id), bot_id, engine)
 
 
 @app.get(path="/chat/{bot_id}/contacts/{contact_id}/turns", tags=["Contacts"], response_model=ResponseData)
-async def get_last_turns(bot_id: str, contact_id: str, engine: Principal = Depends(require_service)):
+def get_last_turns(bot_id: str, contact_id: str, engine: Principal = Depends(require_service)):
     """
         The last 10 turns of a conversation, both ways and oldest first: from the tenth last message the contact
         sent, everything after it. For the engine's coordinator, when its context of 24 hours is gone; only the
         engine gets them, with the key it holds for the client that owns the chatbot, and every time it does is
         logged.
     """
-    return await ctr_last_turns(TenantRepository(engine.client_id), bot_id, contact_id, engine)
+    return ctr_last_turns(TenantRepository(engine.client_id), bot_id, contact_id, engine)
 
 
 @app.get(path="/chat/{bot_id}/rules", tags=["Chat"])
-async def get_chatbot_rules(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
+def get_chatbot_rules(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
 
     try:
-        response = await ctr_get_chatbot_rules_from_uuid(repo, bot_id, eventId=req.state.event_id)
+        response = ctr_get_chatbot_rules_from_uuid(repo, bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:
@@ -327,10 +331,10 @@ async def delete_chatbot_intent(bot_id, intent_id, req: Request, repo: TenantRep
 
 
 @app.get(path="/chat/{bot_id}/tools", tags=["Intents"])
-async def get_chatbot_tools(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
+def get_chatbot_tools(bot_id, req: Request, repo: TenantRepository = Depends(get_repository)):
     log.info(f"Starting: {currentframe().f_code.co_name}")
     try:
-        response = await ctr_get_bot_tools(repo, bot_id=bot_id, eventId=req.state.event_id)
+        response = ctr_get_bot_tools(repo, bot_id=bot_id, eventId=req.state.event_id)
         log.info(f"Ending: {currentframe().f_code.co_name}")
         return response
     except Exception as e:

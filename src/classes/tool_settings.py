@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     db_host: str
     db_username: str
     db_password: str
+    # How long a query, a connection or the choice of a server may take before it fails (classes/tool_database.py).
+    # Under the 10 seconds the engine's coordinator waits for each call, so it gets an answer, a 503, and not a
+    # timeout of its own.
+    db_timeout_ms: int = Field(default=5000, ge=500, le=30000)
+    # A connection idle longer than this is closed rather than reused.
+    db_max_idle_ms: int = Field(default=60000, ge=1000, le=600000)
 
     sender_email: str
     sender_password: str

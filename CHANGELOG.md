@@ -259,6 +259,21 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   fusionar.
 
 ### Corregido
+- **La API de gestión se quedaba sin responder, health check incluido, cuando una consulta a Atlas no volvía.** En
+  midgard (2026-10-21), `bots-gateway` estuvo seis minutos sin contestar y cuatro mensajes de Hive esperaron entre 6 y
+  7 minutos su respuesta. Antes, el token de Meta tardó una vez 70 s.
+  - **Causa:** la conexión a MongoDB no tenía ningún timeout, así que pymongo esperaba para siempre en una conexión
+    TCP que había muerto sin cerrarse: tenía datos sin confirmar en la cola de envío. Y como las rutas son
+    corrutinas que llaman a código bloqueante, esa espera retenía el event loop y, con él, todas las peticiones.
+    Atlas en sí respondía bien: un ping, en 60–750 ms; las vueltas, en unos 80 ms.
+  - **Las esperas tienen fin:** los 14 módulos de `classes/` se conectan con `connect_database`, con
+    `socketTimeoutMS`, `connectTimeoutMS` y `serverSelectionTimeoutMS` de 5 s (`DB_TIMEOUT_MS`), por debajo de los
+    10 s que el coordinador del motor espera por llamada. Una conexión inactiva más de 60 s (`DB_MAX_IDLE_MS`) se
+    cierra en vez de reutilizarse.
+  - **Fuera del event loop:** la autenticación (`get_principal`), `get_repository` y las cuatro rutas del motor
+    (reglas, herramientas, vueltas y tokens) son funciones, no corrutinas: FastAPI las corre en su pool de hilos y una
+    lectura lenta solo retiene su propia petición. El resto de rutas siguen siendo corrutinas: con el timeout, una
+    lectura colgada las retiene 5 s como mucho.
 - **El worker de ingesta se reiniciaba cada pocos minutos.** En midgard, `bots-ingest` llegó a 13 reinicios en unas
   horas (2026-10-20).
   - **Causa:** nats-py avisa de que no hay nada que leer con su `nats.errors.TimeoutError`, pero a veces lo hace con
