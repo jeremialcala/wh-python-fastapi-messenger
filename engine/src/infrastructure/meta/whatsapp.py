@@ -11,6 +11,12 @@
     errores (developers.facebook.com, consultada el 2026-10-20): los que se arreglan solos se reintentan, el del token
     se reintenta con uno nuevo, y los demás no irán nunca así.
 
+    Y para marcar como leído un mensaje de la persona, con «escribiendo…» o sin él (ADR-0011; developers.facebook.com,
+    «Typing indicators», consultada el 2026-10-21), a la misma ruta:
+
+        {"messaging_product": "whatsapp", "status": "read", "message_id": <wamid>,
+         "typing_indicator": {"type": "text"}}
+
     Ni el log ni las excepciones llevan el texto, el número ni el token. Del error de Meta solo se guarda el código:
     su `message` y sus `details` pueden llevar el número.
 """
@@ -40,29 +46,45 @@ class WhatsAppCloud(CanalDeMeta):
         self._version = version
         self._timeout = timeout
 
-    def _enviar(self, token: str, cuenta: str, destinatario: str, texto: str) -> str:
-        cuerpo = {"messaging_product": "whatsapp", "recipient_type": "individual", "to": destinatario,
-                  "type": "text", "text": {"body": texto, "preview_url": False}}
+    def _post(self, token: str, cuenta: str, cuerpo: dict) -> requests.Response:
         try:
-            respuesta = requests.post(f"{self._url}/{self._version}/{cuenta}/messages", json=cuerpo,
-                                      headers={"Authorization": f"Bearer {token}"}, timeout=self._timeout,
-                                      allow_redirects=False)
+            return requests.post(f"{self._url}/{self._version}/{cuenta}/messages", json=cuerpo,
+                                 headers={"Authorization": f"Bearer {token}"}, timeout=self._timeout,
+                                 allow_redirects=False)
         except (requests.RequestException, OSError) as e:
             # Solo el tipo: el texto de estas excepciones lleva la dirección y más.
             raise EnvioFallido(type(e).__name__) from None
+
+    def _enviar(self, token: str, cuenta: str, destinatario: str, texto: str) -> str:
+        cuerpo = {"messaging_product": "whatsapp", "recipient_type": "individual", "to": destinatario,
+                  "type": "text", "text": {"body": texto, "preview_url": False}}
+        respuesta = self._post(token, cuenta, cuerpo)
         if respuesta.status_code == 200:
             try:
                 return respuesta.json()["messages"][0]["id"]
             except (ValueError, KeyError, IndexError, TypeError):
                 # Meta dijo que sí sin decir con qué id: no se reintenta, que llegaría dos veces.
                 raise EnvioRechazado("aceptado sin id") from None
+        raise self._fallo(respuesta)
+
+    def _marcar(self, token: str, cuenta: str, message_id: str, escribiendo: bool) -> None:
+        cuerpo = {"messaging_product": "whatsapp", "status": "read", "message_id": message_id}
+        if escribiendo:
+            cuerpo["typing_indicator"] = {"type": "text"}
+        respuesta = self._post(token, cuenta, cuerpo)
+        if respuesta.status_code == 200:
+            return
+        raise self._fallo(respuesta)
+
+    def _fallo(self, respuesta: requests.Response) -> Exception:
+        """Qué es un no de Meta, por su código."""
         codigo = self._codigo(respuesta)
         if codigo in DEL_TOKEN:
-            raise TokenRechazado(f"Meta {codigo}")
+            return TokenRechazado(f"Meta {codigo}")
         motivo = f"Meta {codigo if codigo is not None else respuesta.status_code}"
         if self._se_reintenta(codigo, respuesta.status_code):
-            raise EnvioFallido(motivo)
-        raise EnvioRechazado(motivo)
+            return EnvioFallido(motivo)
+        return EnvioRechazado(motivo)
 
     @staticmethod
     def _se_reintenta(codigo: int | None, estado: int) -> bool:
@@ -81,3 +103,6 @@ class WhatsAppCloud(CanalDeMeta):
 
     async def enviar_texto(self, token: str, cuenta: str, destinatario: str, texto: str) -> str:
         return await asyncio.to_thread(self._enviar, token, cuenta, destinatario, texto)
+
+    async def marcar_leido(self, token: str, cuenta: str, message_id: str, escribiendo: bool) -> None:
+        await asyncio.to_thread(self._marcar, token, cuenta, message_id, escribiendo)

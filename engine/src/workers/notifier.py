@@ -16,6 +16,8 @@
     - **Lo que no irá nunca** (el destinatario no está en WhatsApp, pasaron las 24 horas de la ventana de atención, el
       bot ya no existe) se descarta, con el código de Meta en el log.
     - **Messenger e Instagram llegan en el E10**: hasta entonces su respuesta se descarta.
+    - **A la vez, marca como leído lo que llega y muestra «escribiendo…»** mientras se prepara la respuesta, con dos
+      consumidores más (src/workers/presencia.py, ADR-0011).
 
     El log no lleva el texto, el número, el token ni los ids de los mensajes.
 """
@@ -36,6 +38,7 @@ from src.infrastructure.bifrost import EnviadosEnBifrost
 from src.infrastructure.gateway import ApiDelGateway
 from src.infrastructure.gateway.api import clave_publica_del_gateway
 from src.infrastructure.meta import WhatsAppCloud
+from src.workers import presencia
 from src.workers.runtime import Descartado, Resultado, ejecutar, entregas, leer_del_motor, publicador
 from src.workers.settings import NotifierSettings
 
@@ -154,18 +157,25 @@ class Notificar:
         return Resultado.CONFIRMADO
 
 
-async def preparar(settings: NotifierSettings, max_deliver: int, conexion, store: EngineKeyStore | None = None):
+def piezas(settings: NotifierSettings, store: EngineKeyStore | None = None) -> tuple[ApiDelGateway, WhatsAppCloud]:
     """
-        Lo que el worker abre al arrancar: la API del gateway, para los tokens, la Cloud API de WhatsApp, el bucket
-        `enviados` con la conexión del worker, y el publicador. Devuelve cómo atender cada mensaje y cómo cerrar lo
-        abierto.
+        La API del gateway, para los tokens, y la Cloud API de WhatsApp. Las comparten los tres consumidores del
+        worker: así el token de cada bot se pide una vez para todos.
     """
     store = store or EngineKeyStore(settings.andvari_addr, settings.engine_role_id, settings.engine_secret_id_file,
                                     settings.andvari_ca_file)
     tokens = ApiDelGateway(settings.gateway_url, settings.gateway_audience,
                            clave_publica_del_gateway(settings.gateway_public_keys_file), store, NOMBRE,
                            ca_file=settings.gateway_ca_file, timeout=settings.notifier_timeout)
-    canal = WhatsAppCloud(settings.graph_url, settings.graph_version, settings.notifier_timeout)
+    return tokens, WhatsAppCloud(settings.graph_url, settings.graph_version, settings.notifier_timeout)
+
+
+async def preparar(settings: NotifierSettings, max_deliver: int, conexion, tokens: ApiDelGateway,
+                   canal: WhatsAppCloud):
+    """
+        Lo que el worker abre al arrancar, además de sus piezas: el bucket `enviados` con la conexión del worker, y el
+        publicador. Devuelve cómo atender cada respuesta y cómo cerrar lo abierto.
+    """
     publisher = publicador(settings, NOMBRE)
 
     async def cerrar() -> None:
@@ -174,11 +184,27 @@ async def preparar(settings: NotifierSettings, max_deliver: int, conexion, store
     return Notificar(tokens, canal, EnviadosEnBifrost(conexion.jetstream()), publisher, max_deliver), cerrar
 
 
+async def _nada() -> None:
+    pass
+
+
 def main() -> None:
-    """El worker: su configuración y su bucle sobre MOTOR."""
+    """
+        El worker: su configuración, su bucle sobre MOTOR y, a la vez, los del recibo de lectura y «escribiendo…»
+        (src/workers/presencia.py, ADR-0011).
+    """
     settings = NotifierSettings()
+    tokens, canal = piezas(settings)
+
+    async def leido(_max_deliver, _conexion):
+        return presencia.Leido(tokens, canal), _nada
+
+    async def escribiendo(_max_deliver, conexion):
+        return presencia.Escribiendo(tokens, canal, EnviadosEnBifrost(conexion.jetstream())), _nada
+
     asyncio.run(ejecutar(NOMBRE, settings, STREAM, CONSUMIDOR,
-                         lambda max_deliver, conexion: preparar(settings, max_deliver, conexion)))
+                         lambda max_deliver, conexion: preparar(settings, max_deliver, conexion, tokens, canal),
+                         ademas=[("MENSAJES", presencia.LEIDO, leido), ("MOTOR", presencia.ESCRIBIENDO, escribiendo)]))
 
 
 if __name__ == "__main__":

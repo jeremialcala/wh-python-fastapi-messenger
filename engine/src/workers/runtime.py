@@ -21,7 +21,7 @@ import re
 import signal
 import ssl
 import sys
-from typing import Awaitable, Callable, TypeVar
+from typing import Awaitable, Callable, Sequence, TypeVar
 
 import nats
 import nats.errors
@@ -46,6 +46,9 @@ class Resultado(enum.Enum):
 
 
 Atender = Callable[[object], Awaitable[Resultado]]
+# Cómo prepara un worker lo que atiende un consumidor: recibe su `max_deliver` y la conexión con Bifröst, y
+# devuelve cómo atender cada mensaje y cómo cerrar lo que abrió.
+Crear = Callable[[int, object], Awaitable[tuple[Atender, Callable[[], Awaitable[None]]]]]
 Sobre = TypeVar("Sobre", bound=BaseModel)
 _PARTICION = re.compile(PARTICION)
 
@@ -136,11 +139,16 @@ def configurar_log(nivel: str) -> None:
                         format="[%(asctime)s] %(levelname)-7s [%(name)s] %(message)s")
 
 
-async def ejecutar(nombre: str, settings: WorkerSettings, stream: str, consumidor: str,
-                   crear: Callable[[int, object], Awaitable[tuple[Atender, Callable[[], Awaitable[None]]]]]) -> None:
+async def ejecutar(nombre: str, settings: WorkerSettings, stream: str, consumidor: str, crear: Crear,
+                   ademas: Sequence[tuple[str, str, Crear]] = ()) -> None:
     """
         El bucle de un worker hasta que le piden parar. `crear` recibe el `max_deliver` del consumidor y la conexión
         con Bifröst, y devuelve cómo atender cada mensaje y cómo cerrar lo que abrió.
+
+        `ademas` son otros consumidores que el worker atiende a la vez, cada uno con su `(stream, consumidor,
+        crear)`: el notificador marca como leído lo que llega (ADR-0011). El fichero de vida del contenedor es el del
+        consumidor propio; los demás tocan `/tmp/<consumidor>-alive`. Si un bucle se cae, se cae el worker, y el
+        contenedor se reinicia.
     """
     configurar_log(settings.log_level)
     tracing.configure(f"engine-{nombre}")
@@ -153,15 +161,23 @@ async def ejecutar(nombre: str, settings: WorkerSettings, stream: str, consumido
                 # Windows no tiene manejadores de señales en el bucle: allí Ctrl+C para el worker tal cual.
                 pass
     connection = await conectar(settings, nombre)
-    cerrar = None
+    cierres = []
     try:
-        subscription = await connection.jetstream().pull_subscribe_bind(durable=consumidor, stream=stream)
-        info = await subscription.consumer_info()
-        atender, cerrar = await crear(info.config.max_deliver or -1, connection)
-        log.info("%s lee %s con el consumidor %s", nombre, stream, consumidor)
-        await consumir(subscription, stop, atender, pathlib.Path(f"/tmp/{nombre}-alive"))
+        bucles = []
+        for de, durable, preparar in ((stream, consumidor, crear), *ademas):
+            subscription = await connection.jetstream().pull_subscribe_bind(durable=durable, stream=de)
+            info = await subscription.consumer_info()
+            atender, cerrar = await preparar(info.config.max_deliver or -1, connection)
+            cierres.append(cerrar)
+            log.info("%s lee %s con el consumidor %s", nombre, de, durable)
+            vivo = pathlib.Path(f"/tmp/{nombre if durable == consumidor else durable}-alive")
+            bucles.append(consumir(subscription, stop, atender, vivo))
+        try:
+            await asyncio.gather(*bucles)
+        finally:
+            stop.set()
     finally:
-        if cerrar is not None:
+        for cerrar in cierres:
             await cerrar()
         await connection.drain()
         tracing.shutdown()
