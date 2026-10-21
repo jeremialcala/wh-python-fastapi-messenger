@@ -6,9 +6,16 @@
 #
 #   * one model for both tasks, Gemma 4 26B A4B in MXFP4 (15.4 GiB, Apache 2.0), all of it on the GPU, with two
 #     slots: one for each worker, so a classification never waits behind an answer
-#   * the model and the API key live in C:\hive-llm, outside the repository and OneDrive: the model is downloaded with
-#     its SHA-256 checked, and the key is made on this machine and only readable by its user. midgard's workers have
-#     a copy of the key in their keys/
+#   * the model is read from a Docker volume inside the WSL2 VM, hive-llm-modelos, not from C:\hive-llm: Windows'
+#     file bridge reads at about 100 MB/s, and under memory pressure it failed with "Out of memory". The copy in
+#     C:\hive-llm\modelos is the one downloaded with its SHA-256 checked, and it goes into the volume once (the
+#     runbook, engine/docs/05-deployment). The volume is external, so that `docker compose down -v` does not take
+#     it away
+#   * the API key lives in C:\hive-llm, outside the repository and OneDrive, made on this machine and only readable
+#     by its user. midgard's workers have a copy of the key in their keys/
+#   * the VM's memory is kept for what matters (measured on 2026-10-21): no prompt cache in RAM, and the part of the
+#     model that stays off the GPU locked in memory. With the defaults, llama-server held 7 GB of the 12 GB VM, 1.4 GB
+#     of it in swap, and a request after hours idle waited up to 16 s for it to come back
 #   * published on the LAN address only. The Windows firewall lets midgard (192.168.10.1) in and nobody else, and every
 #     request needs the key all the same
 #   * the image is llama.cpp's build b11434, pinned by digest: a tag moves, and the same line would give another server
@@ -47,8 +54,18 @@ services:
       - --jinja
       - --no-webui
       - --metrics
+      # No prompt cache in RAM (8 GiB by default): each worker keeps its own slot, with its fixed system prompt in
+      # the KV cache on the GPU, so it brings nothing here and it ends up in swap.
+      - --cache-ram
+      - "0"
+      # What stays off the GPU (the token embeddings, about 750 MB) is locked in RAM, so it is not paged out while
+      # the model sits idle. It needs the memlock limit below. In this build it is a load mode, not --mlock.
+      - --load-mode
+      - mmap+mlock
+    ulimits:
+      memlock: {soft: -1, hard: -1}
     volumes:
-      - C:/hive-llm/modelos:/models:ro
+      - modelos:/models:ro
       - C:/hive-llm/api-key:/run/llm/api-key:ro
     ports:
       - "192.168.10.74:8080:8080"
@@ -61,3 +78,8 @@ services:
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
+
+volumes:
+  modelos:
+    name: hive-llm-modelos
+    external: true

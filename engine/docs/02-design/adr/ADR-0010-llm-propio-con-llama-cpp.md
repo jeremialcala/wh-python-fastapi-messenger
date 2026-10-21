@@ -92,7 +92,13 @@ llama.cpp reutiliza el prefijo del `system`: 344 de los 367 tokens de una clasif
 - **La disponibilidad del LLM es la del equipo.** Tiene que estar encendido, con Docker Desktop arrancado. Docker
   Desktop arranca con la sesión del usuario, no como servicio. Si cae, cada mensaje se reintenta unos 6,5 minutos
   y la persona recibe el texto fijo de «no disponible».
-  - Cargar el modelo tarda unos 3 minutos tras un arranque: Docker Desktop lee los 15 GiB desde Windows.
+  - Cargar el modelo tarda unos 40 s tras un arranque, desde el volumen `hive-llm-modelos` de la VM. Eran 3 a 6
+    minutos mientras se leía desde Windows (cambiado el 2026-10-21).
+  - **La memoria de la VM, medida el 2026-10-21.** Con los valores por defecto de llama-server, una consulta tras
+    horas sin uso llegó a tardar 16 s: llama-server tenía 7 GB de memoria propia en la VM, 1,4 GB de ellos en swap
+    (la caché de prompts en RAM, hasta 8 GiB), y lo que el modelo deja fuera de la GPU estaba fuera de memoria.
+    Desde entonces corre con `--cache-ram 0` y `--load-mode mmap+mlock`: 0,9 GB de memoria propia, y los 748 MB
+    que no van a la GPU, bloqueados en RAM.
 - **El clasificador y el de respuesta ya no necesitan Andvari:** solo Bifröst y la clave del LLM. Sus roles y sus
   `secret_id`, y las claves de Anthropic guardadas en `motor/data/anthropic/<worker>`, quedan sin uso: se retiran
   (pendiente), y las claves se revocan en la consola de Anthropic.
