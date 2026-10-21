@@ -8,13 +8,17 @@
     Most of these tests use a key from before keys had a worker, which reaches every route of the engine until
     it is taken out; the ones about workers are at the end.
 """
+import asyncio
 import hashlib
 import hmac
+import inspect
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+import httpx
 import mongoengine
 import pytest
 from fastapi.routing import APIRoute
@@ -551,6 +555,43 @@ def test_without_the_key_service_no_turn_is_handed_out(http, acme, engine, bot, 
     response = turns_of(http, engine, bot, contact)
 
     assert response.status_code == 503 and "pregunta" not in response.text
+
+
+def test_a_slow_read_for_the_engine_does_not_hold_the_other_requests(http, acme, engine, bot, monkeypatch):
+    """
+        On midgard one query to Atlas that never came back left the whole API without an answer, its health check
+        included: the request that waited held the event loop. A read for the engine now waits in a thread.
+    """
+    contact = conversation(acme, bot, turns=1)
+    monkeypatch.setattr(TenantRepository, "last_turns", lambda self, contact, turns=10: time.sleep(1.5) or [])
+
+    async def turns_and_health():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app_module.app),
+                                     base_url="http://testserver") as client:
+            # Timed from before the slow request: a held event loop would hold the clock too.
+            started = time.monotonic()
+            turns = asyncio.create_task(client.get(f"/chat/{bot}/contacts/{contact._uuid}/turns",
+                                                   headers=engine.auth))
+            await asyncio.sleep(0.3)
+            health = await client.get("/health")
+            return health.status_code, time.monotonic() - started, (await turns).status_code
+
+    health, answered_after, turns = asyncio.run(turns_and_health())
+
+    assert (health, turns) == (200, 200)
+    assert answered_after < 1.0
+
+
+@pytest.mark.parametrize("route", [("GET", "/chat/{bot_id}/contacts/{contact_id}/turns"),
+                                   ("GET", "/chat/{bot_id}/rules"), ("GET", "/chat/{bot_id}/tokens"),
+                                   ("GET", "/chat/{bot_id}/tools")])
+def test_the_routes_of_the_engine_and_the_authentication_run_in_a_thread(route):
+    endpoint = next(r.endpoint for r in app_module.app.routes
+                    if isinstance(r, APIRoute) and (route[1], route[0]) in {(r.path, m) for m in r.methods})
+
+    assert not inspect.iscoroutinefunction(endpoint)
+    assert not inspect.iscoroutinefunction(app_module.get_principal)
+    assert not inspect.iscoroutinefunction(app_module.get_repository)
 
 
 def test_every_time_the_turns_are_handed_out_leaves_a_trace_that_production_keeps(http, acme, engine, bot, caplog):

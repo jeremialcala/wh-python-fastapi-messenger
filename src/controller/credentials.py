@@ -35,7 +35,7 @@ async def ctr_set_bot_credentials(repo: TenantRepository, bot_id: str, request: 
     return answer(status.HTTP_200_OK, data={"uuid": str(bot.uuid), "credentials": bot.chatbot_info()["credentials"]})
 
 
-async def ctr_get_bot_tokens(repo: TenantRepository, bot_id: str, engine: Principal) -> JSONResponse:
+def ctr_get_bot_tokens(repo: TenantRepository, bot_id: str, engine: Principal) -> JSONResponse:
     """The tokens the response engine sends with. Not the App Secret: that one only checks what Meta sends."""
     try:
         bot = repo.get_bot(bot_id)

@@ -9,6 +9,7 @@ from inspect import currentframe
 from enums import Status
 
 from .tool_settings import Settings
+from .tool_database import connect_database
 from .entity_jwk import EventJwk
 from .entity_jwk import Jwk
 from .dto_protected_header import ProtectedHeader
@@ -17,12 +18,7 @@ from .dto_message_body import MessageBody
 
 settings = Settings()
 log = logging.getLogger(settings.environment)
-connect(
-    db=settings.db_name,
-    username=settings.db_username,
-    password=settings.db_password,
-    host=settings.db_host
-)
+connect_database(settings)
 
 
 def _now():

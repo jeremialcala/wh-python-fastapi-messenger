@@ -329,7 +329,7 @@ async def ctr_delete_intent(repo: TenantRepository, bot_id: str, intent_id: str,
     return response
 
 
-async def ctr_get_bot_tools(repo: TenantRepository, bot_id: str, eventId: str = None) -> Response:
+def ctr_get_bot_tools(repo: TenantRepository, bot_id: str, eventId: str = None) -> Response:
     """
     Aggregate every active action of every active intent of the bot into a flat
     list of LLM tool definitions. This is the bridge consumed by the worker.
