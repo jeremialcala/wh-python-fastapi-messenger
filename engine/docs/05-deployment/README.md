@@ -62,11 +62,22 @@ tiene para su cliente.
 
    Los `role_id` que imprime van al `.env` del motor.
 3. **El LLM**, en el equipo de la RTX 3090:
-   - el modelo en `C:\hive-llm\modelos`, con su SHA-256 comprobado contra el de Hugging Face;
+   - el modelo en `C:\hive-llm\modelos`, con su SHA-256 comprobado contra el de Hugging Face, y una copia en el
+     volumen `hive-llm-modelos`, dentro de la VM, que es de donde lo lee llama-server. Desde Windows se lee a unos
+     100 MB/s, y con la VM apretada de memoria `cp` falló con «Out of memory»: `dd` con bloques de 1 MB no.
+     La copia tarda unos 3 minutos y el `.sha256` lleva el `\r` de Windows:
+
+     ```bash
+     docker volume create hive-llm-modelos
+     docker run --rm -v C:/hive-llm/modelos:/origen:ro -v hive-llm-modelos:/modelos alpine:3.20 sh -c '
+       dd if=/origen/gemma-4-26B-A4B-it-MXFP4_MOE.gguf of=/modelos/gemma-4-26B-A4B-it-MXFP4_MOE.gguf bs=1M &&
+       cd /modelos && [ "$(cut -d" " -f1 /origen/*.sha256 | tr -d "\r\n")" = "$(sha256sum *.gguf | cut -d" " -f1)" ] &&
+       chmod 444 *.gguf && echo "SHA-256 coincide"'
+     ```
    - la clave en `C:\hive-llm\api-key`, nacida allí, con un solo salto de línea (`\n`, no `\r\n`: llama-server toma
      el `\r` como parte de la clave) y legible solo por su usuario;
-   - `docker compose up -d` en `engine/deploy/llm`. Cargar el modelo tarda unos 3 minutos, y unos 6 después de un
-     `wsl --shutdown`, con la caché de Windows fría;
+   - `docker compose up -d` en `engine/deploy/llm`. Cargar el modelo desde el volumen tarda unos 40 s (eran 3 a 6
+     minutos desde Windows);
    - la VM de Docker Desktop, con 12 GB en `%USERPROFILE%\.wslconfig` (`memory=12GB`). Con 8 GB se colgó el
      2026-10-21, con el modelo y dos clústeres kind dentro;
    - en el cortafuegos de Windows, desde un PowerShell de administrador, que solo entre midgard. Una regla que

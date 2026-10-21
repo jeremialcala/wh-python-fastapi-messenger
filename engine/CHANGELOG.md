@@ -181,6 +181,15 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
   `jwcrypto` y `cryptography` se quedan: los usa `shared.auth`. `PyYAML` pasa a las dependencias de desarrollo.
 
 ### Corregido
+- **La primera consulta al LLM tras horas sin uso tardaba hasta 16 s** (ADR-0010, medido el 2026-10-21). La
+  generación iba a su velocidad: lo lento era traer de vuelta la memoria de la VM de Docker Desktop. llama-server
+  tenía 7 GB propios en la VM de 12, 1,4 GB en swap, casi todo su caché de prompts en RAM (hasta 8 GiB por defecto).
+  Y de los 748 MB que el modelo deja fuera de la GPU, solo 5 MB estaban en memoria.
+  - `--cache-ram 0`: cada worker tiene su ranura con su `system` en la GPU, y esa caché no le aportaba nada.
+  - `--load-mode mmap+mlock`, con `memlock` sin límite: esos 748 MB quedan bloqueados en RAM.
+  - **El modelo, en el volumen `hive-llm-modelos`** de la VM, no en `C:\hive-llm`: cargarlo pasa de 3 a 6 minutos a
+    unos 40 s. Desde Windows se leía a ~100 MB/s, y con la VM apretada `cp` llegó a fallar con «Out of memory».
+  - Resultado: 0,9 GB de memoria propia, 0,1 GB en swap, y la de toda la VM, de 7,3 a 2,4 GB.
 - **Un mensaje atendido con retraso tenía por contexto lo que vino después.** El gateway da las últimas vueltas en el
   momento de la consulta. En midgard (2026-10-21), con el gateway colgado, el coordinador atendió cuatro mensajes
   minutos tarde, y la respuesta al primero llevó en sus vueltas los otros tres, que la persona escribió después.
