@@ -8,6 +8,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Añadido
+- **El vigía de Hive en midgard** (`deploy/vigia/`; decisión de Jeremi del 2026-10-21). Docker marca `unhealthy` un
+  contenedor cuyo healthcheck falla, pero no lo reinicia: el 2026-10-21, `bots-gateway` pasó seis minutos colgado sin
+  que nada lo levantara.
+  - `hive-vigia.timer` mira cada minuto el gateway, el webhook, la ingesta y los cuatro workers del motor, reinicia el
+    que esté `unhealthy` y avisa por ntfy, por el canal de los otros vigías de midgard.
+  - Tras 3 reinicios en una hora deja de reiniciarlo y avisa con urgencia, una vez por hora.
+  - Corre en el host, no en un contenedor con el socket de Docker, que sería root en midgard.
+  - Si no puede avisar, reinicia igual: queda en `journalctl -u hive-vigia`.
 - **El túnel propio de Hive**, `hive-tunel` (E7; ADR-0024): publica `hive-webhook.higerotech.com` hacia el webhook y
   `hive-api.higerotech.com` hacia la API de gestión. Llega a ellos por una red, `publico`, que solo los une a ellos
   dos. Solo arranca con `COMPOSE_PROFILES=tunel`, y su token es `TUNNEL_TOKEN` en el `.env`.

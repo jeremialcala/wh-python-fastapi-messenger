@@ -8,9 +8,11 @@
 #     tag back up
 #   * Bifröst: each worker reads its own file of credentials, as Bifröst wrote it (its user, password and prefix of
 #     reply subjects), and Bifröst's CA, both read-only, over the external `bifrost` network
-#   * Andvari: each worker logs in with its own AppRole, `motor-<worker>`. The role ids are not secret and come from
-#     .env; each secret id is a file in keys/, readable only by uid 10001, the image's user. With its role it reads
-#     its key for each client and, if it calls Claude, its key of the Anthropic API (ADR-0009)
+#   * Andvari: the coordinator and the notifier log in with their own AppRole, `motor-<worker>`, to read their key for
+#     each client. The role ids are not secret and come from .env; each secret id is a file in keys/, readable only
+#     by uid 10001, the image's user
+#   * the LLM: the classifier and the responder call Hive's llama.cpp on the LAN (ADR-0010), at LLM_URL of .env, with
+#     the key of keys/llm-api-key. Neither of them needs Andvari
 #   * the gateway's management API is reached over the external `andvari` network, as host `bots-gateway`. The
 #     coordinator and the notifier sign their calls with the gateway's public key, keys/gateway-public.json, and the
 #     audience of .env, GATEWAY_AUDIENCE (ADR-0024)
@@ -44,6 +46,12 @@ x-andvari: &andvari
   OTEL_EXPORTER_OTLP_ENDPOINT: http://saga:4318
   LOG_LEVEL: INFO
 
+x-llm: &llm
+  LLM_URL: ${LLM_URL:?LLM_URL is required}
+  LLM_API_KEY_FILE: /run/llm/api-key
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://saga:4318
+  LOG_LEVEL: INFO
+
 x-gateway: &gateway
   GATEWAY_URL: http://bots-gateway:5002
   GATEWAY_AUDIENCE: ${GATEWAY_AUDIENCE:?GATEWAY_AUDIENCE is required}
@@ -55,13 +63,13 @@ services:
     container_name: hive-classifier
     command: ["python", "-m", "src.workers.classifier"]
     env_file: [/srv/infra/bifrost/credenciales/classifier.env]
+    # Bifröst, Saga y la LAN: no necesita Andvari.
+    networks: [bifrost, saga]
     environment:
-      <<: *andvari
+      <<: *llm
       OTEL_SERVICE_NAME: engine-classifier
-      ENGINE_ROLE_ID: ${CLASSIFIER_ROLE_ID:?CLASSIFIER_ROLE_ID is required}
     volumes:
-      - ./keys/classifier-secret-id:/run/andvari/secret-id:ro
-      - /srv/infra/andvari/tls/ca.crt:/run/andvari/ca.crt:ro
+      - ./keys/llm-api-key:/run/llm/api-key:ro
       - /srv/infra/bifrost/tls/ca.crt:/run/bifrost/ca.crt:ro
     healthcheck: &alive
       test: ["CMD", "python", "-c",
@@ -95,13 +103,12 @@ services:
     container_name: hive-responder
     command: ["python", "-m", "src.workers.responder"]
     env_file: [/srv/infra/bifrost/credenciales/responder.env]
+    networks: [bifrost, saga]
     environment:
-      <<: *andvari
+      <<: *llm
       OTEL_SERVICE_NAME: engine-responder
-      ENGINE_ROLE_ID: ${RESPONDER_ROLE_ID:?RESPONDER_ROLE_ID is required}
     volumes:
-      - ./keys/responder-secret-id:/run/andvari/secret-id:ro
-      - /srv/infra/andvari/tls/ca.crt:/run/andvari/ca.crt:ro
+      - ./keys/llm-api-key:/run/llm/api-key:ro
       - /srv/infra/bifrost/tls/ca.crt:/run/bifrost/ca.crt:ro
     healthcheck:
       <<: *alive

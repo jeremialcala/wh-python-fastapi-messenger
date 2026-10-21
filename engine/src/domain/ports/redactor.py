@@ -24,7 +24,7 @@ class Redaccion:
 
     @property
     def rechazada(self) -> bool:
-        """Si nadie la escribió: Opus 5.5 y los modelos que lo sustituyen la rechazaron."""
+        """Si nadie la escribió: el modelo la rechazó."""
         return self.texto is None
 
 

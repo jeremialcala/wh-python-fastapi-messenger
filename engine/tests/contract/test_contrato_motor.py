@@ -51,8 +51,8 @@ def resolver(puntero):
     return nodo
 
 
-def test_es_la_version_1_del_sobre():
-    assert (DOCUMENTO["asyncapi"], DOCUMENTO["info"]["version"]) == ("3.0.0", "1.3.0")
+def test_es_la_version_2_del_sobre():
+    assert (DOCUMENTO["asyncapi"], DOCUMENTO["info"]["version"]) == ("3.0.0", "2.0.0")
     assert SCHEMAS["Sobre"]["properties"]["schemaVersion"]["const"] == ESQUEMA
 
 
@@ -92,7 +92,7 @@ class Bifrost:
         self.publicado.append((subject, json.loads(payload), {**(headers or {}), "Nats-Msg-Id": message_id}))
 
 
-class Claude:
+class Modelo:
 
     def __init__(self, respuesta):
         self._respuesta = respuesta
@@ -105,9 +105,9 @@ class Claude:
 
 @pytest.mark.parametrize("respuesta", [
     Clasificacion(permitido=True, motivo="ninguno", etiqueta="pedido", confianza=0.8,
-                  entidades=[Entidad(nombre="pedido", valor="A-1234")], modelo="claude-haiku-5-5"),
-    Clasificacion(permitido=False, motivo="inyeccion", etiqueta="otro", confianza=0.99, modelo="claude-haiku-5-5"),
-    Clasificacion.sin_veredicto("rechazo", modelo="claude-haiku-5-5"),
+                  entidades=[Entidad(nombre="pedido", valor="A-1234")], modelo="gemma-4-26b-a4b"),
+    Clasificacion(permitido=False, motivo="inyeccion", etiqueta="otro", confianza=0.99, modelo="gemma-4-26b-a4b"),
+    Clasificacion.sin_veredicto("rechazo", modelo="gemma-4-26b-a4b"),
     ClasificacionFallida("APITimeoutError"),
 ], ids=["permitido", "bloqueado", "rechazo", "error"])
 @pytest.mark.parametrize("canal", ["whatsapp", "messenger"])
@@ -121,7 +121,7 @@ def test_el_sobre_del_clasificador_cumple_el_contrato(respuesta, canal):
               "orderKey": f"{bot}.{contacto}", "contact": {"uuid": str(contacto), "name": "Ana", **quien}}
     bifrost = Bifrost()
 
-    asyncio.run(Clasificar(Claude(respuesta), bifrost, 4)(Mensaje(evento, f"gateway.message.3.{bot}.{contacto}")))
+    asyncio.run(Clasificar(Modelo(respuesta), bifrost, 4)(Mensaje(evento, f"gateway.message.3.{bot}.{contacto}")))
 
     (subject, sobre, cabeceras), = bifrost.publicado
     validador("MensajeClasificado").validate(sobre)
@@ -142,19 +142,19 @@ class Gateway:
     async def persona(self, _client_id, _bot_id):
         return Persona(nombre="Mine", rol="Sales Assistant", tono="helpful", descripcion="", reglas=["Be kind"])
 
-    async def vueltas(self, _client_id, _bot_id, _contact_id, _sin):
+    async def vueltas(self, _client_id, _bot_id, _contact_id, _sin, _hasta):
         return [Vuelta(de="persona", texto="hola", enviadaEn="2026-10-20T08:00:00+00:00"),
                 Vuelta(de="bot", texto="", adjuntos=["image"], enviadaEn="2026-10-20T08:00:05+00:00")]
 
 
 @pytest.mark.parametrize("clasificacion", [
-    Clasificacion(permitido=True, motivo="ninguno", etiqueta="pedido", confianza=0.8, modelo="claude-haiku-5-5"),
-    Clasificacion(permitido=False, motivo="abuso", etiqueta="otro", confianza=0.99, modelo="claude-haiku-5-5"),
+    Clasificacion(permitido=True, motivo="ninguno", etiqueta="pedido", confianza=0.8, modelo="gemma-4-26b-a4b"),
+    Clasificacion(permitido=False, motivo="abuso", etiqueta="otro", confianza=0.99, modelo="gemma-4-26b-a4b"),
     Clasificacion.sin_veredicto("sin_texto"),
-], ids=["con claude", "no_puedo", "solo_texto"])
+], ids=["con modelo", "no_puedo", "solo_texto"])
 def test_el_pedido_del_coordinador_cumple_el_contrato(clasificacion):
     bot, contacto = uuid4(), uuid4()
-    clasificado = {"schemaVersion": 1, "botId": str(bot), "clientId": str(uuid4()), "messageId": "wamid.A",
+    clasificado = {"schemaVersion": 2, "botId": str(bot), "clientId": str(uuid4()), "messageId": "wamid.A",
                    "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{bot}.{contacto}",
                    "contact": {"uuid": str(contacto), "waId": "12025550143"},
                    "entrada": {"texto": "hola", "adjuntos": []}, "clasificacion": clasificacion.model_dump()}
@@ -169,7 +169,7 @@ def test_el_pedido_del_coordinador_cumple_el_contrato(clasificacion):
     assert subject == f"motor.pedido.3.{bot}.{contacto}"
 
 
-class ClaudeQueResponde:
+class ModeloQueResponde:
 
     def __init__(self, redaccion):
         self._redaccion = redaccion
@@ -179,25 +179,25 @@ class ClaudeQueResponde:
 
 
 @pytest.mark.parametrize("respuesta, redaccion", [
-    ("claude", Redaccion(texto="Sí, tenemos zapatos rojos.", modelo="claude-opus-5-5")),
-    ("claude", Redaccion(texto=None, modelo="claude-opus-4-8")),
+    ("modelo", Redaccion(texto="Sí, tenemos zapatos rojos.", modelo="gemma-4-26b-a4b")),
+    ("modelo", Redaccion(texto=None, modelo="gemma-4-26b-a4b")),
     ("solo_texto", None),
-], ids=["de claude", "rechazo", "texto fijo"])
+], ids=["de modelo", "rechazo", "texto fijo"])
 def test_la_respuesta_cumple_el_contrato(respuesta, redaccion):
     bot, contacto = uuid4(), uuid4()
-    pedido = {"schemaVersion": 1, "botId": str(bot), "clientId": str(uuid4()), "messageId": "wamid.A",
+    pedido = {"schemaVersion": 2, "botId": str(bot), "clientId": str(uuid4()), "messageId": "wamid.A",
               "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{bot}.{contacto}",
               "contact": {"uuid": str(contacto), "waId": "12025550143"},
               "entrada": {"texto": "hola", "adjuntos": []},
               "clasificacion": Clasificacion(permitido=True, motivo="ninguno", etiqueta="saludo", confianza=0.9,
-                                             modelo="claude-haiku-5-5").model_dump(),
+                                             modelo="gemma-4-26b-a4b").model_dump(),
               "pedido": {"respuesta": respuesta,
                          "persona": ({"nombre": "Mine", "rol": "Sales", "tono": "helpful", "descripcion": "",
-                                      "reglas": []} if respuesta == "claude" else None),
+                                      "reglas": []} if respuesta == "modelo" else None),
                          "vueltas": []}}
     bifrost = Bifrost()
 
-    asyncio.run(Responder(ClaudeQueResponde(redaccion), bifrost, 4)(Mensaje(pedido, f"motor.pedido.3.{bot}.{contacto}")))
+    asyncio.run(Responder(ModeloQueResponde(redaccion), bifrost, 4)(Mensaje(pedido, f"motor.pedido.3.{bot}.{contacto}")))
 
     (subject, sobre, cabeceras), = bifrost.publicado
     validador("MensajeRespondido").validate(sobre)
@@ -233,7 +233,7 @@ def test_lo_que_publica_el_notificador_cumple_el_contrato_v2_del_gateway():
             pass
 
     bot, contacto = uuid4(), uuid4()
-    respondido = {"schemaVersion": 1, "botId": str(bot), "clientId": str(uuid4()), "messageId": "wamid.A",
+    respondido = {"schemaVersion": 2, "botId": str(bot), "clientId": str(uuid4()), "messageId": "wamid.A",
                   "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{bot}.{contacto}",
                   "contact": {"uuid": str(contacto), "waId": "12025550143"}, "cuentaDelBot": "106540352242922",
                   "entrada": {"texto": "hola", "adjuntos": []},

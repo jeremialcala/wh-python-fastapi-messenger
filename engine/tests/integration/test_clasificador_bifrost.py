@@ -2,7 +2,7 @@
 """
     El clasificador contra un NATS JetStream de verdad, con los permisos que Bifröst da a su usuario
     (nats-test.conf): se ata al consumidor `MENSAJES/classifier`, lee el mensaje identificado que publicó el gateway,
-    publica el sobre en `MOTOR` y solo entonces lo confirma. Claude lo sustituye un doble.
+    publica el sobre en `MOTOR` y solo entonces lo confirma. Modelo lo sustituye un doble.
 
         docker run --rm -p 127.0.0.1:24222:4222 -v "$PWD/tests/integration/nats-test.conf:/etc/nats/test.conf:ro" \
             nats:2.14.8-alpine -c /etc/nats/test.conf
@@ -86,7 +86,7 @@ def identificado(bot, contacto, texto="¿tienen zapatos rojos?"):
             "contact": {"uuid": str(contacto), "name": "Ana", "waId": "12025550143"}}
 
 
-class Claude(ClasificadorDeEntrada):
+class Modelo(ClasificadorDeEntrada):
 
     def __init__(self, *respuestas):
         self._respuestas = list(respuestas)
@@ -99,10 +99,10 @@ class Claude(ClasificadorDeEntrada):
 
 
 PERMITIDO = Clasificacion(permitido=True, motivo="ninguno", etiqueta="pregunta", confianza=0.9,
-                          modelo="claude-haiku-5-5")
+                          modelo="gemma-4-26b-a4b")
 
 
-async def _clasificar(url, claude, evento, subject, hasta):
+async def _clasificar(url, modelo, evento, subject, hasta):
     """Publica el evento como el gateway y deja correr al clasificador hasta que `hasta` diga que ya está."""
     async def publicar(js):
         await js.publish(subject, json.dumps(evento).encode(), headers={"Nats-Msg-Id": f"x:{uuid4()}"})
@@ -114,7 +114,7 @@ async def _clasificar(url, claude, evento, subject, hasta):
     try:
         suscripcion = await conexion.jetstream().pull_subscribe_bind(durable=CONSUMIDOR, stream=STREAM)
         info = await suscripcion.consumer_info()
-        atender = Clasificar(claude, publisher, info.config.max_deliver)
+        atender = Clasificar(modelo, publisher, info.config.max_deliver)
         stop = asyncio.Event()
 
         async def vigilar():
@@ -159,7 +159,7 @@ def test_el_clasificador_lee_mensajes_publica_el_sobre_en_motor_y_confirma(strea
     async def hecho(js):
         return await _confirmados(js) == 1
 
-    asyncio.run(_clasificar(streams, Claude(PERMITIDO), evento, f"gateway.message.5.{bot}.{contacto}", hecho))
+    asyncio.run(_clasificar(streams, Modelo(PERMITIDO), evento, f"gateway.message.5.{bot}.{contacto}", hecho))
 
     subject, sobre, cabeceras = como_admin(streams, _sobre)
     assert subject == f"motor.clasificado.5.{bot}.{contacto}"
@@ -174,7 +174,7 @@ def test_sin_veredicto_bifrost_lo_entrega_otra_vez_y_la_segunda_sale(streams):
     async def hecho(js):
         return await _confirmados(js) == 1
 
-    asyncio.run(_clasificar(streams, Claude(ClasificacionFallida("APITimeoutError"), PERMITIDO),
+    asyncio.run(_clasificar(streams, Modelo(ClasificacionFallida("APITimeoutError"), PERMITIDO),
                             identificado(bot, contacto), f"gateway.message.5.{bot}.{contacto}", hecho))
 
     assert como_admin(streams, _clasificados) == 1

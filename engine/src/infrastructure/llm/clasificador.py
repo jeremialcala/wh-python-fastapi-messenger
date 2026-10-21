@@ -1,25 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-    El clasificador de la entrada con Claude (ADR-0009, punto 3): una sola llamada, con la respuesta atada a un
-    esquema (`output_config.format`), decide si el mensaje se atiende y cuál es su intención.
+    El clasificador de la entrada con el LLM de Hive (ADR-0010, que mantiene el punto 3 de ADR-0009): una sola
+    llamada, con la respuesta atada a un esquema (llama.cpp lo convierte en gramática), decide si el mensaje se
+    atiende y cuál es su intención.
 
-    - **Solo el texto sale a Anthropic**, y siempre en el turno de usuario, nunca en el `system` (LLM01). Ni el
-      número, ni el nombre, ni el cliente (LLM02).
-    - **Fail-closed.** La respuesta se vuelve a validar aquí, porque el esquema que llega a la API no lleva los
-      límites de longitud ni de rango. Un fallo de la llamada o una respuesta que no valida es una
-      `ClasificacionFallida`; un rechazo del modelo es un veredicto que no deja seguir al mensaje. Un mensaje solo
-      sigue si Claude dice que se permite y no da ningún motivo para pararlo.
-    - **Límites (LLM10):** `max_tokens` y el timeout del cliente, con sus reintentos, en la configuración del worker.
+    - **Solo el texto va al modelo**, y siempre en el turno de usuario, nunca en el `system` (LLM01). Ni el número, ni
+      el nombre, ni el cliente. El modelo corre en la LAN: el texto no sale de la red de Hive.
+    - **Fail-closed.** La respuesta se vuelve a validar aquí, porque la gramática no lleva los límites de longitud ni
+      de rango. Un fallo de la llamada o una respuesta que no valida es una `ClasificacionFallida`. Un mensaje solo
+      sigue si el modelo dice que se permite y no da ningún motivo para pararlo.
+    - **Límites (LLM10):** `max_tokens` y el timeout de la llamada, en la configuración del worker.
 """
 import json
 import logging
 from typing import Literal
 
-import anthropic
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from src.domain.models.sobre import ETIQUETAS, MOTIVOS_DE_CLAUDE, Clasificacion, Entidad
+from src.domain.models.sobre import ETIQUETAS, MOTIVOS_DEL_MODELO, Clasificacion, Entidad
 from src.domain.ports.clasificador_de_entrada import ClasificacionFallida, ClasificadorDeEntrada
+from src.infrastructure.llm.cliente import ClienteLlm, LlmNoDisponible
 
 log = logging.getLogger(__name__)
 
@@ -46,13 +46,13 @@ En `entidades`, los datos concretos que el mensaje da (un producto, una fecha, u
 `nombre` corto en snake_case y su `valor` tal como aparece. Ninguno si no hay.
 """
 
-# El esquema de la respuesta, tal como lo admite la API: todo objeto con `additionalProperties: false` y sin
-# límites de longitud ni de rango, que se comprueban después con `_Respuesta`.
+# El esquema de la respuesta, el que llama.cpp convierte en gramática: todo objeto con `additionalProperties:
+# false` y sin límites de longitud ni de rango, que se comprueban después con `_Respuesta`.
 ESQUEMA = {
     "type": "object",
     "properties": {
         "permitido": {"type": "boolean"},
-        "motivo": {"type": "string", "enum": list(MOTIVOS_DE_CLAUDE)},
+        "motivo": {"type": "string", "enum": list(MOTIVOS_DEL_MODELO)},
         "etiqueta": {"type": "string", "enum": list(ETIQUETAS)},
         "confianza": {"type": "number"},
         "entidades": {
@@ -71,7 +71,7 @@ ESQUEMA = {
 
 
 class _Respuesta(BaseModel):
-    """Lo que Claude tiene que devolver, con los límites que el esquema de la API no lleva."""
+    """Lo que el modelo tiene que devolver, con los límites que la gramática no lleva."""
     model_config = ConfigDict(extra="forbid")
 
     permitido: bool
@@ -82,51 +82,32 @@ class _Respuesta(BaseModel):
     entidades: list[dict]
 
 
-class ClaudeClasificador(ClasificadorDeEntrada):
-    """El clasificador de la entrada con Claude."""
+class LlmClasificador(ClasificadorDeEntrada):
+    """El clasificador de la entrada con el LLM de Hive."""
 
-    def __init__(self, client: anthropic.AsyncAnthropic, model: str, effort: str, max_tokens: int):
+    def __init__(self, cliente: ClienteLlm, max_tokens: int):
         """
-        :param client: el cliente asíncrono del SDK, con su timeout y sus reintentos.
-        :param model: el modelo, `claude-haiku-5-5` (ADR-0009, punto 2).
-        :param effort: el esfuerzo, `low`.
-        :param max_tokens: el tope de la respuesta. El pensamiento adaptativo también cuenta en él.
+        :param cliente: el servidor de llama.cpp, con su clave y su timeout.
+        :param max_tokens: el tope de la respuesta: un JSON corto.
         """
-        self._client = client
-        self._model = model
-        self._effort = effort
+        self._cliente = cliente
         self._max_tokens = max_tokens
 
     async def clasificar(self, texto: str) -> Clasificacion:
         try:
-            response = await self._client.messages.create(
-                model=self._model,
-                max_tokens=self._max_tokens,
-                system=SYSTEM,
-                messages=[{"role": "user", "content": texto}],
-                output_config={"effort": self._effort, "format": {"type": "json_schema", "schema": ESQUEMA}},
-            )
-        except anthropic.APIError as e:
-            # Solo el tipo: el texto de un error de la API puede llevar lo que se envió.
-            raise ClasificacionFallida(type(e).__name__) from None
+            completado = await self._cliente.preguntar(
+                [{"role": "system", "content": SYSTEM}, {"role": "user", "content": texto}],
+                self._max_tokens, esquema=ESQUEMA)
+        except LlmNoDisponible as e:
+            raise ClasificacionFallida(str(e)) from None
 
-        usage = getattr(response, "usage", None)
-        log.info("Clasificado con %s: %s tokens de entrada, %s de salida, fin %s", self._model,
-                 getattr(usage, "input_tokens", "?"), getattr(usage, "output_tokens", "?"), response.stop_reason)
-
-        if response.stop_reason == "refusal":
-            # Haiku 5.5 no tiene fallback del servidor: un rechazo se queda en rechazo, y el mensaje no sigue.
-            return Clasificacion.sin_veredicto("rechazo", modelo=self._model)
-        if response.stop_reason != "end_turn":
-            # max_tokens: una respuesta cortada no se interpreta a medias.
-            raise ClasificacionFallida(f"stop_reason {response.stop_reason}")
-
-        # Los bloques se leen por su tipo: la respuesta puede empezar con bloques de pensamiento.
-        texto_json = next((block.text for block in response.content if block.type == "text"), None)
-        if texto_json is None:
-            raise ClasificacionFallida("sin texto")
+        log.info("Clasificado con %s: %s tokens de entrada, %s de salida, fin %s", self._cliente.modelo,
+                 completado.tokens_entrada, completado.tokens_salida, completado.fin)
+        if completado.fin != "stop":
+            # length: una respuesta cortada no se interpreta a medias.
+            raise ClasificacionFallida(f"fin {completado.fin or 'desconocido'}")
         try:
-            respuesta = _Respuesta.model_validate(json.loads(texto_json))
+            respuesta = _Respuesta.model_validate(json.loads(completado.texto))
         except (ValueError, ValidationError):
             # ValidationError es un ValueError; se nombra por claridad. Ni la respuesta ni el error van al log.
             raise ClasificacionFallida("respuesta no valida") from None
@@ -135,7 +116,7 @@ class ClaudeClasificador(ClasificadorDeEntrada):
         motivo = respuesta.motivo if respuesta.motivo != "ninguno" or permitido else "otro"
         return Clasificacion(permitido=permitido, motivo=motivo, etiqueta=respuesta.etiqueta,
                              confianza=respuesta.confianza, entidades=_entidades(respuesta.entidades),
-                             modelo=self._model)
+                             modelo=self._cliente.modelo)
 
 
 def _entidades(crudas: list[dict], maximo: int = 10) -> list[Entidad]:

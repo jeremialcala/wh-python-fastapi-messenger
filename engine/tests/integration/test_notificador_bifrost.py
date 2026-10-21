@@ -89,13 +89,13 @@ class Meta:
 
 
 def respondido(bot, contacto, message_id):
-    return {"schemaVersion": 1, "botId": str(bot), "clientId": str(uuid4()), "messageId": message_id,
+    return {"schemaVersion": 2, "botId": str(bot), "clientId": str(uuid4()), "messageId": message_id,
             "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{bot}.{contacto}",
             "contact": {"uuid": str(contacto), "waId": "12025550143"}, "cuentaDelBot": "106540352242922",
             "entrada": {"texto": "¿tienen zapatos rojos?", "adjuntos": []},
             "clasificacion": {"permitido": True, "motivo": "ninguno", "etiqueta": "pregunta", "confianza": 0.9,
-                              "entidades": [], "modelo": "claude-haiku-5-5"},
-            "respuesta": {"texto": "Sí, tenemos zapatos rojos.", "fuente": "claude", "modelo": "claude-opus-5-5"}}
+                              "entidades": [], "modelo": "gemma-4-26b-a4b"},
+            "respuesta": {"texto": "Sí, tenemos zapatos rojos.", "fuente": "modelo", "modelo": "gemma-4-26b-a4b"}}
 
 
 def ajustes(url):

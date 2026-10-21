@@ -19,17 +19,18 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-ESQUEMA = 1
+# 2 desde ADR-0010: lo que responde el LLM se dice `modelo`, no `claude`. Todos los workers se despliegan juntos.
+ESQUEMA = 2
 
 # La partición es la del evento del gateway, que nadie vuelve a calcular (ADR-0008, punto 2).
 PARTICION = r"^[0-9]{1,2}$"
 
-# Lo que decide el clasificador de la entrada. Los cuatro primeros los da Claude; los demás, el worker:
-#   rechazo     Claude rechazó el mensaje (`stop_reason: "refusal"`)
+# Lo que decide el clasificador de la entrada. Los cuatro primeros los da el modelo; los demás, el worker:
+#   rechazo     el modelo rechazó el mensaje (llama.cpp no lo dice aparte: queda para otro proveedor)
 #   error       no hubo veredicto válido tras todos los intentos
 #   sin_texto   el mensaje no trae texto que clasificar (una imagen sin pie, una ubicación...)
 Motivo = Literal["ninguno", "inyeccion", "abuso", "otro", "rechazo", "error", "sin_texto"]
-MOTIVOS_DE_CLAUDE = ("ninguno", "inyeccion", "abuso", "otro")
+MOTIVOS_DEL_MODELO = ("ninguno", "inyeccion", "abuso", "otro")
 
 # La intención, entre unas pocas genéricas mientras el clasificador no lea los intents del bot. Ningún texto libre
 # del modelo pasa de aquí (ADR-0009, punto 3).
@@ -37,9 +38,9 @@ Etiqueta = Literal["saludo", "pregunta", "pedido", "queja", "despedida", "otro"]
 ETIQUETAS = ("saludo", "pregunta", "pedido", "queja", "despedida", "otro")
 
 
-# Cómo se responde (E4, decisión de Jeremi del 2026-10-20): con Claude, o con un texto fijo del de respuesta, sin
+# Cómo se responde (E4, decisión de Jeremi del 2026-10-20): con el modelo, o con un texto fijo del de respuesta, sin
 # llamarlo, cuando el mensaje no sigue. Así la persona siempre recibe algo.
-Respuesta = Literal["claude", "no_puedo", "solo_texto", "no_disponible"]
+Respuesta = Literal["modelo", "no_puedo", "solo_texto", "no_disponible"]
 RESPUESTA_POR_MOTIVO = {"inyeccion": "no_puedo", "abuso": "no_puedo", "otro": "no_puedo", "rechazo": "no_puedo",
                         "sin_texto": "solo_texto", "error": "no_disponible"}
 
@@ -70,7 +71,7 @@ class _Estricto(BaseModel):
 class ContactoDelCanal(_Estricto):
     """
         A quién se responde: el contacto del gateway sin su nombre, que ningún paso necesita. Dato personal: va al
-        notificador, nunca a Claude.
+        notificador, nunca al modelo.
     """
     uuid: UUID
     waId: Optional[str] = None
@@ -93,7 +94,7 @@ class Entidad(_Estricto):
 class Clasificacion(_Estricto):
     """
         El veredicto del clasificador. Fail-closed (ADR-0005, que ADR-0009 mantiene): solo `permitido` deja seguir
-        al mensaje, y solo cuando Claude no vio ningún motivo para pararlo.
+        al mensaje, y solo cuando el modelo no vio ningún motivo para pararlo.
     """
     permitido: bool
     motivo: Motivo
@@ -106,12 +107,12 @@ class Clasificacion(_Estricto):
     @classmethod
     def sin_veredicto(cls, motivo: Literal["rechazo", "error", "sin_texto"],
                       modelo: Optional[str] = None) -> "Clasificacion":
-        """Un mensaje que no sigue, sin que Claude lo haya clasificado."""
+        """Un mensaje que no sigue, sin que el modelo lo haya clasificado."""
         return cls(permitido=False, motivo=motivo, modelo=modelo)
 
 
 class _Sobre(_Estricto):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[2]
     botId: UUID
     clientId: UUID
     messageId: str = Field(min_length=1)
@@ -149,7 +150,7 @@ class Vuelta(_Estricto):
 
 class Pedido(_Estricto):
     """
-        Lo que el coordinador pide al de respuesta. Con `claude`, la persona del bot y las vueltas anteriores, la más
+        Lo que el coordinador pide al de respuesta. Con `modelo`, la persona del bot y las vueltas anteriores, la más
         antigua primero; con un texto fijo, ninguna de las dos: no hacen falta.
     """
     respuesta: Respuesta
@@ -165,8 +166,8 @@ class MensajePedido(MensajeClasificado):
 class Contestacion(_Estricto):
     """Lo que se le envía a la persona: solo texto (ADR-0009, punto 5), del tamaño que admite WhatsApp."""
     texto: str = Field(min_length=1, max_length=4096)
-    # De Claude, o uno de los textos fijos del de respuesta.
-    fuente: Literal["claude", "fijo"]
+    # Del modelo, o uno de los textos fijos del de respuesta.
+    fuente: Literal["modelo", "fijo"]
     # El modelo que lo escribió, o None si es un texto fijo.
     modelo: Optional[str] = None
 

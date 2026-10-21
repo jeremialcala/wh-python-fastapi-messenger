@@ -8,6 +8,10 @@
     El token de Meta de cada bot se recuerda unos minutos, para no pedirlo en cada mensaje: cada entrega queda en el
     log del gateway. Si Meta lo rechaza, el notificador lo olvida y se pide otra vez.
 
+    La persona del bot con sus reglas también se recuerda unos minutos (decisión de Jeremi del 2026-10-21): en
+    midgard, las dos lecturas del coordinador al gateway eran lo más lento de un mensaje después del LLM. Un cambio de
+    las reglas tarda eso en llegar a las respuestas. Las vueltas no se recuerdan: cambian con cada mensaje.
+
     La clave privada de cada cliente se lee de Andvari la primera vez que hace falta y se guarda en memoria. Si el
     gateway la rechaza (401), se vuelve a leer una vez: puede haber cambiado.
 
@@ -16,7 +20,7 @@
 import asyncio
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 import requests
@@ -30,6 +34,7 @@ from src.domain.ports.fuente_del_bot import FuenteDelBot, FuenteNoDisponible, No
 
 TIMEOUT = 5            # segundos por llamada
 RECORDAR_TOKEN = 600   # segundos que se recuerda el token de Meta de un bot
+RECORDAR_REGLAS = 300  # segundos que se recuerda la persona de un bot con sus reglas
 
 
 def clave_publica_del_gateway(path: str) -> dict:
@@ -58,6 +63,8 @@ class ApiDelGateway(FuenteDelBot, TokensDelBot):
         self._timeout = timeout
         self._claves: dict[UUID, dict] = {}
         self._tokens: dict[UUID, tuple[str, float]] = {}
+        # Por cliente y bot: la persona de un bot solo vale para el cliente con cuya clave se leyó.
+        self._personas: dict[tuple[UUID, UUID], tuple[Persona, float]] = {}
 
     def _clave(self, client_id: UUID, otra_vez: bool = False) -> dict:
         if otra_vez or client_id not in self._claves:
@@ -98,26 +105,39 @@ class ApiDelGateway(FuenteDelBot, TokensDelBot):
             raise FuenteNoDisponible(type(e).__name__) from None
 
     async def persona(self, client_id: UUID, bot_id: UUID) -> Persona:
+        recordada = self._personas.get((client_id, bot_id))
+        if recordada and time.monotonic() < recordada[1]:
+            return recordada[0]
         datos = await asyncio.to_thread(self._get, client_id, f"/chat/{bot_id}/rules")
         try:
-            return Persona(nombre=datos["name"], rol=datos["role"], tono=datos["tone"],
-                           descripcion=datos.get("description") or "",
-                           reglas=[regla for regla in datos.get("rules") or [] if isinstance(regla, str)])
+            persona = Persona(nombre=datos["name"], rol=datos["role"], tono=datos["tone"],
+                              descripcion=datos.get("description") or "",
+                              reglas=[regla for regla in datos.get("rules") or [] if isinstance(regla, str)])
         except (KeyError, TypeError, AttributeError, ValidationError):
             raise FuenteNoDisponible("reglas inesperadas") from None
+        self._personas[(client_id, bot_id)] = (persona, time.monotonic() + RECORDAR_REGLAS)
+        return persona
 
-    async def vueltas(self, client_id: UUID, bot_id: UUID, contact_id: UUID, sin: str) -> list[Vuelta]:
+    async def vueltas(self, client_id: UUID, bot_id: UUID, contact_id: UUID, sin: str,
+                      hasta: datetime) -> list[Vuelta]:
         datos = await asyncio.to_thread(self._get, client_id, f"/chat/{bot_id}/contacts/{contact_id}/turns")
+        hasta = hasta if hasta.tzinfo else hasta.replace(tzinfo=timezone.utc)
         try:
+            mensajes = datos["messages"]
+            # El gateway da las últimas vueltas de ahora. Un mensaje atendido con retraso ya tiene detrás lo que la
+            # persona escribió después, y lo que el bot le respondió: las vueltas terminan antes de él. La ingesta lo
+            # guarda justo después de publicarlo, así que puede no estar todavía: entonces cuenta cuándo llegó.
+            suyo = next((n for n, mensaje in enumerate(mensajes)
+                         if mensaje["direction"] == "in" and mensaje.get("messageId") == sin), None)
             vueltas = [Vuelta(de="persona" if mensaje["direction"] == "in" else "bot",
                               texto=(mensaje.get("text") or "")[:4096],
                               adjuntos=[str(tipo) for tipo in mensaje.get("attachments") or []][:10],
                               enviadaEn=datetime.fromisoformat(mensaje["sentAt"]),
-                              ) for mensaje in datos["messages"]
-                       # La ingesta guarda el mensaje justo después de publicarlo: puede estar ya en el historial.
-                       if not (mensaje["direction"] == "in" and mensaje.get("messageId") == sin)]
+                              ) for mensaje in (mensajes if suyo is None else mensajes[:suyo])]
+            if suyo is None:
+                vueltas = [vuelta for vuelta in vueltas if vuelta.enviadaEn <= hasta]
         except (KeyError, TypeError, ValueError, AttributeError):
-            # ValidationError es un ValueError.
+            # ValidationError es un ValueError. TypeError también cubre una fecha sin zona del gateway.
             raise FuenteNoDisponible("vueltas inesperadas") from None
         return vueltas[-MAX_VUELTAS:]
 

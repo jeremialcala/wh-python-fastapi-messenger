@@ -1,0 +1,63 @@
+# Hive's LLM: llama.cpp's server on the workstation with the RTX 3090 (ADR-0010 of the engine), in Docker Desktop
+# with the GPU through WSL2. The classifier and the responder on midgard call it over the LAN, through its
+# OpenAI-compatible API (/v1/chat/completions).
+#
+#   cd engine/deploy/llm && docker compose up -d
+#
+#   * one model for both tasks, Gemma 4 26B A4B in MXFP4 (15.4 GiB, Apache 2.0), all of it on the GPU, with two
+#     slots: one for each worker, so a classification never waits behind an answer
+#   * the model and the API key live in C:\hive-llm, outside the repository and OneDrive: the model is downloaded with
+#     its SHA-256 checked, and the key is made on this machine and only readable by its user. midgard's workers have
+#     a copy of the key in their keys/
+#   * published on the LAN address only. The Windows firewall lets midgard (192.168.10.1) in and nobody else, and every
+#     request needs the key all the same
+#   * the image is llama.cpp's build b11434, pinned by digest: a tag moves, and the same line would give another server
+#     another day
+
+name: hive-llm
+
+services:
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda-b11434@sha256:c6fd6053d3b6a1a54849ab5468971cf3ae03fbf3d72fdfb25a1f862e320cace3
+    container_name: hive-llm
+    restart: unless-stopped
+    gpus: all
+    command:
+      - --model
+      - /models/gemma-4-26B-A4B-it-MXFP4_MOE.gguf
+      - --alias
+      - gemma-4-26b-a4b
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --api-key-file
+      - /run/llm/api-key
+      # All of it on the GPU, with flash attention.
+      - --n-gpu-layers
+      - "999"
+      - --flash-attn
+      - "on"
+      # Two slots of 8K tokens each: the classifier and the responder, at the same time.
+      - --parallel
+      - "2"
+      - --ctx-size
+      - "16384"
+      # The chat template of the model itself.
+      - --jinja
+      - --no-webui
+      - --metrics
+    volumes:
+      - C:/hive-llm/modelos:/models:ro
+      - C:/hive-llm/api-key:/run/llm/api-key:ro
+    ports:
+      - "192.168.10.74:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

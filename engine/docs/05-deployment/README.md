@@ -25,13 +25,19 @@ Jeremi del 2026-10-20). El Gate 4, con el pipeline, sus gates y el SBOM, queda p
 Bifröst, Andvari y Saga los ponen sus repositorios. Los workers llegan a ellos y a la API del gateway por las redes
 externas `bifrost`, `andvari` y `yggdrasil_saga`.
 
+El LLM corre fuera de midgard, en el equipo de la RTX 3090 de la LAN ([ADR-0010](../02-design/adr/ADR-0010-llm-propio-con-llama-cpp.md)):
+
+| Proyecto compose | Dónde | Contenedores |
+|---|---|---|
+| `hive-llm` | 192.168.10.74 (`engine/deploy/llm/docker-compose.yml`) | `hive-llm`: llama.cpp con Gemma 4 26B A4B |
+
 ## Lo que necesita cada worker
 
 | Worker | Bifröst | Andvari | Además |
 |---|---|---|---|
-| Clasificador | `credenciales/classifier.env` | Rol `motor-classifier`: su clave de Anthropic | — |
+| Clasificador | `credenciales/classifier.env` | — | El LLM, con `keys/llm-api-key` |
 | Coordinador | `credenciales/coordinator.env` | Rol `motor-coordinator`: su clave para cada cliente | La API del gateway |
-| De respuesta | `credenciales/responder.env` | Rol `motor-responder`: su clave de Anthropic | — |
+| De respuesta | `credenciales/responder.env` | — | El LLM, con `keys/llm-api-key` |
 | Notificador | `credenciales/notifier.env` y el bucket `enviados` | Rol `motor-notifier`: su clave para cada cliente | La API del gateway y `graph.facebook.com` |
 
 Cada cliente con bots necesita las claves del motor (`ops.engine_keys` del gateway). La instancia de medición ya las
@@ -42,44 +48,82 @@ tiene para su cliente.
 1. **Las imágenes**, en midgard, desde `develop`:
 
    ```bash
-   git archive develop | ssh midgard 'rm -rf ~/hive-build && mkdir ~/hive-build && tar -x -C ~/hive-build'
+   # Sin autocrlf: desde una copia de Windows, git archive daría los ficheros con CRLF.
+   git -c core.autocrlf=false archive develop | ssh midgard 'rm -rf ~/hive-build && mkdir ~/hive-build && tar -x -C ~/hive-build'
    docker build -t ghcr.io/jeremialcala/wh-python-fastapi-messenger:e7-<sha> ~/hive-build
    docker build -f ~/hive-build/engine/Dockerfile -t ghcr.io/jeremialcala/chatbot-engine:e7-<sha> ~/hive-build
    ```
-2. **Andvari**, con un token raíz temporal y en una terminal propia. Pide la clave de recuperación y después las dos
-   claves de Anthropic, sin eco:
+2. **Andvari**, con un token raíz temporal y en una terminal propia: el `secret_id` del coordinador y del
+   notificador, que firman con su clave para cada cliente. Pide la clave de recuperación sin eco:
 
    ```bash
-   sudo bash raiz-temporal.sh bash -c 'bash motor/instalar.sh /srv/apps/bots-gateway/keys/motor-claves-secret-id \
-     && bash motor/emitir-trabajadores.sh /srv/apps/hive-engine/keys \
-     && bash motor/clave-anthropic.sh classifier && bash motor/clave-anthropic.sh responder'
+   sudo bash raiz-temporal.sh bash motor/emitir-trabajadores.sh /srv/apps/hive-engine/keys coordinator notifier
    ```
 
-   `motor/instalar.sh` pone al día las políticas de los workers con la ruta de su clave de Anthropic. Los `role_id`
-   que imprime `emitir-trabajadores.sh` van al `.env` del motor.
-3. **El gateway**, con la imagen nueva y `GATEWAY_AUDIENCE=https://hive-api.higerotech.com` en su `.env`.
-4. **El motor:** `/srv/apps/hive-engine` con su `docker-compose.yml`, su `.env` (`deploy/.env.example`) y `keys/`
-   (root:10001, 750) con los cuatro `secret_id` y una copia de `gateway-public.json`. Después:
+   Los `role_id` que imprime van al `.env` del motor.
+3. **El LLM**, en el equipo de la RTX 3090:
+   - el modelo en `C:\hive-llm\modelos`, con su SHA-256 comprobado contra el de Hugging Face;
+   - la clave en `C:\hive-llm\api-key`, nacida allí, con un solo salto de línea (`\n`, no `\r\n`: llama-server toma
+     el `\r` como parte de la clave) y legible solo por su usuario;
+   - `docker compose up -d` en `engine/deploy/llm`. Cargar el modelo tarda unos 3 minutos, y unos 6 después de un
+     `wsl --shutdown`, con la caché de Windows fría;
+   - la VM de Docker Desktop, con 12 GB en `%USERPROFILE%\.wslconfig` (`memory=12GB`). Con 8 GB se colgó el
+     2026-10-21, con el modelo y dos clústeres kind dentro;
+   - en el cortafuegos de Windows, desde un PowerShell de administrador, que solo entre midgard. Una regla que
+     permita a midgard no basta: la de «Docker Desktop Backend» ya deja entrar a cualquiera en el perfil Público, y
+     así está la red del equipo. Hace falta bloquear al resto, y en Windows un bloqueo gana a un permiso:
+
+     ```powershell
+     New-NetFirewallRule -DisplayName "Hive LLM: solo midgard" -Direction Inbound -Protocol TCP -LocalPort 8080 `
+       -RemoteAddress 0.0.0.0-192.168.10.0,192.168.10.2-255.255.255.255 -Action Block -Profile Any
+     ```
+
+     Desde otro equipo de la LAN, `curl -m 5 http://192.168.10.74:8080/health` no llega; desde midgard, sí.
+   - la copia de la clave a midgard, por la entrada estándar, sin pasar por la pantalla:
+
+     ```bash
+     ssh midgard 'sudo install -m 400 -o 10001 -g 10001 /dev/stdin /srv/apps/hive-engine/keys/llm-api-key' \
+       < /c/hive-llm/api-key
+     ```
+4. **El gateway**, con la imagen nueva y `GATEWAY_AUDIENCE=https://hive-api.higerotech.com` en su `.env`.
+5. **El motor:** `/srv/apps/hive-engine` con su `docker-compose.yml`, su `.env` (`deploy/.env.example`) y `keys/`
+   (root:10001, 750) con los dos `secret_id`, la clave del LLM y una copia de `gateway-public.json`. Después:
 
    ```bash
    sudo docker compose --project-directory /srv/apps/hive-engine up -d
    ```
-5. **El túnel:** se crea en Cloudflare con sus dos nombres públicos, y su token va al `.env` del gateway sin pasar por
+6. **El túnel:** se crea en Cloudflare con sus dos nombres públicos, y su token va al `.env` del gateway sin pasar por
    la pantalla ni por un argumento. Después, `COMPOSE_PROFILES=tunel` y `docker compose up -d`.
-6. **El bot de prueba:**
+7. **El bot de prueba:**
    - se da de alta en el gateway, con sus credenciales de Meta, su número y sus reglas;
    - en Meta, la URL del webhook es `https://hive-webhook.higerotech.com/chat/{bot_id}`, con su `verifyToken`, y se
      suscribe a `messages`.
+8. **El vigía** (`deploy/vigia/` de la raíz): Docker marca `unhealthy` un contenedor cuyo healthcheck falla, pero
+   no lo reinicia. `hive-vigia.timer` mira cada minuto, en el segundo 30, el gateway, el webhook, la ingesta y los
+   cuatro workers. Reinicia el que esté `unhealthy` y avisa por ntfy, por el mismo canal que los otros vigías de
+   midgard. Si uno sigue `unhealthy` tras 3 reinicios en una hora, deja de reiniciarlo y avisa con urgencia.
+
+   ```bash
+   sudo install -m 755 deploy/vigia/hive-vigia.sh /usr/local/sbin/hive-vigia.sh
+   sudo install -m 644 deploy/vigia/hive-vigia.service deploy/vigia/hive-vigia.timer /etc/systemd/system/
+   sudo ln -s /etc/smartd-aviso.env /etc/hive-aviso.env
+   sudo systemctl daemon-reload && sudo systemctl enable --now hive-vigia.timer
+   sudo /usr/local/sbin/hive-vigia.sh prueba
+   ```
 
 ## Comprobar
 
 - Los cuatro workers `healthy`, sin reinicios.
 - Un mensaje de WhatsApp al número de prueba vuelve con su respuesta. Su traza cruza el webhook, la ingesta y los
   cuatro workers en Saga.
-- El log del clasificador y del de respuesta dice los tokens de cada llamada; con ellos se mide el coste.
+- El log del clasificador y del de respuesta dice los tokens de cada llamada.
+- El LLM: `docker logs hive-llm` y `nvidia-smi`, en el equipo de la RTX 3090.
 - El historial del gateway guarda el mensaje y la respuesta.
+- El vigía: `systemctl list-timers hive-vigia.timer` y `journalctl -u hive-vigia` (una línea por reinicio).
 
 ## Volver atrás
+
+- **El vigía:** `sudo systemctl disable --now hive-vigia.timer`. Su estado está en `/var/lib/hive-vigia`.
 
 - **El motor:** `docker compose --project-directory /srv/apps/hive-engine down`. Lo que quede en `MOTOR` caduca en 24
   horas.

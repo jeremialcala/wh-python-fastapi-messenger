@@ -1,6 +1,8 @@
 # ADR-0009: Claude, por la API de Anthropic, como LLM del motor
 
-* **Estado:** accepted
+* **Estado:** superseded por [ADR-0010](ADR-0010-llm-propio-con-llama-cpp.md) (2026-10-21), en el proveedor, los
+  modelos y sus claves. Sus reglas siguen: una llamada que clasifica con salida estructurada y fail-closed, el texto de
+  la persona en turnos de usuario y la salida que no es de confianza
 * **Fecha:** 2026-10-20
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 02-design
@@ -13,6 +15,11 @@
 
 Aceptada el 2026-10-20 al fusionar la PR #65, con lo que proponía: el clasificador sustituye a NeMo y Ollama, y el de
 respuesta lleva los *fallbacks* del servidor.
+
+> **Superada el 2026-10-21.** En el E7, la API de Anthropic rechazó todas las llamadas desde midgard: 403 «Request
+> not allowed», porque su IP sale de Venezuela, que no es una región soportada. La política de Anthropic alcanza
+> también a las personas y entidades de allí, así que no se rodea con un proxy. Jeremi decidió servir un modelo propio
+> con llama.cpp en la LAN ([ADR-0010](ADR-0010-llm-propio-con-llama-cpp.md)).
 
 ## Contexto
 

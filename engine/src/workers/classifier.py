@@ -1,37 +1,37 @@
 # -*- coding: utf-8 -*-
 """
     El clasificador (E3 de engine/docs/00-project/plan-de-los-workers.md). Lee cada mensaje identificado del stream
-    `MENSAJES` con el consumidor `classifier`, decide con Claude si se atiende y cuál es su intención, y publica el
-    sobre en `motor.clasificado.{partición}.{botId}.{contactId}`, para el coordinador.
+    `MENSAJES` con el consumidor `classifier`, decide con el LLM de Hive si se atiende y cuál es su intención, y
+    publica el sobre en `motor.clasificado.{partición}.{botId}.{contactId}`, para el coordinador.
 
         python -m src.workers.classifier
 
     Fail-closed (ADR-0009, punto 3): un mensaje sin veredicto sale igual, con `permitido=false`, para que el
-    coordinador lo sepa y no se quede sin respuesta. Pero antes se vuelve a intentar: si Claude no contesta o su
+    coordinador lo sepa y no se quede sin respuesta. Pero antes se vuelve a intentar: si el LLM no contesta o su
     respuesta no valida, el mensaje queda en espera y Bifröst lo entrega otra vez, y solo en la última entrega sale
-    con el motivo `error`. Un mensaje sin texto no llega a Claude.
+    con el motivo `error`. Un mensaje sin texto no llega al LLM.
 
-    Solo el texto sale a Anthropic. El sobre lleva el contacto sin el nombre (ADR-0008, punto 6), y el log no lleva
-    ni el texto, ni el número, ni el id del mensaje, que en WhatsApp lleva el número dentro.
+    Solo el texto va al LLM, que corre en la LAN (ADR-0010). El sobre lleva el contacto sin el nombre (ADR-0008,
+    punto 6), y el log no lleva ni el texto, ni el número, ni el id del mensaje, que en WhatsApp lleva el número
+    dentro.
 """
 import asyncio
 import json
 import logging
 import re
 
-import anthropic
 from pydantic import ValidationError
 
 from shared import bus, tracing
 from shared.contract import IdentifiedMessage, what_was_said
-from shared.engine_key_store import EngineKeyStore
 from shared.workers import Worker
 from src.domain.models.sobre import (
     ESQUEMA, PARTICION, Clasificacion, ContactoDelCanal, Entrada, MensajeClasificado, subject_clasificado,
 )
 from src.domain.ports.clasificador_de_entrada import ClasificacionFallida, ClasificadorDeEntrada
 from src.infrastructure.adapters.sanitize import sanitizar_texto
-from src.infrastructure.claude import ClaudeClasificador
+from src.infrastructure.llm import ClienteLlm, LlmClasificador
+from src.infrastructure.llm.cliente import leer_clave
 from src.workers.runtime import Resultado, ejecutar, entregas, publicador
 from src.workers.settings import ClassifierSettings
 
@@ -151,27 +151,18 @@ class Clasificar:
         return Resultado.CONFIRMADO
 
 
-async def preparar(settings: ClassifierSettings, max_deliver: int, store: EngineKeyStore | None = None):
+async def preparar(settings: ClassifierSettings, max_deliver: int):
     """
-        Lo que el worker abre al arrancar: su clave de Anthropic, leída de Andvari una sola vez (rotarla es ponerla
-        en Andvari y reiniciar el worker), el cliente de Claude y el publicador. Devuelve cómo atender cada mensaje
-        y cómo cerrar lo abierto.
+        Lo que el worker abre al arrancar: el cliente del LLM de Hive, con su clave, y el publicador. Devuelve cómo
+        atender cada mensaje y cómo cerrar lo abierto.
     """
-    store = store or EngineKeyStore(settings.andvari_addr, settings.engine_role_id, settings.engine_secret_id_file,
-                                    settings.andvari_ca_file)
-    clave = await asyncio.to_thread(store.api_key, NOMBRE)
-    if not clave:
-        raise SystemExit(f"Andvari no tiene la clave de Anthropic del {NOMBRE} (motor/anthropic/{NOMBRE})")
-    client = anthropic.AsyncAnthropic(api_key=clave, timeout=settings.classifier_timeout,
-                                      max_retries=settings.classifier_max_retries)
-    del clave
+    cliente = ClienteLlm(settings.llm_url, leer_clave(settings.llm_api_key_file), settings.llm_model,
+                         settings.classifier_timeout)
     publisher = publicador(settings, NOMBRE)
-    clasificador = ClaudeClasificador(client, settings.classifier_model, settings.classifier_effort,
-                                      settings.classifier_max_tokens)
+    clasificador = LlmClasificador(cliente, settings.classifier_max_tokens)
 
     async def cerrar() -> None:
         await publisher.close()
-        await client.close()
 
     return Clasificar(clasificador, publisher, max_deliver), cerrar
 

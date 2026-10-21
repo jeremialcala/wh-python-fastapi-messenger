@@ -6,12 +6,11 @@
 
         python -m src.workers.responder
 
-    - **Con `claude`**, la escribe Claude Opus 5.5, con la persona del bot y sus reglas en el `system`, cacheado, y
+    - **Con `modelo`**, la escribe el LLM de Hive (ADR-0010), con la persona del bot y sus reglas en el `system`, y
       las vueltas y el mensaje en turnos de usuario y del asistente.
     - **Con un texto fijo**, no llama a nadie: contesta el texto de su motivo (decisión de Jeremi del 2026-10-20).
-    - **Si Claude rechaza**, también después de los modelos que lo sustituyen en el servidor, contesta el texto fijo
-      de «no puedo», y lo deja en el log (ADR-0009, punto 4).
-    - **Si Claude no contesta**, o su respuesta se corta o viene vacía, el mensaje queda en espera y Bifröst lo
+    - **Si el modelo rechaza**, contesta el texto fijo de «no puedo», y lo deja en el log (ADR-0009, punto 4).
+    - **Si el modelo no contesta**, o su respuesta se corta o viene vacía, el mensaje queda en espera y Bifröst lo
       entrega otra vez. En la última entrega contesta el texto fijo de «no disponible».
 
     El sobre que publica no lleva la persona ni las vueltas: el notificador solo necesita el texto y a quién.
@@ -19,14 +18,12 @@
 import asyncio
 import logging
 
-import anthropic
-
 from shared import bus, tracing
-from shared.engine_key_store import EngineKeyStore
 from shared.workers import Worker
 from src.domain.models.sobre import Contestacion, MensajePedido, MensajeRespondido, subject_respuesta
 from src.domain.ports.redactor import RedaccionFallida, Redactor
-from src.infrastructure.claude import ClaudeRedactor
+from src.infrastructure.llm import ClienteLlm, LlmRedactor
+from src.infrastructure.llm.cliente import leer_clave
 from src.workers.runtime import Descartado, Resultado, ejecutar, entregas, leer_del_motor, publicador
 from src.workers.settings import ResponderSettings
 
@@ -72,11 +69,11 @@ class Responder:
 
     async def _contestacion(self, mensaje, sobre: MensajePedido) -> Contestacion | Resultado:
         pedido = sobre.pedido
-        if pedido.respuesta != "claude":
+        if pedido.respuesta != "modelo":
             return Contestacion(texto=TEXTOS_FIJOS[pedido.respuesta], fuente="fijo")
         if pedido.persona is None or not sobre.entrada.texto:
             # El coordinador nunca lo pide así: no hay con qué escribir. Se contesta en vez de callar.
-            log.error("Un pedido del bot %s con Claude no trae la persona o el texto", sobre.botId)
+            log.error("Un pedido del bot %s con el modelo no trae la persona o el texto", sobre.botId)
             return Contestacion(texto=TEXTOS_FIJOS["no_disponible"], fuente="fijo")
         try:
             redaccion = await self._redactor.redactar(pedido.persona, pedido.vueltas, sobre.entrada.texto)
@@ -90,7 +87,7 @@ class Responder:
             log.warning("%s rechazó responder un mensaje del bot %s: se contesta el texto fijo", redaccion.modelo,
                         sobre.botId)
             return Contestacion(texto=TEXTOS_FIJOS["no_puedo"], fuente="fijo")
-        return Contestacion(texto=redaccion.texto, fuente="claude", modelo=redaccion.modelo)
+        return Contestacion(texto=redaccion.texto, fuente="modelo", modelo=redaccion.modelo)
 
     async def _responder(self, mensaje, sobre: MensajePedido, particion: str) -> Resultado:
         contestacion = await self._contestacion(mensaje, sobre)
@@ -112,27 +109,18 @@ class Responder:
         return Resultado.CONFIRMADO
 
 
-async def preparar(settings: ResponderSettings, max_deliver: int, store: EngineKeyStore | None = None):
+async def preparar(settings: ResponderSettings, max_deliver: int):
     """
-        Lo que el worker abre al arrancar: su clave de Anthropic, leída de Andvari una sola vez (rotarla es ponerla
-        en Andvari y reiniciar el worker), el cliente de Claude y el publicador. Devuelve cómo atender cada mensaje
-        y cómo cerrar lo abierto.
+        Lo que el worker abre al arrancar: el cliente del LLM de Hive, con su clave, y el publicador. Devuelve cómo
+        atender cada mensaje y cómo cerrar lo abierto.
     """
-    store = store or EngineKeyStore(settings.andvari_addr, settings.engine_role_id, settings.engine_secret_id_file,
-                                    settings.andvari_ca_file)
-    clave = await asyncio.to_thread(store.api_key, NOMBRE)
-    if not clave:
-        raise SystemExit(f"Andvari no tiene la clave de Anthropic del {NOMBRE} (motor/anthropic/{NOMBRE})")
-    client = anthropic.AsyncAnthropic(api_key=clave, timeout=settings.responder_timeout,
-                                      max_retries=settings.responder_max_retries)
-    del clave
+    cliente = ClienteLlm(settings.llm_url, leer_clave(settings.llm_api_key_file), settings.llm_model,
+                         settings.responder_timeout)
     publisher = publicador(settings, NOMBRE)
-    redactor = ClaudeRedactor(client, settings.responder_model, settings.responder_effort,
-                              settings.responder_max_tokens)
+    redactor = LlmRedactor(cliente, settings.responder_max_tokens)
 
     async def cerrar() -> None:
         await publisher.close()
-        await client.close()
 
     return Responder(redactor, publisher, max_deliver), cerrar
 

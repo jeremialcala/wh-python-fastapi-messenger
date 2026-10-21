@@ -6,7 +6,7 @@
         * **confirmado**: hecho y publicado lo siguiente;
         * **descartado**: un mensaje que nunca se podrá atender (no es JSON, no cumple el contrato). Se termina y el
           log dice por qué, nunca qué traía;
-        * **en espera**: algo que hace falta no está (Bifröst, Claude). No se confirma, y Bifröst lo entrega otra vez
+        * **en espera**: algo que hace falta no está (Bifröst, el LLM). No se confirma, y Bifröst lo entrega otra vez
           tras la espera del consumidor, hasta su `max_deliver`. Al agotarlos, el aviso de Bifröst lo deja a la vista.
 
     El consumidor es de Bifröst, creado al aprovisionarlo: el worker se ata a él y su usuario no puede crear otro.

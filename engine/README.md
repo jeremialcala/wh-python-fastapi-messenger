@@ -9,8 +9,9 @@
 Es la mitad de **Hive** que responde ([ADR-0024](../docs/00-project/adr/0024-el-producto-se-llama-hive.md)): contesta
 los mensajes que las personas envían a los chatbots por WhatsApp, Messenger e Instagram. Son seis workers de
 una misma imagen, uno por contenedor, que se pasan cada mensaje por Bifröst, el NATS JetStream de midgard
-([ADR-0008](docs/02-design/adr/ADR-0008-seis-workers-sobre-bifrost.md)). Usan Claude por la API de Anthropic
-([ADR-0009](docs/02-design/adr/ADR-0009-claude-como-llm.md)).
+([ADR-0008](docs/02-design/adr/ADR-0008-seis-workers-sobre-bifrost.md)). El clasificador y el de respuesta usan
+un modelo propio, Gemma 4 26B A4B, servido por llama.cpp en una RTX 3090 de la LAN
+([ADR-0010](docs/02-design/adr/ADR-0010-llm-propio-con-llama-cpp.md)): el texto no sale de la red de Hive.
 
 ## El recorrido de un mensaje
 
@@ -36,24 +37,24 @@ Es el esqueleto: el enlace y el evaluador llegan después. El orden está en el
 
 ### El clasificador
 
-`python -m src.workers.classifier`. Por cada mensaje identificado, una llamada a Claude Haiku 5.5 con salida
-estructurada decide si se atiende y cuál es su intención.
+`python -m src.workers.classifier`. Por cada mensaje identificado, una llamada al LLM de Hive, con la salida atada a
+un esquema, decide si se atiende y cuál es su intención.
 
-- **Fail-closed:** solo sigue lo que Claude permite sin motivo para pararlo.
-- **Solo el texto sale a Anthropic.**
+- **Fail-closed:** solo sigue lo que el modelo permite sin motivo para pararlo.
+- **Solo el texto va al modelo**, que corre en la LAN.
 - **Publica el sobre para el coordinador** y solo entonces confirma.
 
 ### El coordinador
 
 `python -m src.workers.coordinator`. Si el mensaje sigue, pide al gateway la persona del bot con sus reglas y las
-últimas vueltas, con su clave para el cliente dueño del bot, y pide la respuesta con Claude. Si no sigue, pide un
+últimas vueltas, con su clave para el cliente dueño del bot, y pide la respuesta al modelo. Si no sigue, pide un
 texto fijo según el motivo: la persona siempre recibe algo.
 
 ### El de respuesta
 
-`python -m src.workers.responder`. Con Claude, Opus 5.5 escribe la contestación con la persona del bot y sus reglas
-en el `system`, cacheado, y las vueltas y el mensaje como turnos de la conversación, con los fallbacks del servidor.
-Si no, contesta el texto fijo que pidió el coordinador, o el de «no puedo» si Claude rechaza.
+`python -m src.workers.responder`. El modelo escribe la contestación con la persona del bot y sus reglas en el
+`system`, y las vueltas y el mensaje como turnos de la conversación. Si no, contesta el texto fijo que pidió el
+coordinador.
 
 ### El notificador
 
@@ -72,7 +73,7 @@ src/
 │   ├── models/sobre.py              # el sobre de los workers, versión 1
 │   └── ports/                       # ClasificadorDeEntrada, FuenteDelBot, Redactor, y los del envío
 ├── infrastructure/
-│   ├── claude/                      # ClaudeClasificador y ClaudeRedactor (SDK anthropic)
+│   ├── llm/                         # LlmClasificador y LlmRedactor: llama.cpp por su API compatible con la de OpenAI
 │   ├── gateway/                     # ApiDelGateway: la API de gestión, con la clave del worker
 │   ├── meta/                        # WhatsAppCloud: la Cloud API de WhatsApp
 │   ├── bifrost/                     # EnviadosEnBifrost: el bucket `enviados`
@@ -98,22 +99,23 @@ Del entorno del contenedor. Ningún secreto va en ella:
 | Variable | Qué |
 |---|---|
 | `NATS_URL`, `NATS_USER`, `NATS_PASSWORD`, `NATS_CA`, `NATS_INBOX_PREFIX` | Bifröst. Las deja `credenciales/<worker>.env` del repositorio `bifrost` |
-| `ANDVARI_ADDR`, `ANDVARI_CA_FILE` | Andvari |
+| `ANDVARI_ADDR`, `ANDVARI_CA_FILE` | Andvari, para el coordinador y el notificador |
 | `ENGINE_ROLE_ID`, `ENGINE_SECRET_ID_FILE` | El rol AppRole `motor-<worker>` y el fichero con su `secret_id` |
-| `CLASSIFIER_MODEL`, `CLASSIFIER_EFFORT`, `CLASSIFIER_MAX_TOKENS`, `CLASSIFIER_TIMEOUT`, `CLASSIFIER_MAX_RETRIES` | El clasificador. Por defecto: `claude-haiku-5-5`, `low`, 1024, 7 s y 2 |
-| `GATEWAY_URL`, `GATEWAY_AUDIENCE`, `GATEWAY_PUBLIC_KEYS_FILE`, `GATEWAY_CA_FILE`, `COORDINATOR_TIMEOUT` | El coordinador: la API del gateway, como para `ops.engine_keys`. El timeout, 5 s por llamada |
-| `RESPONDER_MODEL`, `RESPONDER_EFFORT`, `RESPONDER_MAX_TOKENS`, `RESPONDER_TIMEOUT`, `RESPONDER_MAX_RETRIES` | El de respuesta. Por defecto: `claude-opus-5-5`, `medium`, 4096, 50 s y 1 |
+| `LLM_URL`, `LLM_API_KEY_FILE`, `LLM_MODEL` | El LLM de Hive, para el clasificador y el de respuesta. Por defecto el modelo es `gemma-4-26b-a4b` |
+| `CLASSIFIER_MAX_TOKENS`, `CLASSIFIER_TIMEOUT` | El clasificador. Por defecto: 256 y 20 s |
+| `GATEWAY_URL`, `GATEWAY_AUDIENCE`, `GATEWAY_PUBLIC_KEYS_FILE`, `GATEWAY_CA_FILE`, `COORDINATOR_TIMEOUT` | El coordinador: la API del gateway, como para `ops.engine_keys`. El timeout, 10 s por llamada |
+| `RESPONDER_MAX_TOKENS`, `RESPONDER_TIMEOUT` | El de respuesta. Por defecto: 1024 y 90 s |
 | `GATEWAY_*` (como el coordinador), `GRAPH_URL`, `GRAPH_VERSION`, `NOTIFIER_TIMEOUT` | El notificador. Por defecto: `https://graph.facebook.com`, `v26.0` y 8 s por llamada |
 | `LOG_LEVEL` | `INFO` por defecto. El log va al stdout del contenedor |
 
-La clave de la API de Anthropic de cada worker la lee el worker de Andvari al arrancar, de
-`motor/data/anthropic/<worker>`. La pone el operador con `motor/clave-anthropic.sh` del repositorio `andvari`.
+El servidor del LLM corre en el equipo de la RTX 3090 (`deploy/llm/docker-compose.yml`). Su clave nace allí, y una
+copia va a `keys/llm-api-key` del motor en midgard.
 
 ## Desarrollo y pruebas
 
 Python 3.12. Las dependencias se instalan desde los locks, con hashes (`requirements.lock` y `requirements-dev.lock`;
-cómo regenerarlos, en el `CONTRIBUTING.md` de la raíz). Las pruebas no llaman a la API de Anthropic: el clasificador
-se prueba con el SDK de verdad y un transporte HTTP falso.
+cómo regenerarlos, en el `CONTRIBUTING.md` de la raíz). Las pruebas no llaman al LLM: el clasificador y el de
+respuesta se prueban contra un servidor HTTP local que hace de llama-server.
 
 ```bash
 # Desde engine/. Las de integración necesitan un NATS como Bifröst; sin NATS_TEST_ADDR se saltan.
@@ -147,7 +149,7 @@ El motor sigue el estándar AI-DLC ([ADR-0001](docs/00-project/adr/0001-adopcion
 | [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) | Política de seguridad y flujo de trabajo |
 
 Ningún gate está cerrado todavía. La arquitectura y el threat model describen aún el servicio de antes, el de
-RabbitMQ, NeMo y Ollama: se rehacen con ADR-0008 y ADR-0009 antes de cerrar el Gate 1 del motor.
+RabbitMQ, NeMo y Ollama: se rehacen con ADR-0008 y ADR-0010 antes de cerrar el Gate 1 del motor.
 
 ## Autor
 
