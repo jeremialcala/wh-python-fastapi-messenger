@@ -13,6 +13,11 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 ## [Unreleased]
 
 ### Añadido
+- **El despliegue del esqueleto en midgard** (E7 del [plan](docs/00-project/plan-de-los-workers.md)):
+  `deploy/docker-compose.yml` (proyecto `hive-engine`), con los cuatro workers en un contenedor cada uno. Todos son de
+  solo lectura, sin capacidades y con su comprobación de salud por la edad de su marca de vida. Su `.env.example` y el
+  runbook ([05-deployment](docs/05-deployment/README.md)) dicen qué necesita cada worker y cómo se pone en marcha, se
+  comprueba y se vuelve atrás.
 - **El notificador, el cuarto worker** (E6 del [plan](docs/00-project/plan-de-los-workers.md)):
   `python -m src.workers.notifier`. Con él el esqueleto está completo de punta a punta, a falta de desplegarlo
   (E7).
