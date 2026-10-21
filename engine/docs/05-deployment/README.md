@@ -48,7 +48,8 @@ tiene para su cliente.
 1. **Las imágenes**, en midgard, desde `develop`:
 
    ```bash
-   git archive develop | ssh midgard 'rm -rf ~/hive-build && mkdir ~/hive-build && tar -x -C ~/hive-build'
+   # Sin autocrlf: desde una copia de Windows, git archive daría los ficheros con CRLF.
+   git -c core.autocrlf=false archive develop | ssh midgard 'rm -rf ~/hive-build && mkdir ~/hive-build && tar -x -C ~/hive-build'
    docker build -t ghcr.io/jeremialcala/wh-python-fastapi-messenger:e7-<sha> ~/hive-build
    docker build -f ~/hive-build/engine/Dockerfile -t ghcr.io/jeremialcala/chatbot-engine:e7-<sha> ~/hive-build
    ```
