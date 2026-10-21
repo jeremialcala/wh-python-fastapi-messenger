@@ -128,3 +128,33 @@ def test_meta_inalcanzable_dice_solo_el_tipo_de_fallo():
         enviar("http://127.0.0.1:1")
 
     assert "127.0.0.1" not in str(fallo.value) and CUENTA not in str(fallo.value)
+
+
+# --- Leído y «escribiendo…» (ADR-0011) -------------------------------------------------------------------------------
+
+def marcar(url, escribiendo):
+    return asyncio.run(WhatsAppCloud(url, "v26.0", 2).marcar_leido(TOKEN, CUENTA, "wamid.A", escribiendo))
+
+
+@pytest.mark.parametrize("escribiendo", [False, True], ids=["solo leído", "con escribiendo"])
+def test_marca_el_mensaje_como_leido_desde_el_numero_del_bot(servidor, escribiendo):
+    Meta.respuesta = (200, {"success": True})
+
+    marcar(servidor, escribiendo)
+
+    ((ruta, autorizacion, cuerpo),) = Meta.vistas
+    assert (ruta, autorizacion) == (f"/v26.0/{CUENTA}/messages", f"Bearer {TOKEN}")
+    esperado = {"messaging_product": "whatsapp", "status": "read", "message_id": "wamid.A"}
+    if escribiendo:
+        esperado["typing_indicator"] = {"type": "text"}
+    assert cuerpo == esperado
+
+
+@pytest.mark.parametrize("respuesta, fallo", [
+    (error(190, 401), TokenRechazado), (error(131000), EnvioFallido), (error(131009), EnvioRechazado),
+], ids=["token", "se arregla esperando", "id que no existe"])
+def test_lo_que_meta_no_acepta_al_marcar_se_dice_como_al_enviar(servidor, respuesta, fallo):
+    Meta.respuesta = respuesta
+
+    with pytest.raises(fallo):
+        marcar(servidor, True)

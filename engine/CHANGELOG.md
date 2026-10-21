@@ -13,6 +13,15 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 ## [Unreleased]
 
 ### Añadido
+- **[ADR-0011](docs/02-design/adr/ADR-0011-leido-y-escribiendo.md) (aceptada): leído y «escribiendo…» en WhatsApp**
+  (E11; decisiones de Jeremi del 2026-10-21). El notificador atiende dos consumidores más, a la vez que el suyo
+  (`src/workers/presencia.py`):
+  - `notifier-leido`, sobre `MENSAJES`, pone en azul los ticks de cada mensaje en cuanto llega;
+  - `notifier-escribiendo`, sobre `motor.clasificado`, muestra «escribiendo…» cuando el clasificador deja seguir el
+    mensaje, salvo que hayan pasado 20 s o la respuesta ya haya salido.
+  - Son un extra: sin reintentos, y si Meta, el gateway o el bucket fallan, el mensaje se confirma igual.
+  - `CanalDeMeta.marcar_leido`, en la Cloud API de WhatsApp: `status: read` y, si se pide, `typing_indicator`.
+  - `runtime.ejecutar` acepta otros consumidores (`ademas`); si un bucle se cae, se cae el worker.
 - **[ADR-0010](docs/02-design/adr/ADR-0010-llm-propio-con-llama-cpp.md) (aceptada): el LLM de Hive, un modelo
   propio.** En el E7, la API de Anthropic rechazó todas las llamadas desde midgard (403 «Request not allowed»), porque
   su IP sale de Venezuela, que no es una región soportada. Jeremi decidió servir Gemma 4 26B A4B (Apache 2.0,

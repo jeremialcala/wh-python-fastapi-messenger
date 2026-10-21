@@ -33,6 +33,7 @@
 | E8 | **Evaluador.** Opus 5.5 revisa la respuesta, y el notificador pasa a leer `motor.aprobada.…` | `engine/` | E7 |
 | E9 | **Enlace.** Las acciones de los intents, con los destinos comprobados al llamar: se resuelve el nombre, se comprueba cada dirección y no se siguen redirecciones (I7 del gateway) | `engine/` | E7 |
 | E10 | **Messenger e Instagram** en el notificador, y el control de tasas de Meta | `engine/` | E7 |
+| E11 | **Leído y «escribiendo…»** en WhatsApp, desde el notificador, con dos consumidores más: los ticks azules al llegar el mensaje y «escribiendo…» cuando el clasificador lo deja seguir (decisiones de Jeremi del 2026-10-21; ADR-0011) | `engine/`, repo `bifrost` | E7 |
 
 ```mermaid
 flowchart LR
@@ -42,6 +43,7 @@ flowchart LR
     E7 --> E8
     E7 --> E9
     E7 --> E10
+    E7 --> E11
 ```
 
 ## Lo que no es del esqueleto

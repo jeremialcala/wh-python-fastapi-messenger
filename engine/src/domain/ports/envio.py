@@ -66,6 +66,18 @@ class CanalDeMeta(ABC):
         :raises EnvioRechazado: si no irá nunca así.
         """
 
+    @abstractmethod
+    async def marcar_leido(self, token: str, cuenta: str, message_id: str, escribiendo: bool) -> None:
+        """
+        Pone en azul los ticks del mensaje de la persona, y de los anteriores de la conversación.
+
+        :param cuenta: el `phone_number_id` al que escribió la persona.
+        :param message_id: el id de Meta del mensaje que se marca.
+        :param escribiendo: si además se le muestra «escribiendo…», que dura hasta la respuesta o 25 segundos.
+        :raises EnvioFallido: si puede ir más tarde (TokenRechazado si es el token).
+        :raises EnvioRechazado: si no irá nunca así.
+        """
+
 
 class Enviados(ABC):
     """Lo que el notificador ya envió, para no enviarlo dos veces si Bifröst se lo entrega otra vez."""

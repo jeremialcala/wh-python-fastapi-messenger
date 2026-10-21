@@ -23,6 +23,7 @@ en `docs/02-design/adr/`.
 | [ADR-0008](adr/ADR-0008-seis-workers-sobre-bifrost.md) | El motor, seis workers sobre Bifröst | accepted |
 | [ADR-0009](adr/ADR-0009-claude-como-llm.md) | Claude, por la API de Anthropic, como LLM del motor | superseded por ADR-0010, salvo sus reglas |
 | [ADR-0010](adr/ADR-0010-llm-propio-con-llama-cpp.md) | El LLM de Hive: Gemma 4 26B A4B con llama.cpp en una RTX 3090 de la LAN | accepted |
+| [ADR-0011](adr/ADR-0011-leido-y-escribiendo.md) | Leído y «escribiendo…» en WhatsApp, desde el notificador | accepted |
 
 ## El contrato
 
