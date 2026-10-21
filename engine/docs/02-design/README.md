@@ -2,8 +2,8 @@
 
 | Documento | Contenido |
 |---|---|
-| [architecture.md](architecture.md) | El servicio de antes (RabbitMQ, NeMo y Ollama): se rehace con ADR-0008 y ADR-0009 |
-| [threat-model.md](threat-model.md) | El del servicio de antes: se rehace con ADR-0009 (T1, T5, T7 y T12) |
+| [architecture.md](architecture.md) | El servicio de antes (RabbitMQ, NeMo y Ollama): se rehace con ADR-0008 y ADR-0010 |
+| [threat-model.md](threat-model.md) | El del servicio de antes: se rehace con ADR-0010 (T1, T5, T7 y T12) |
 | [contracts/asyncapi-motor.yaml](contracts/asyncapi-motor.yaml) | Contrato AsyncAPI 3.0 del sobre que se pasan los workers por el stream `MOTOR` |
 
 ## Registro de ADRs
@@ -21,7 +21,8 @@ en `docs/02-design/adr/`.
 | [ADR-0006](adr/ADR-0006-placement-worker.md) | Placement del worker | proposed (se revisa: ADR-0009) |
 | [ADR-0007](adr/ADR-0007-placement-serving-llm.md) | Placement del serving del LLM | superseded por ADR-0009 |
 | [ADR-0008](adr/ADR-0008-seis-workers-sobre-bifrost.md) | El motor, seis workers sobre Bifröst | accepted |
-| [ADR-0009](adr/ADR-0009-claude-como-llm.md) | Claude, por la API de Anthropic, como LLM del motor | accepted |
+| [ADR-0009](adr/ADR-0009-claude-como-llm.md) | Claude, por la API de Anthropic, como LLM del motor | superseded por ADR-0010, salvo sus reglas |
+| [ADR-0010](adr/ADR-0010-llm-propio-con-llama-cpp.md) | El LLM de Hive: Gemma 4 26B A4B con llama.cpp en una RTX 3090 de la LAN | accepted |
 
 ## El contrato
 

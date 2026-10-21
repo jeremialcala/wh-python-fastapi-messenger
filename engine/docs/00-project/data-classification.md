@@ -46,18 +46,18 @@ No es asesoría legal: es el punto de partida para la revisión de quien ejerza 
 - **Meta.** Las políticas de WhatsApp Business Platform y Messenger Platform limitan el uso de
   los datos de los usuarios. <TODO: revisar cláusulas sobre envío de contenido a modelos de IA>
 
-## Con Claude como LLM (ADR-0009, propuesta el 2026-10-20)
+## Con un LLM propio en la LAN (ADR-0010, 2026-10-21)
 
-La ADR-0009 cambia lo que dice el primer punto de la sección siguiente: **el texto sale a un tercero.**
+La ADR-0010 sustituye a la ADR-0009, que mandaba el texto a Anthropic: **el texto no sale de la red de Hive.**
 
-| Qué sale a Anthropic | Qué no sale | Encargado | Dónde | Retención |
-|---|---|---|---|---|
-| El texto del mensaje, las últimas vueltas de la conversación y la persona y las reglas del bot | El número, el PSID o IGSID, el nombre del contacto, el `clientId` y los tokens de Meta | Anthropic (API de mensajes) | EE. UU. o cualquier región (`inference_geo` `us` o `global`; la API de Anthropic no tiene opción europea): transferencia internacional | 30 días, y hasta 2 años lo que marquen sus sistemas de seguridad. Sin ZDR por decisión de Jeremi (2026-10-20) |
+| Qué recibe el modelo | Qué no recibe | Dónde corre | Qué guarda |
+|---|---|---|---|
+| El texto del mensaje, las últimas vueltas de la conversación y la persona y las reglas del bot | El número, el PSID o IGSID, el nombre del contacto, el `clientId` y los tokens de Meta | llama.cpp en el equipo de la RTX 3090, en la LAN de midgard (192.168.10.74) | Nada en disco. La caché de la conversación vive en la memoria de la GPU mientras dura la ranura |
 
-- **Antes del primer cliente real:**
-  - pedir ZDR a Anthropic;
-  - firmar su DPA y anotarlo en el registro de tratamientos;
-  - o pasar a Vertex AI en la UE (condición de revisión de ADR-0009).
+- **No hay encargado del tratamiento externo**, ni transferencia internacional, para la generación de respuestas.
+- **El acceso:** solo midgard alcanza el servidor, con su clave, por el cortafuegos de Windows. El tráfico por la LAN
+  va sin TLS: es la misma red que el resto de midgard.
+- **Lo que fue a Anthropic:** nada. Todas las llamadas del E7 fueron rechazadas antes de procesarse (403).
 - **El stream `MOTOR` de Bifröst** (ADR-0008) guarda el texto 24 horas, con TLS y un usuario por worker. Lo cifra
   JetStream (chachapoly); el disco de midgard no está cifrado.
 - **El bucket `enviados` de Bifröst** (E6) no guarda datos personales: por cada respuesta enviada, el bot y el SHA-256

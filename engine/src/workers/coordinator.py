@@ -6,7 +6,7 @@
 
         python -m src.workers.coordinator
 
-    - **Un mensaje que sigue** se pide con Claude: el coordinador pregunta al gateway la persona del bot con sus
+    - **Un mensaje que sigue** se pide al modelo: el coordinador pregunta al gateway la persona del bot con sus
       reglas y las últimas vueltas de la conversación, con su clave para el cliente dueño del bot, y las pone en el
       sobre.
     - **Un mensaje que no sigue** se pide con un texto fijo según su motivo, sin preguntar nada (decisión de Jeremi
@@ -80,7 +80,7 @@ class Coordinar:
             log.error("Sin lo necesario del gateway para un mensaje del bot %s en la última entrega: %s",
                       sobre.botId, e)
             return Pedido(respuesta="no_disponible")
-        return Pedido(respuesta="claude", persona=persona, vueltas=vueltas)
+        return Pedido(respuesta="modelo", persona=persona, vueltas=vueltas)
 
     async def _coordinar(self, mensaje, sobre: MensajeClasificado, particion: str) -> Resultado:
         pedido = await self._pedido(mensaje, sobre)

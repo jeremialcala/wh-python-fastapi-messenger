@@ -2,7 +2,7 @@
 """
     El de respuesta contra un NATS JetStream de verdad, con los permisos que Bifröst da a su usuario
     (nats-test.conf): se ata al consumidor `MOTOR/responder`, lee el pedido del coordinador, publica la respuesta en
-    `motor.respuesta.…` del mismo stream y solo entonces confirma. Claude lo sustituye un doble.
+    `motor.respuesta.…` del mismo stream y solo entonces confirma. Modelo lo sustituye un doble.
 
         NATS_TEST_ADDR=127.0.0.1:24222 pytest tests/integration
 
@@ -61,20 +61,20 @@ def motor(url):
     return url
 
 
-class Claude:
+class Modelo:
 
     async def redactar(self, _persona, _vueltas, _texto):
-        return Redaccion(texto="Sí, tenemos zapatos rojos.", modelo="claude-opus-5-5")
+        return Redaccion(texto="Sí, tenemos zapatos rojos.", modelo="gemma-4-26b-a4b")
 
 
 def pedido(bot, contacto):
-    return {"schemaVersion": 1, "botId": str(bot), "clientId": str(uuid4()), "messageId": f"wamid.{uuid4().hex}",
+    return {"schemaVersion": 2, "botId": str(bot), "clientId": str(uuid4()), "messageId": f"wamid.{uuid4().hex}",
             "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{bot}.{contacto}",
             "contact": {"uuid": str(contacto), "waId": "12025550143"},
             "entrada": {"texto": "¿tienen zapatos rojos?", "adjuntos": []},
             "clasificacion": {"permitido": True, "motivo": "ninguno", "etiqueta": "pregunta", "confianza": 0.9,
-                              "entidades": [], "modelo": "claude-haiku-5-5"},
-            "pedido": {"respuesta": "claude", "vueltas": [],
+                              "entidades": [], "modelo": "gemma-4-26b-a4b"},
+            "pedido": {"respuesta": "modelo", "vueltas": [],
                        "persona": {"nombre": "Mine", "rol": "Sales", "tono": "helpful", "descripcion": "",
                                    "reglas": ["Be kind"]}}}
 
@@ -113,7 +113,7 @@ def test_el_de_respuesta_lee_el_pedido_publica_la_respuesta_y_confirma(motor):
                 def touch(self):
                     pass
 
-            await asyncio.gather(consumir(suscripcion, stop, Responder(Claude(), publisher, info.config.max_deliver),
+            await asyncio.gather(consumir(suscripcion, stop, Responder(Modelo(), publisher, info.config.max_deliver),
                                           Vivo()), vigilar())
         finally:
             await publisher.close()
@@ -128,6 +128,6 @@ def test_el_de_respuesta_lee_el_pedido_publica_la_respuesta_y_confirma(motor):
     assert mensaje.subject == f"motor.respuesta.5.{bot}.{contacto}"
     assert mensaje.headers["Nats-Msg-Id"] == f"respuesta:{bot}:{sobre['messageId']}"
     leido = MensajeRespondido.model_validate(json.loads(mensaje.data))
-    assert (leido.respuesta.texto, leido.respuesta.fuente) == ("Sí, tenemos zapatos rojos.", "claude")
+    assert (leido.respuesta.texto, leido.respuesta.fuente) == ("Sí, tenemos zapatos rojos.", "modelo")
     # La respuesta no vuelve a entrar al de respuesta: su filtro es motor.pedido.>.
     assert asyncio.run(_como_admin(motor, confirmado))

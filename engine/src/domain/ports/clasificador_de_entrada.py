@@ -2,7 +2,7 @@
 """
     Puerto del clasificador de la entrada: en un solo paso, si el mensaje se atiende y cuál es su intención. Es lo
     que hacían por separado `GuardrailsPolicy` e `IntentEngine`, con NeMo y Ollama, y ahora hace una sola llamada a
-    Claude (ADR-0009, punto 3).
+    el LLM de Hive (ADR-0009, punto 3, y ADR-0010).
 """
 from abc import ABC, abstractmethod
 

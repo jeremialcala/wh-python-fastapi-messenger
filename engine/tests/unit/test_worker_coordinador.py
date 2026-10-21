@@ -26,11 +26,11 @@ PERSONA = Persona(nombre="Mine", rol="Sales Assistant", tono="helpful", reglas=[
 VUELTAS = [Vuelta(de="persona", texto="hola", enviadaEn=datetime(2026, 10, 20, 8, tzinfo=timezone.utc)),
            Vuelta(de="bot", texto="¡Hola!", enviadaEn=datetime(2026, 10, 20, 8, 0, 5, tzinfo=timezone.utc))]
 PERMITIDO = Clasificacion(permitido=True, motivo="ninguno", etiqueta="pregunta", confianza=0.9,
-                          modelo="claude-haiku-5-5")
+                          modelo="gemma-4-26b-a4b")
 
 
 def clasificado(clasificacion=PERMITIDO, **cambios) -> dict:
-    return {"schemaVersion": 1, "botId": str(BOT), "clientId": str(CLIENTE), "messageId": "wamid.A",
+    return {"schemaVersion": 2, "botId": str(BOT), "clientId": str(CLIENTE), "messageId": "wamid.A",
             "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{BOT}.{CONTACTO}",
             "contact": {"uuid": str(CONTACTO), "waId": "12025550143"},
             "entrada": {"texto": "¿tienen zapatos rojos?", "adjuntos": []},
@@ -91,7 +91,7 @@ def test_un_mensaje_que_sigue_se_pide_con_claude_la_persona_y_las_vueltas():
     assert publicado.subject == f"motor.pedido.7.{BOT}.{CONTACTO}"
     assert publicado.message_id == f"pedido:{BOT}:wamid.A"
     sobre = MensajePedido.model_validate(publicado.sobre)
-    assert sobre.pedido.respuesta == "claude"
+    assert sobre.pedido.respuesta == "modelo"
     assert sobre.pedido.persona == PERSONA and sobre.pedido.vueltas == VUELTAS
     # Lo del clasificador sigue en el sobre.
     assert sobre.entrada.texto == "¿tienen zapatos rojos?" and sobre.clasificacion == PERMITIDO
@@ -147,7 +147,7 @@ def test_si_bifrost_no_lo_guarda_se_espera():
 
 @pytest.mark.parametrize("datos, subject", [
     (b"no es json", None),
-    (clasificado(schemaVersion=2), None),
+    (clasificado(schemaVersion=1), None),
     (clasificado(contact={"uuid": str(CONTACTO), "name": "Ana"}), None),
     (clasificado(), f"motor.clasificado.7.{uuid4()}.{CONTACTO}"),
     (clasificado(), f"motor.pedido.7.{BOT}.{CONTACTO}"),

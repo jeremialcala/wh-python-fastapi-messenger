@@ -30,13 +30,13 @@ ANTES = datetime(2026, 10, 20, 9, 0, 3, tzinfo=timezone.utc)
 
 
 def respondido(**cambios) -> dict:
-    return {"schemaVersion": 1, "botId": str(BOT), "clientId": str(CLIENTE), "messageId": "wamid.A",
+    return {"schemaVersion": 2, "botId": str(BOT), "clientId": str(CLIENTE), "messageId": "wamid.A",
             "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{BOT}.{CONTACTO}",
             "contact": {"uuid": str(CONTACTO), "waId": NUMERO}, "cuentaDelBot": CUENTA,
             "entrada": {"texto": "¿tienen zapatos rojos?", "adjuntos": []},
             "clasificacion": Clasificacion(permitido=True, motivo="ninguno", etiqueta="pregunta", confianza=0.9,
-                                           modelo="claude-haiku-5-5").model_dump(),
-            "respuesta": {"texto": "Sí, tenemos zapatos rojos.", "fuente": "claude", "modelo": "claude-opus-5-5"},
+                                           modelo="gemma-4-26b-a4b").model_dump(),
+            "respuesta": {"texto": "Sí, tenemos zapatos rojos.", "fuente": "modelo", "modelo": "gemma-4-26b-a4b"},
             **cambios}
 
 

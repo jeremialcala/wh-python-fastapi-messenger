@@ -71,12 +71,12 @@ class Gateway:
 
 
 def clasificado(bot, contacto):
-    return {"schemaVersion": 1, "botId": str(bot), "clientId": str(uuid4()), "messageId": f"wamid.{uuid4().hex}",
+    return {"schemaVersion": 2, "botId": str(bot), "clientId": str(uuid4()), "messageId": f"wamid.{uuid4().hex}",
             "channel": "whatsapp", "receivedAt": "2026-10-20T09:00:00+00:00", "orderKey": f"{bot}.{contacto}",
             "contact": {"uuid": str(contacto), "waId": "12025550143"},
             "entrada": {"texto": "¿tienen zapatos rojos?", "adjuntos": []},
             "clasificacion": {"permitido": True, "motivo": "ninguno", "etiqueta": "pregunta", "confianza": 0.9,
-                              "entidades": [], "modelo": "claude-haiku-5-5"}}
+                              "entidades": [], "modelo": "gemma-4-26b-a4b"}}
 
 
 def test_el_coordinador_lee_lo_clasificado_publica_el_pedido_y_confirma(motor):
@@ -128,6 +128,6 @@ def test_el_coordinador_lee_lo_clasificado_publica_el_pedido_y_confirma(motor):
     assert mensaje.subject == f"motor.pedido.5.{bot}.{contacto}"
     assert mensaje.headers["Nats-Msg-Id"] == f"pedido:{bot}:{sobre['messageId']}"
     leido = MensajePedido.model_validate(json.loads(mensaje.data))
-    assert leido.pedido.respuesta == "claude" and leido.pedido.persona.reglas == ["Be kind"]
+    assert leido.pedido.respuesta == "modelo" and leido.pedido.persona.reglas == ["Be kind"]
     # El pedido no vuelve a entrar al coordinador: su filtro es motor.clasificado.>.
     assert asyncio.run(_como_admin(motor, confirmado))

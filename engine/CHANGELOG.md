@@ -13,6 +13,16 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 ## [Unreleased]
 
 ### Añadido
+- **[ADR-0010](docs/02-design/adr/ADR-0010-llm-propio-con-llama-cpp.md) (aceptada): el LLM de Hive, un modelo
+  propio.** En el E7, la API de Anthropic rechazó todas las llamadas desde midgard (403 «Request not allowed»), porque
+  su IP sale de Venezuela, que no es una región soportada. Jeremi decidió servir Gemma 4 26B A4B (Apache 2.0,
+  MXFP4) con llama.cpp en la RTX 3090 de la LAN, en Docker Desktop, un modelo para las dos tareas.
+  - Los adaptadores `LlmClasificador` y `LlmRedactor` (`src/infrastructure/llm/`), detrás de los mismos puertos.
+    Hablan con la API compatible con la de OpenAI de llama-server, y el clasificador ata la salida a su esquema con
+    una gramática.
+  - El servidor (`deploy/llm/docker-compose.yml`): build b11434 fijada por digest, dos ranuras, sin pensamiento,
+    clave propia y solo en la IP de la LAN.
+  - Medido: clasificar, de 0,8 a 2,1 s, con inyección y abuso detectados; responder, 1,2 s a unos 96 tokens/s.
 - **El despliegue del esqueleto en midgard** (E7 del [plan](docs/00-project/plan-de-los-workers.md)):
   `deploy/docker-compose.yml` (proyecto `hive-engine`), con los cuatro workers en un contenedor cada uno. Todos son de
   solo lectura, sin capacidades y con su comprobación de salud por la edad de su marca de vida. Su `.env.example` y el
@@ -113,6 +123,9 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 - `.ai-dlc/scripts/`: generadores del contrato AsyncAPI y del historial del repo.
 
 ### Cambiado
+- **El sobre interno pasa a `schemaVersion` 2** y su contrato a la 2.0.0: donde decía `claude`
+  (`pedido.respuesta`, `respuesta.fuente`), dice `modelo`. Todos los workers se despliegan juntos.
+- **El clasificador y el de respuesta ya no usan Andvari:** solo Bifröst y la clave del LLM, de `keys/llm-api-key`.
 - El bucle común pasa a cada worker su conexión con Bifröst al arrancar.
 - La lectura del sobre de un paso del motor (`leer_del_motor`) pasa al bucle común: la usan el coordinador y el de
   respuesta.
@@ -138,6 +151,8 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
   imagen final es `python:3.12-slim`, sin compiladores y solo con el código. Ya no instala rustup.
 
 ### Eliminado
+- **Claude y el SDK `anthropic`**, con `httpx2` y `truststore`: los adaptadores `ClaudeClasificador` y
+  `ClaudeRedactor` pasan a ser los del LLM propio (ADR-0010).
 - **El servicio de antes** (E3b del [plan](docs/00-project/plan-de-los-workers.md); ADR-0009, «Construido»):
   - NeMo Guardrails y Ollama, con sus adaptadores, sus prompts y los rails, y con ellos `annoy` y su compilación de
     C++. El motor ya se puede desarrollar fuera de Linux;

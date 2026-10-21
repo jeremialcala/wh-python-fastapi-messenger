@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-    Sanitización de la entrada (OWASP). Limpia el texto de la persona antes de que salga del motor hacia Claude.
+    Sanitización de la entrada (OWASP). Limpia el texto de la persona antes de que llegue al LLM.
 """
 import re
 import unicodedata
