@@ -126,6 +126,9 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 - **El sobre interno pasa a `schemaVersion` 2** y su contrato a la 2.0.0: donde decía `claude`
   (`pedido.respuesta`, `respuesta.fuente`), dice `modelo`. Todos los workers se despliegan juntos.
 - **El clasificador y el de respuesta ya no usan Andvari:** solo Bifröst y la clave del LLM, de `keys/llm-api-key`.
+- **El coordinador espera 10 s por llamada al gateway**, no 5 (`COORDINATOR_TIMEOUT`; decisión de Jeremi del
+  2026-10-21). En midgard, una lectura de las vueltas tardó 5,8 s: con 5 s, el mensaje esperaba 30 s al reintento y
+  la respuesta llegó a los 41 s. Con dos llamadas por mensaje, 20 s como mucho, por debajo del `ack_wait` de 30 s.
 - El bucle común pasa a cada worker su conexión con Bifröst al arrancar.
 - La lectura del sobre de un paso del motor (`leer_del_motor`) pasa al bucle común: la usan el coordinador y el de
   respuesta.

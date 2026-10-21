@@ -54,8 +54,9 @@ class CoordinatorSettings(AndvariSettings):
     gateway_audience: str = Field(min_length=8)
     gateway_public_keys_file: str = Field(min_length=1)
     gateway_ca_file: str | None = None
-    # Por llamada. Son dos por mensaje, muy por debajo de los 30 s del ack_wait de MOTOR/coordinator.
-    coordinator_timeout: float = Field(default=5.0, gt=0, le=10.0)
+    # Por llamada. Son dos por mensaje: 20 s como mucho, por debajo de los 30 s del ack_wait de MOTOR/coordinator. Con 5
+    # s, una lectura de 5,8 s medida en midgard se reintentaba 30 s después.
+    coordinator_timeout: float = Field(default=10.0, gt=0, le=10.0)
 
 
 class ResponderSettings(LlmSettings):
