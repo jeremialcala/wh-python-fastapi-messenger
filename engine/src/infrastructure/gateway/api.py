@@ -8,6 +8,10 @@
     El token de Meta de cada bot se recuerda unos minutos, para no pedirlo en cada mensaje: cada entrega queda en el
     log del gateway. Si Meta lo rechaza, el notificador lo olvida y se pide otra vez.
 
+    La persona del bot con sus reglas también se recuerda unos minutos (decisión de Jeremi del 2026-10-21): en
+    midgard, las dos lecturas del coordinador al gateway eran lo más lento de un mensaje después del LLM. Un cambio de
+    las reglas tarda eso en llegar a las respuestas. Las vueltas no se recuerdan: cambian con cada mensaje.
+
     La clave privada de cada cliente se lee de Andvari la primera vez que hace falta y se guarda en memoria. Si el
     gateway la rechaza (401), se vuelve a leer una vez: puede haber cambiado.
 
@@ -30,6 +34,7 @@ from src.domain.ports.fuente_del_bot import FuenteDelBot, FuenteNoDisponible, No
 
 TIMEOUT = 5            # segundos por llamada
 RECORDAR_TOKEN = 600   # segundos que se recuerda el token de Meta de un bot
+RECORDAR_REGLAS = 300  # segundos que se recuerda la persona de un bot con sus reglas
 
 
 def clave_publica_del_gateway(path: str) -> dict:
@@ -58,6 +63,8 @@ class ApiDelGateway(FuenteDelBot, TokensDelBot):
         self._timeout = timeout
         self._claves: dict[UUID, dict] = {}
         self._tokens: dict[UUID, tuple[str, float]] = {}
+        # Por cliente y bot: la persona de un bot solo vale para el cliente con cuya clave se leyó.
+        self._personas: dict[tuple[UUID, UUID], tuple[Persona, float]] = {}
 
     def _clave(self, client_id: UUID, otra_vez: bool = False) -> dict:
         if otra_vez or client_id not in self._claves:
@@ -98,13 +105,18 @@ class ApiDelGateway(FuenteDelBot, TokensDelBot):
             raise FuenteNoDisponible(type(e).__name__) from None
 
     async def persona(self, client_id: UUID, bot_id: UUID) -> Persona:
+        recordada = self._personas.get((client_id, bot_id))
+        if recordada and time.monotonic() < recordada[1]:
+            return recordada[0]
         datos = await asyncio.to_thread(self._get, client_id, f"/chat/{bot_id}/rules")
         try:
-            return Persona(nombre=datos["name"], rol=datos["role"], tono=datos["tone"],
-                           descripcion=datos.get("description") or "",
-                           reglas=[regla for regla in datos.get("rules") or [] if isinstance(regla, str)])
+            persona = Persona(nombre=datos["name"], rol=datos["role"], tono=datos["tone"],
+                              descripcion=datos.get("description") or "",
+                              reglas=[regla for regla in datos.get("rules") or [] if isinstance(regla, str)])
         except (KeyError, TypeError, AttributeError, ValidationError):
             raise FuenteNoDisponible("reglas inesperadas") from None
+        self._personas[(client_id, bot_id)] = (persona, time.monotonic() + RECORDAR_REGLAS)
+        return persona
 
     async def vueltas(self, client_id: UUID, bot_id: UUID, contact_id: UUID, sin: str) -> list[Vuelta]:
         datos = await asyncio.to_thread(self._get, client_id, f"/chat/{bot_id}/contacts/{contact_id}/turns")

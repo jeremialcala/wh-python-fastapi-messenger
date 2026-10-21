@@ -135,6 +135,40 @@ def test_cada_llamada_lleva_un_token_nuevo_y_la_clave_se_lee_una_sola_vez(servid
     assert len(andvari.leidas) == 1
 
 
+def test_la_persona_se_pide_una_vez_y_se_recuerda_cinco_minutos(servidor, clave, monkeypatch):
+    ahora = [1000.0]
+    monkeypatch.setattr("src.infrastructure.gateway.api.time.monotonic", lambda: ahora[0])
+    gateway = api(servidor, Andvari(clave))
+
+    asyncio.run(gateway.persona(CLIENTE, BOT))
+    Gateway.respuestas[f"/chat/{BOT}/rules"] = (200, {"data": {**PERSONA, "rules": ["Nueva"]}})
+    ahora[0] += 299
+    assert asyncio.run(gateway.persona(CLIENTE, BOT)).reglas == ["Be kind", "Never promise delivery dates"]
+    ahora[0] += 2
+    assert asyncio.run(gateway.persona(CLIENTE, BOT)).reglas == ["Nueva"]
+
+    assert [ruta for ruta, _ in Gateway.vistas] == [f"/chat/{BOT}/rules"] * 2
+
+
+def test_la_persona_recordada_de_un_cliente_no_vale_para_otro(servidor, clave):
+    gateway = api(servidor, Andvari(clave))
+    asyncio.run(gateway.persona(CLIENTE, BOT))
+
+    # Otro cliente no tiene clave con la que el gateway le dé el bot: se pregunta, no se responde de memoria.
+    with pytest.raises(FuenteNoDisponible):
+        asyncio.run(gateway.persona(uuid4(), BOT))
+
+
+def test_una_persona_que_no_se_pudo_leer_no_se_recuerda(servidor, clave):
+    Gateway.respuestas[f"/chat/{BOT}/rules"] = (500, {"code": 500})
+    gateway = api(servidor, Andvari(clave))
+    with pytest.raises(FuenteNoDisponible):
+        asyncio.run(gateway.persona(CLIENTE, BOT))
+    Gateway.respuestas[f"/chat/{BOT}/rules"] = (200, {"data": PERSONA})
+
+    assert asyncio.run(gateway.persona(CLIENTE, BOT)).nombre == "Mine"
+
+
 def test_las_vueltas_van_en_orden_sin_el_mensaje_que_se_responde(servidor, clave):
     vueltas = asyncio.run(api(servidor, Andvari(clave)).vueltas(CLIENTE, BOT, CONTACTO, "wamid.4"))
 

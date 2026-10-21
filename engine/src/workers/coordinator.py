@@ -8,7 +8,7 @@
 
     - **Un mensaje que sigue** se pide al modelo: el coordinador pregunta al gateway la persona del bot con sus
       reglas y las últimas vueltas de la conversación, con su clave para el cliente dueño del bot, y las pone en el
-      sobre.
+      sobre. La persona la recuerda 5 minutos: un cambio de las reglas tarda eso en llegar a las respuestas.
     - **Un mensaje que no sigue** se pide con un texto fijo según su motivo, sin preguntar nada (decisión de Jeremi
       del 2026-10-20): la persona siempre recibe algo.
     - **Si el gateway no responde**, el mensaje queda en espera y Bifröst lo entrega otra vez. En la última entrega
