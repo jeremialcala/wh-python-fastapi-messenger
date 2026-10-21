@@ -64,13 +64,20 @@ tiene para su cliente.
    - el modelo en `C:\hive-llm\modelos`, con su SHA-256 comprobado contra el de Hugging Face;
    - la clave en `C:\hive-llm\api-key`, nacida allí, con un solo salto de línea (`\n`, no `\r\n`: llama-server toma
      el `\r` como parte de la clave) y legible solo por su usuario;
-   - `docker compose up -d` en `engine/deploy/llm`. Cargar el modelo tarda unos 3 minutos;
-   - en el cortafuegos de Windows, desde un PowerShell de administrador, que solo entre midgard:
+   - `docker compose up -d` en `engine/deploy/llm`. Cargar el modelo tarda unos 3 minutos, y unos 6 después de un
+     `wsl --shutdown`, con la caché de Windows fría;
+   - la VM de Docker Desktop, con 12 GB en `%USERPROFILE%\.wslconfig` (`memory=12GB`). Con 8 GB se colgó el
+     2026-10-21, con el modelo y dos clústeres kind dentro;
+   - en el cortafuegos de Windows, desde un PowerShell de administrador, que solo entre midgard. Una regla que
+     permita a midgard no basta: la de «Docker Desktop Backend» ya deja entrar a cualquiera en el perfil Público, y
+     así está la red del equipo. Hace falta bloquear al resto, y en Windows un bloqueo gana a un permiso:
 
      ```powershell
-     New-NetFirewallRule -DisplayName "Hive LLM desde midgard" -Direction Inbound -Protocol TCP -LocalPort 8080 `
-       -RemoteAddress 192.168.10.1 -Action Allow -Profile Any
+     New-NetFirewallRule -DisplayName "Hive LLM: solo midgard" -Direction Inbound -Protocol TCP -LocalPort 8080 `
+       -RemoteAddress 0.0.0.0-192.168.10.0,192.168.10.2-255.255.255.255 -Action Block -Profile Any
      ```
+
+     Desde otro equipo de la LAN, `curl -m 5 http://192.168.10.74:8080/health` no llega; desde midgard, sí.
    - la copia de la clave a midgard, por la entrada estándar, sin pasar por la pantalla:
 
      ```bash
@@ -90,6 +97,18 @@ tiene para su cliente.
    - se da de alta en el gateway, con sus credenciales de Meta, su número y sus reglas;
    - en Meta, la URL del webhook es `https://hive-webhook.higerotech.com/chat/{bot_id}`, con su `verifyToken`, y se
      suscribe a `messages`.
+8. **El vigía** (`deploy/vigia/` de la raíz): Docker marca `unhealthy` un contenedor cuyo healthcheck falla, pero
+   no lo reinicia. `hive-vigia.timer` mira cada minuto, en el segundo 30, el gateway, el webhook, la ingesta y los
+   cuatro workers. Reinicia el que esté `unhealthy` y avisa por ntfy, por el mismo canal que los otros vigías de
+   midgard. Si uno sigue `unhealthy` tras 3 reinicios en una hora, deja de reiniciarlo y avisa con urgencia.
+
+   ```bash
+   sudo install -m 755 deploy/vigia/hive-vigia.sh /usr/local/sbin/hive-vigia.sh
+   sudo install -m 644 deploy/vigia/hive-vigia.service deploy/vigia/hive-vigia.timer /etc/systemd/system/
+   sudo ln -s /etc/smartd-aviso.env /etc/hive-aviso.env
+   sudo systemctl daemon-reload && sudo systemctl enable --now hive-vigia.timer
+   sudo /usr/local/sbin/hive-vigia.sh prueba
+   ```
 
 ## Comprobar
 
@@ -99,8 +118,11 @@ tiene para su cliente.
 - El log del clasificador y del de respuesta dice los tokens de cada llamada.
 - El LLM: `docker logs hive-llm` y `nvidia-smi`, en el equipo de la RTX 3090.
 - El historial del gateway guarda el mensaje y la respuesta.
+- El vigía: `systemctl list-timers hive-vigia.timer` y `journalctl -u hive-vigia` (una línea por reinicio).
 
 ## Volver atrás
+
+- **El vigía:** `sudo systemctl disable --now hive-vigia.timer`. Su estado está en `/var/lib/hive-vigia`.
 
 - **El motor:** `docker compose --project-directory /srv/apps/hive-engine down`. Lo que quede en `MOTOR` caduca en 24
   horas.
