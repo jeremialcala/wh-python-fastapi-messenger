@@ -201,6 +201,8 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
   mensajes después, quedan menos de diez vueltas: el gateway cuenta las diez desde el último.
 
 ### Seguridad
+- **OpenTelemetry sube a 1.45.1** en los locks del motor, como en los del gateway: CVE-2026-114603 de
+  `opentelemetry-api` (2026-10-22).
 - **Siete dependencias con vulnerabilidades conocidas pasan a versiones corregidas**, todas con más de dos semanas:
   - `cryptography` 42.0.8 → 50.0.2, con `cffi` 1.16.0 → 2.0.0;
   - `pillow` 10.3.0 → 12.3.0;
