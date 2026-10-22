@@ -36,6 +36,9 @@ class LlmSettings(WorkerSettings):
     llm_api_key_file: str = Field(min_length=1)
     # El alias con el que llama-server sirve el modelo.
     llm_model: str = "gemma-4-26b-a4b"
+    # Segundos sin usar el LLM tras los que el worker lo calienta con su `system` (src/infrastructure/llm/caliente.py).
+    # 0, nunca. Tras horas sin uso, la primera consulta era cuatro veces más lenta (medido el 2026-10-22).
+    llm_calentar_cada: int = Field(default=600, ge=0, le=3600)
 
 
 class ClassifierSettings(LlmSettings):

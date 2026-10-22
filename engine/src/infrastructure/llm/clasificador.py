@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from src.domain.models.sobre import ETIQUETAS, MOTIVOS_DEL_MODELO, Clasificacion, Entidad
 from src.domain.ports.clasificador_de_entrada import ClasificacionFallida, ClasificadorDeEntrada
+from src.infrastructure.llm.caliente import Caliente, prefijo
 from src.infrastructure.llm.cliente import ClienteLlm, LlmNoDisponible
 
 log = logging.getLogger(__name__)
@@ -90,7 +91,10 @@ class LlmClasificador(ClasificadorDeEntrada):
         :param cliente: el servidor de llama.cpp, con su clave y su timeout.
         :param max_tokens: el tope de la respuesta: un JSON corto.
         """
-        self._cliente = cliente
+        # Con su candado y la hora de su último uso, para mantenerlo caliente (caliente.py). Su `system` no cambia.
+        self.llm = Caliente(cliente)
+        self.llm.prefijo = prefijo(SYSTEM)
+        self._cliente = self.llm
         self._max_tokens = max_tokens
 
     async def clasificar(self, texto: str) -> Clasificacion:

@@ -14,6 +14,7 @@ import logging
 
 from src.domain.models.sobre import Persona, Vuelta
 from src.domain.ports.redactor import Redaccion, RedaccionFallida, Redactor
+from src.infrastructure.llm.caliente import Caliente, prefijo
 from src.infrastructure.llm.cliente import ClienteLlm, LlmNoDisponible
 
 log = logging.getLogger(__name__)
@@ -78,11 +79,16 @@ class LlmRedactor(Redactor):
         :param cliente: el servidor de llama.cpp, con su clave y su timeout.
         :param max_tokens: el tope de la respuesta.
         """
-        self._cliente = cliente
+        # Con su candado y la hora de su último uso, para mantenerlo caliente (caliente.py), con el `system` del
+        # último bot que contestó: es el que tiene su ranura. Antes de la primera respuesta, no hay nada que calentar.
+        self.llm = Caliente(cliente)
+        self._cliente = self.llm
         self._max_tokens = max_tokens
 
     async def redactar(self, persona: Persona, vueltas: list[Vuelta], texto: str) -> Redaccion:
-        mensajes = [{"role": "system", "content": system_de(persona)}] + mensajes_de(vueltas, texto)
+        system = system_de(persona)
+        self.llm.prefijo = prefijo(system)
+        mensajes = [{"role": "system", "content": system}] + mensajes_de(vueltas, texto)
         try:
             completado = await self._cliente.preguntar(mensajes, self._max_tokens)
         except LlmNoDisponible as e:

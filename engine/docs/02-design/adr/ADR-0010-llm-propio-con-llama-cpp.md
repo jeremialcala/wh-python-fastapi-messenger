@@ -99,6 +99,11 @@ llama.cpp reutiliza el prefijo del `system`: 344 de los 367 tokens de una clasif
     (la caché de prompts en RAM, hasta 8 GiB), y lo que el modelo deja fuera de la GPU estaba fuera de memoria.
     Desde entonces corre con `--cache-ram 0` y `--load-mode mmap+mlock`: 0,9 GB de memoria propia, y los 748 MB
     que no van a la GPU, bloqueados en RAM.
+  - **Y caliente, desde el 2026-10-22.** Con la memoria ya bloqueada, el primer mensaje tras una noche sin uso aún
+    tardó 17,8 s, frente a 4 s los siguientes. Ya no había espera antes de empezar, pero el primer token tardó 3,3 s, y
+    la respuesta leyó su consulta a 144 tokens/s en vez de ~1400: lo que se enfría está del lado de Windows y de la
+    GPU. El clasificador y el de respuesta lo calientan con su propio `system` si llevan 10 minutos sin usarlo
+    (`LLM_CALENTAR_CADA`): un token de salida, menos de un segundo de GPU.
 - **El clasificador y el de respuesta ya no necesitan Andvari:** solo Bifröst y la clave del LLM. Sus roles y sus
   `secret_id`, y las claves de Anthropic guardadas en `motor/data/anthropic/<worker>`, quedan sin uso: se retiran
   (pendiente), y las claves se revocan en la consola de Anthropic.

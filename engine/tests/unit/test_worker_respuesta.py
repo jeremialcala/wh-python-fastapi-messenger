@@ -188,7 +188,7 @@ def test_al_arrancar_lee_la_clave_del_llm_y_lo_configura_como_dice_su_configurac
         atender_, cerrar = await preparar(ajustes(clave), 4)
         redactor = atender_._redactor
         try:
-            cliente = redactor._cliente
+            cliente = redactor.llm._cliente
             return cliente.modelo, cliente._clave, cliente._timeout, redactor._max_tokens
         finally:
             await cerrar()

@@ -31,6 +31,7 @@ from src.domain.models.sobre import (
 from src.domain.ports.clasificador_de_entrada import ClasificacionFallida, ClasificadorDeEntrada
 from src.infrastructure.adapters.sanitize import sanitizar_texto
 from src.infrastructure.llm import ClienteLlm, LlmClasificador
+from src.infrastructure.llm import caliente
 from src.infrastructure.llm.cliente import leer_clave
 from src.workers.runtime import Resultado, ejecutar, entregas, publicador
 from src.workers.settings import ClassifierSettings
@@ -160,8 +161,11 @@ async def preparar(settings: ClassifierSettings, max_deliver: int):
                          settings.classifier_timeout)
     publisher = publicador(settings, NOMBRE)
     clasificador = LlmClasificador(cliente, settings.classifier_max_tokens)
+    # Que el LLM no se enfríe mientras no llegan mensajes.
+    parar = caliente.arrancar(clasificador.llm, settings.llm_calentar_cada)
 
     async def cerrar() -> None:
+        parar()
         await publisher.close()
 
     return Clasificar(clasificador, publisher, max_deliver), cerrar
