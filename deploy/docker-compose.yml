@@ -2,9 +2,7 @@
 # (github.com/higerotech/despliegue-continuo). Copy to /srv/apps/hive-gateway/.
 #
 # Until 2026-10-22 the project was `bots-gateway` and its containers `bots-webhook`, `bots-gateway` and `bots-ingest`
-# (ADR-0024, version 0.3.0). The webhook and the management API still answer to those names as network aliases, so
-# that Hive's tunnel and the engine keep reaching them while Cloudflare is moved to the new ones. ALIAS: take them
-# out once the tunnel's public hostnames point at hive-webhook and hive-api.
+# (ADR-0024, version 0.3.0).
 #
 # Three services from the same image: the webhook Meta calls, the management API (ADR-0018) and the ingestion
 # worker (ADR-0021). They are separate processes so that a slow management request never holds a notification up,
@@ -58,13 +56,7 @@ services:
     env_file:
       - .env
       - /srv/infra/bifrost/credenciales/webhook.env
-    networks:
-      hermod:
-      andvari:
-      bifrost:
-      saga:
-      publico:
-        aliases: [bots-webhook]   # ALIAS
+    networks: [hermod, andvari, bifrost, saga, publico]
     environment:
       # Here and not in .env: a typo there would stop the start, but this is what production is.
       ENVIRONMENT: production
@@ -95,14 +87,7 @@ services:
     env_file:
       - .env
       - /srv/infra/bifrost/credenciales/gestion.env
-    networks:
-      hermod:
-      andvari:
-        aliases: [bots-gateway]   # ALIAS
-      bifrost:
-      saga:
-      publico:
-        aliases: [bots-gateway]   # ALIAS
+    networks: [hermod, andvari, bifrost, saga, publico]
     environment:
       ENVIRONMENT: production
       WEB_CONCURRENCY: 1
