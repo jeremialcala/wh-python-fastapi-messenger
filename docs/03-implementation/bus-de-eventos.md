@@ -92,7 +92,7 @@ compose de esta rama. El script es el mismo de I1. Las imágenes se alternaron s
 
 ## El worker de ingesta (I4)
 
-`src/ingest.py`, el servicio `ingest` del compose, contenedor `bots-ingest`. Lee `WEBHOOK` con el consumidor durable
+`src/ingest.py`, el servicio `ingest` del compose, contenedor `hive-ingest`. Lee `WEBHOOK` con el consumidor durable
 `ingesta` de Bifröst, que solo enlaza: su usuario no puede crear consumidores. Trata las notificaciones una detrás
 de otra, en orden, con `controller/ingestion.py`. Con cada mensaje de la notificación hace esto:
 

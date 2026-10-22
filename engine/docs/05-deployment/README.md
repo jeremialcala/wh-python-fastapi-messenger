@@ -14,13 +14,13 @@ Jeremi del 2026-10-20). El Gate 4, con el pipeline, sus gates y el SBOM, queda p
 
 | Proyecto compose | Dónde | Contenedores |
 |---|---|---|
-| `bots-gateway` | `/srv/apps/bots-gateway` (`deploy/docker-compose.yml` de la raíz) | `bots-webhook`, `bots-gateway`, `bots-ingest` y, con el perfil `tunel`, `hive-tunel` |
+| `hive-gateway` | `/srv/apps/hive-gateway` (`deploy/docker-compose.yml` de la raíz) | `hive-webhook`, `hive-api`, `hive-ingest` y, con el perfil `tunel`, `hive-tunel` |
 | `hive-engine` | `/srv/apps/hive-engine` (`engine/deploy/docker-compose.yml`) | `hive-classifier`, `hive-coordinator`, `hive-responder` y `hive-notifier` |
 
 `hive-tunel` publica, desde Cloudflare (ADR-0024 del gateway):
 
-- `https://hive-webhook.higerotech.com` hacia `http://bots-webhook:5002`;
-- `https://hive-api.higerotech.com` hacia `http://bots-gateway:5002`.
+- `https://hive-webhook.higerotech.com` hacia `http://hive-webhook:5002`;
+- `https://hive-api.higerotech.com` hacia `http://hive-api:5002`.
 
 Bifröst, Andvari y Saga los ponen sus repositorios. Los workers llegan a ellos y a la API del gateway por las redes
 externas `bifrost`, `andvari` y `yggdrasil_saga`.
@@ -50,8 +50,8 @@ tiene para su cliente.
    ```bash
    # Sin autocrlf: desde una copia de Windows, git archive daría los ficheros con CRLF.
    git -c core.autocrlf=false archive develop | ssh midgard 'rm -rf ~/hive-build && mkdir ~/hive-build && tar -x -C ~/hive-build'
-   docker build -t ghcr.io/jeremialcala/wh-python-fastapi-messenger:e7-<sha> ~/hive-build
-   docker build -f ~/hive-build/engine/Dockerfile -t ghcr.io/jeremialcala/chatbot-engine:e7-<sha> ~/hive-build
+   docker build -t ghcr.io/jeremialcala/hive-gateway:<etiqueta> ~/hive-build
+   docker build -f ~/hive-build/engine/Dockerfile -t ghcr.io/jeremialcala/hive-engine:<etiqueta> ~/hive-build
    ```
 2. **Andvari**, con un token raíz temporal y en una terminal propia: el `secret_id` del coordinador y del
    notificador, que firman con su clave para cada cliente. Pide la clave de recuperación sin eco:

@@ -176,7 +176,7 @@ def test_al_arrancar_lee_la_clave_del_gateway_de_su_fichero(tmp_path):
     fichero.write_text(json.dumps({"keys": [public_part(new_key())]}), encoding="utf-8")
     settings = CoordinatorSettings(nats_url="tls://bifrost:4222", andvari_addr="https://andvari:8200",
                                    engine_role_id="rol", engine_secret_id_file="/run/andvari/secret-id",
-                                   gateway_url="http://bots-gateway:8000", gateway_audience="https://bots.example.com",
+                                   gateway_url="http://hive-api:8000", gateway_audience="https://bots.example.com",
                                    gateway_public_keys_file=str(fichero))
 
     async def arrancar():
@@ -186,4 +186,4 @@ def test_al_arrancar_lee_la_clave_del_gateway_de_su_fichero(tmp_path):
         finally:
             await cerrar()
 
-    assert asyncio.run(arrancar()) == ("coordinator", "http://bots-gateway:8000", 4)
+    assert asyncio.run(arrancar()) == ("coordinator", "http://hive-api:8000", 4)

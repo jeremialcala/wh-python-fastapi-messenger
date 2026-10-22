@@ -1,4 +1,4 @@
-# La imagen del motor de respuestas (ADR-0023 del gateway: ghcr.io/jeremialcala/chatbot-engine). Se construye desde
+# La imagen del motor de respuestas (ADR-0023 y ADR-0024 del gateway: ghcr.io/jeremialcala/hive-engine). Se construye desde
 # la raíz del monorepo, que es donde está `shared/`:
 #
 #   docker build -f engine/Dockerfile .

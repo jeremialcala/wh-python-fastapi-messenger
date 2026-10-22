@@ -1,5 +1,10 @@
-# The gateway as it runs on the server, deployed by the webhook receiver
-# (github.com/higerotech/despliegue-continuo). Copy to /srv/apps/bots-gateway/.
+# Hive's gateway as it runs on the server, deployed by the webhook receiver
+# (github.com/higerotech/despliegue-continuo). Copy to /srv/apps/hive-gateway/.
+#
+# Until 2026-10-22 the project was `bots-gateway` and its containers `bots-webhook`, `bots-gateway` and `bots-ingest`
+# (ADR-0024, version 0.3.0). The webhook and the management API still answer to those names as network aliases, so
+# that Hive's tunnel and the engine keep reaching them while Cloudflare is moved to the new ones. ALIAS: take them
+# out once the tunnel's public hostnames point at hive-webhook and hive-api.
 #
 # Three services from the same image: the webhook Meta calls, the management API (ADR-0018) and the ingestion
 # worker (ADR-0021). They are separate processes so that a slow management request never holds a notification up,
@@ -32,10 +37,10 @@
 #     both read-only. The management API only publishes the notices of erasure there. Until the response engine
 #     reads the bus, the worker also hands each message to RabbitMQ
 
-name: bots-gateway
+name: hive-gateway
 
 x-common: &common
-  image: ghcr.io/jeremialcala/wh-python-fastapi-messenger:${IMAGE_TAG:?IMAGE_TAG is required}
+  image: ghcr.io/jeremialcala/hive-gateway:${IMAGE_TAG:?IMAGE_TAG is required}
   restart: unless-stopped
   env_file:
     - .env
@@ -47,13 +52,19 @@ x-common: &common
 services:
   webhook:
     <<: *common
-    container_name: bots-webhook
+    container_name: hive-webhook
     command: ["uvicorn", "webhook:app", "--host", "0.0.0.0", "--port", "5002", "--no-access-log"]
     # NATS_URL, NATS_USER, NATS_PASSWORD, NATS_CA and NATS_INBOX_PREFIX, as Bifröst wrote them for the webhook.
     env_file:
       - .env
       - /srv/infra/bifrost/credenciales/webhook.env
-    networks: [hermod, andvari, bifrost, saga, publico]
+    networks:
+      hermod:
+      andvari:
+      bifrost:
+      saga:
+      publico:
+        aliases: [bots-webhook]   # ALIAS
     environment:
       # Here and not in .env: a typo there would stop the start, but this is what production is.
       ENVIRONMENT: production
@@ -79,12 +90,19 @@ services:
 
   management:
     <<: *common
-    container_name: bots-gateway
+    container_name: hive-api
     # NATS_* as Bifröst wrote them for the management API: it publishes the notices of erasure (ADR-0017).
     env_file:
       - .env
       - /srv/infra/bifrost/credenciales/gestion.env
-    networks: [hermod, andvari, bifrost, saga, publico]
+    networks:
+      hermod:
+      andvari:
+        aliases: [bots-gateway]   # ALIAS
+      bifrost:
+      saga:
+      publico:
+        aliases: [bots-gateway]   # ALIAS
     environment:
       ENVIRONMENT: production
       WEB_CONCURRENCY: 1
@@ -108,7 +126,7 @@ services:
 
   ingest:
     <<: *common
-    container_name: bots-ingest
+    container_name: hive-ingest
     command: ["python", "ingest.py"]
     # NATS_* as Bifröst wrote them for the worker: its consumer of WEBHOOK and the subjects of MENSAJES.
     env_file:
@@ -141,8 +159,8 @@ services:
   # Hive's own tunnel (ADR-0024), separate from the one of deploy.higerotech.com so that revoking one does not take
   # the other down. In Cloudflare its public hostnames point at the services by name:
   #
-  #   hive-webhook.higerotech.com  ->  http://bots-webhook:5002
-  #   hive-api.higerotech.com      ->  http://bots-gateway:5002
+  #   hive-webhook.higerotech.com  ->  http://hive-webhook:5002
+  #   hive-api.higerotech.com      ->  http://hive-api:5002
   #
   # Behind the profile `tunel`: it only comes up with COMPOSE_PROFILES=tunel in .env.
   tunel:
@@ -184,7 +202,7 @@ services:
     entrypoint: ["python", "-m", "ops.engine_keys"]
     networks: [andvari]
     environment:
-      GATEWAY_URL: http://bots-gateway:5002
+      GATEWAY_URL: http://hive-api:5002
       GATEWAY_PUBLIC_KEYS_FILE: /run/gateway/gateway-public.json
       OPERATOR_KEY_FILE: /run/operator/key.json
       ANDVARI_ADDR: https://andvari:8200
