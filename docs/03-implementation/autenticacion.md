@@ -91,7 +91,7 @@ Los comandos se ejecutan con la imagen del servicio, en el servidor.
 
 ```bash
 # 1. El par de claves del gateway. La privada se escribe en el fichero, solo para su dueño, y no se imprime.
-docker run --rm -v /srv/apps/bots-gateway/keys:/keys <imagen> python -m ops.gateway_key generate /keys/gateway-keys.json
+docker run --rm -v /srv/apps/hive-gateway/keys:/keys <imagen> python -m ops.gateway_key generate /keys/gateway-keys.json
 
 # 2. En el .env: la ruta del fichero dentro del contenedor y la audiencia que pondrán los clientes en sus tokens.
 #    GATEWAY_KEYS_FILE=/run/gateway/gateway-keys.json
@@ -156,7 +156,7 @@ vaya a servir:
 `python -m ops.engine_keys <client_id>`, en midgard, desde la imagen del gateway:
 
 ```bash
-cd /srv/apps/bots-gateway
+cd /srv/apps/hive-gateway
 # La clave privada del operador solo se monta para esta ejecución.
 IMAGE_TAG=<la etiqueta que corre> docker compose --profile operations run --rm \
     -v /ruta/operador.json:/run/operator/key.json:ro engine-keys <client_id>

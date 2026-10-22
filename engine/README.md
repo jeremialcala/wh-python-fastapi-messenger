@@ -1,6 +1,6 @@
 # El motor de respuestas
 
-> **Dentro del monorepo de los chatbots.** Vive en `engine/` del repositorio `wh-python-fastapi-messenger`, junto al
+> **Dentro del monorepo de los chatbots.** Vive en `engine/` del repositorio `jeremialcala/hive`, junto al
 > gateway que le entrega los mensajes, desde el 2026-10-20
 > ([ADR-0023](../docs/00-project/adr/0023-monorepo-del-gateway-y-el-motor.md)). El repositorio
 > `ms-python-metamsghandler`, donde nació, queda archivado con su historia, que también está aquí. Las órdenes de
@@ -126,7 +126,7 @@ pylint --rcfile=pyproject.toml src
 NATS_TEST_ADDR=127.0.0.1:24222 python -m pytest --cov=src --cov-branch --cov-fail-under=80
 
 # La imagen, desde la raíz del monorepo, que es donde está shared/
-docker build -f Dockerfile -t chatbot-engine ..
+docker build -f Dockerfile -t hive-engine ..
 ```
 
 El CI (workflows `engine` y `build-engine`) hace lo mismo, con el NATS y con las pruebas de integración obligatorias.

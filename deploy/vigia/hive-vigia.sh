@@ -4,7 +4,7 @@
 # de morocota en el 50, y todos consultan docker).
 #
 # Por qué: Docker marca unhealthy un contenedor cuyo healthcheck falla, pero no lo reinicia; `restart:
-# unless-stopped` solo actúa cuando el proceso termina. El 2026-10-21, bots-gateway pasó seis minutos colgado y
+# unless-stopped` solo actúa cuando el proceso termina. El 2026-10-21, la API de gestión pasó seis minutos colgada y
 # unhealthy, sin que nada lo levantara, y los mensajes de Hive esperaron detrás.
 #
 # Por qué en el host y no en un contenedor con el socket de Docker: ese socket es root en midgard. Aquí ya lo es, y
@@ -24,7 +24,7 @@ set -euo pipefail
 
 AVISO_ENV=${AVISO_ENV:-/etc/hive-aviso.env}
 ESTADO=${VIGIA_ESTADO:-/var/lib/hive-vigia}
-CONTENEDORES=${VIGIA_CONTENEDORES:-bots-webhook bots-gateway bots-ingest hive-classifier hive-coordinator hive-responder hive-notifier}
+CONTENEDORES=${VIGIA_CONTENEDORES:-hive-webhook hive-api hive-ingest hive-classifier hive-coordinator hive-responder hive-notifier}
 MAX_REINICIOS=${VIGIA_MAX_REINICIOS:-3}
 VENTANA_S=${VIGIA_VENTANA_S:-3600}
 GRACIA_S=${VIGIA_GRACIA_S:-600}

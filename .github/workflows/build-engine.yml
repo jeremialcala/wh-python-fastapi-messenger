@@ -1,4 +1,5 @@
-# Publishes the image of the response engine to GHCR: ghcr.io/<owner>/chatbot-engine (ADR-0023).
+# Publishes the image of the response engine to GHCR: ghcr.io/<owner>/hive-engine (ADR-0023; named after the product
+# since ADR-0024, version 0.3.0).
 #
 # The NAME is not `build` on purpose. The receiver deploys the gateway when a workflow_run called exactly `build`
 # finishes on main; one more `build` would redeploy the gateway on every change of the engine. The receiver tells
@@ -81,7 +82,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/chatbot-engine
+          images: ghcr.io/${{ github.repository_owner }}/hive-engine
           tags: |
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}

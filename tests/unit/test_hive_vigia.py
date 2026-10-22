@@ -50,7 +50,7 @@ def pasada(midgard, salud: dict, ahora=AHORA, uptime=86400, aviso=True, **entorn
     env = {**os.environ, "PATH": f"{falso}:{os.environ['PATH']}", "FALSO": str(falso),
            "VIGIA_DOCKER": str(falso / "docker"), "VIGIA_ESTADO": str(estado),
            "AVISO_ENV": str(fichero) if aviso else str(falso / "no-existe"),
-           "VIGIA_CONTENEDORES": "bots-gateway bots-webhook hive-coordinator",
+           "VIGIA_CONTENEDORES": "hive-api hive-webhook hive-coordinator",
            "VIGIA_AHORA": str(ahora), "VIGIA_UPTIME_S": str(uptime), **entorno}
     salida = subprocess.run(["bash", str(VIGIA)], env=env, capture_output=True, text=True, check=True).stdout
 
@@ -62,47 +62,47 @@ def pasada(midgard, salud: dict, ahora=AHORA, uptime=86400, aviso=True, **entorn
 
 
 def test_reinicia_lo_unhealthy_y_avisa(midgard):
-    reiniciados, avisos, _ = pasada(midgard, {"bots-gateway": "unhealthy", "bots-webhook": "healthy",
+    reiniciados, avisos, _ = pasada(midgard, {"hive-api": "unhealthy", "hive-webhook": "healthy",
                                               "hive-coordinator": "starting"})
 
-    assert reiniciados == ["bots-gateway"]
+    assert reiniciados == ["hive-api"]
     (aviso,) = avisos
-    assert "Priority: high" in aviso and "bots-gateway" in aviso and "https://ntfy.example/tema" in aviso
+    assert "Priority: high" in aviso and "hive-api" in aviso and "https://ntfy.example/tema" in aviso
 
 
 def test_sin_nada_unhealthy_no_toca_nada_ni_avisa(midgard):
     # Un contenedor sin healthcheck, o que no existe, no es unhealthy.
-    assert pasada(midgard, {"bots-gateway": "healthy", "bots-webhook": ""})[:2] == ([], [])
+    assert pasada(midgard, {"hive-api": "healthy", "hive-webhook": ""})[:2] == ([], [])
 
 
 def test_recien_arrancado_midgard_no_reinicia_nada(midgard):
-    reiniciados, avisos, salida = pasada(midgard, {"bots-gateway": "unhealthy"}, uptime=120)
+    reiniciados, avisos, salida = pasada(midgard, {"hive-api": "unhealthy"}, uptime=120)
 
     assert (reiniciados, avisos) == ([], []) and "arranque reciente" in salida
 
 
 def test_tras_tres_reinicios_en_una_hora_no_reinicia_mas_y_avisa_una_vez(midgard):
     for minuto in range(3):
-        assert pasada(midgard, {"bots-gateway": "unhealthy"}, ahora=AHORA + 60 * minuto)[0] == ["bots-gateway"]
+        assert pasada(midgard, {"hive-api": "unhealthy"}, ahora=AHORA + 60 * minuto)[0] == ["hive-api"]
 
-    reiniciados, avisos, _ = pasada(midgard, {"bots-gateway": "unhealthy"}, ahora=AHORA + 180)
+    reiniciados, avisos, _ = pasada(midgard, {"hive-api": "unhealthy"}, ahora=AHORA + 180)
     assert reiniciados == [] and len(avisos) == 1 and "Priority: urgent" in avisos[0]
 
     # En la misma hora no se repite el aviso.
-    assert pasada(midgard, {"bots-gateway": "unhealthy"}, ahora=AHORA + 240)[:2] == ([], [])
+    assert pasada(midgard, {"hive-api": "unhealthy"}, ahora=AHORA + 240)[:2] == ([], [])
 
 
 def test_pasada_la_hora_vuelve_a_intentarlo(midgard):
     for minuto in range(3):
-        pasada(midgard, {"bots-gateway": "unhealthy"}, ahora=AHORA + 60 * minuto)
+        pasada(midgard, {"hive-api": "unhealthy"}, ahora=AHORA + 60 * minuto)
 
-    assert pasada(midgard, {"bots-gateway": "unhealthy"}, ahora=AHORA + 3600 + 61)[0] == ["bots-gateway"]
+    assert pasada(midgard, {"hive-api": "unhealthy"}, ahora=AHORA + 3600 + 61)[0] == ["hive-api"]
 
 
 def test_sin_el_tema_de_ntfy_reinicia_igual(midgard):
-    reiniciados, avisos, salida = pasada(midgard, {"bots-gateway": "unhealthy"}, aviso=False)
+    reiniciados, avisos, salida = pasada(midgard, {"hive-api": "unhealthy"}, aviso=False)
 
-    assert reiniciados == ["bots-gateway"] and avisos == [] and "sin avisar" in salida
+    assert reiniciados == ["hive-api"] and avisos == [] and "sin avisar" in salida
 
 
 def test_si_docker_no_puede_reiniciar_avisa_con_urgencia(midgard):

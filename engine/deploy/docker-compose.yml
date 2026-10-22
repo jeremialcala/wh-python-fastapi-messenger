@@ -13,7 +13,7 @@
 #     by uid 10001, the image's user
 #   * the LLM: the classifier and the responder call Hive's llama.cpp on the LAN (ADR-0010), at LLM_URL of .env, with
 #     the key of keys/llm-api-key. Neither of them needs Andvari
-#   * the gateway's management API is reached over the external `andvari` network, as host `bots-gateway`. The
+#   * the gateway's management API is reached over the external `andvari` network, as host `hive-api` (until 2026-10-22, `bots-gateway`). The
 #     coordinator and the notifier sign their calls with the gateway's public key, keys/gateway-public.json, and the
 #     audience of .env, GATEWAY_AUDIENCE (ADR-0024)
 #   * traces go to Saga, Yggdrasil's Grafana Tempo, over the external `yggdrasil_saga` network
@@ -25,7 +25,7 @@
 name: hive-engine
 
 x-worker: &worker
-  image: ghcr.io/jeremialcala/chatbot-engine:${ENGINE_IMAGE_TAG:?ENGINE_IMAGE_TAG is required}
+  image: ghcr.io/jeremialcala/hive-engine:${ENGINE_IMAGE_TAG:?ENGINE_IMAGE_TAG is required}
   restart: unless-stopped
   networks: [bifrost, andvari, saga]
   read_only: true
@@ -53,7 +53,7 @@ x-llm: &llm
   LOG_LEVEL: INFO
 
 x-gateway: &gateway
-  GATEWAY_URL: http://bots-gateway:5002
+  GATEWAY_URL: http://hive-api:5002
   GATEWAY_AUDIENCE: ${GATEWAY_AUDIENCE:?GATEWAY_AUDIENCE is required}
   GATEWAY_PUBLIC_KEYS_FILE: /run/gateway/gateway-public.json
 

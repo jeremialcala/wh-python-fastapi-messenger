@@ -1,10 +1,24 @@
 # Hive
 
-> **Hive** es el nombre del producto: un BaaS de chatbots para WhatsApp, Messenger e Instagram, con su API de gestión
-> en `https://hive-api.higerotech.com` y el webhook de Meta en `https://hive-webhook.higerotech.com`
-> ([ADR-0024](docs/00-project/adr/0024-el-producto-se-llama-hive.md)). Este
-> repositorio, `wh-python-fastapi-messenger`, guarda sus dos partes: el gateway, en la raíz, y el motor de respuestas,
-> en `engine/`.
+**La plataforma para la gestión automatizada de tus bots y agentes.**
+
+Hive atiende a las personas que escriben a tus bots por WhatsApp, Messenger e Instagram. Las recibe, decide con un
+modelo propio si cada mensaje se atiende, responde con la persona y las reglas de cada bot, y lo deja todo en el
+historial. Es multi-cliente: cada cliente gestiona sus bots con su propia clave, y sus datos van cifrados con la suya.
+
+- **API de gestión:** `https://hive-api.higerotech.com`
+- **Webhook de Meta:** `https://hive-webhook.higerotech.com/chat/{bot_id}`
+
+Este repositorio, `jeremialcala/hive`, guarda sus dos partes ([ADR-0024](docs/00-project/adr/0024-el-producto-se-llama-hive.md)):
+
+| Parte | Dónde | Imagen | Contenedores |
+|---|---|---|---|
+| El gateway: webhook, API de gestión e ingesta | la raíz | `ghcr.io/jeremialcala/hive-gateway` | `hive-webhook`, `hive-api`, `hive-ingest` |
+| El motor de respuestas: clasificador, coordinador, de respuesta y notificador | [`engine/`](engine/) | `ghcr.io/jeremialcala/hive-engine` | `hive-classifier`, `hive-coordinator`, `hive-responder`, `hive-notifier` |
+
+Hasta el 2026-10-22 el repositorio se llamó `wh-python-fastapi-messenger`; GitHub redirige el nombre viejo.
+
+## El gateway
 
 Un **gateway de webhooks para chatbots de Facebook Messenger y WhatsApp Business**, genérico y multi-tenant, construido con FastAPI.
 
@@ -313,10 +327,10 @@ Abre `http://localhost:5002/docs` para ver la interfaz de Swagger de la gestión
 
 ```bash
 # Construye la imagen
-docker build -t wh-python-fastapi-messenger:latest .
+docker build -t hive-gateway:local .
 
 # Arráncala. Los ajustes no van dentro de la imagen: se pasan al ejecutar
-docker run -d -p 127.0.0.1:5002:5002 --env-file config.env --name wh-python-fastapi-messenger wh-python-fastapi-messenger:latest
+docker run -d -p 127.0.0.1:5002:5002 --env-file config.env --name hive-api hive-gateway:local
 ```
 
 La imagen arranca la API de gestión. El webhook es la misma imagen con otro comando:
@@ -335,12 +349,12 @@ La imagen corre con un usuario sin privilegios, no incluye `config.env` ni `cert
 
 Fusionar a `main` construye y despliega:
 
-1. El workflow [build](.github/workflows/build.yml) ejecuta las pruebas y, si pasan, publica `ghcr.io/jeremialcala/wh-python-fastapi-messenger:sha-<7>` en GHCR.
+1. El workflow [build](.github/workflows/build.yml) ejecuta las pruebas y, si pasan, publica `ghcr.io/jeremialcala/hive-gateway:sha-<7>` en GHCR.
 2. GitHub envía `workflow_run` al receptor de webhooks del servidor ([despliegue-continuo](https://github.com/higerotech/despliegue-continuo)), que descarga ese tag, levanta el proyecto compose, comprueba `/health` y vuelve al tag anterior si falla.
 
 Preparación única en el servidor:
 
-- `/srv/apps/bots-gateway/docker-compose.yml`, copiado de [deploy/docker-compose.yml](deploy/docker-compose.yml), y junto a él un `.env` con las claves de [config.env.example](config.env.example).
+- `/srv/apps/hive-gateway/docker-compose.yml`, copiado de [deploy/docker-compose.yml](deploy/docker-compose.yml), y junto a él un `.env` con las claves de [config.env.example](config.env.example).
 - El par de claves del gateway en `keys/gateway-keys.json` y la primera clave del operador registrada: los tres pasos de la puesta en marcha de [autenticacion.md](docs/03-implementation/autenticacion.md).
 - La red Docker externa `andvari`, la credencial del gateway en `keys/andvari-secret-id` y las dos migraciones de datos: la puesta en marcha de [cifrado-de-datos.md](docs/03-implementation/cifrado-de-datos.md).
 - El directorio `erasures/`, con dueño `10001` e incluido en los respaldos del servidor: es el registro de supresiones de [exportar-y-borrar.md](docs/03-implementation/exportar-y-borrar.md). Sin él, borrar responde `503`.
@@ -350,13 +364,13 @@ Preparación única en el servidor:
 - Una entrada en el `apps.yml` del receptor y el webhook `workflow_run` de este repositorio:
 
   ```yaml
-  - name: bots-gateway
-    repo: jeremialcala/wh-python-fastapi-messenger
+  - name: hive-gateway
+    repo: jeremialcala/hive
     branch: main
     event: workflow_run
     workflow: build
-    project_dir: /srv/apps/bots-gateway
-    image: ghcr.io/jeremialcala/wh-python-fastapi-messenger
+    project_dir: /srv/apps/hive-gateway
+    image: ghcr.io/jeremialcala/hive-gateway
     health_url: http://127.0.0.1:5003/health
     health_timeout: 120
     health_interval: 3
@@ -365,9 +379,11 @@ Preparación única en el servidor:
 
 Son tres contenedores de la misma imagen. Los dos HTTP escuchan solo en loopback:
 
-- `bots-webhook`, en el 5003. Comprueba la firma y publica en Bifröst (ADR-0021). Es lo único que publica el túnel.
-- `bots-gateway`, la API de gestión, en el 5002 (ADR-0018). Sigue privada.
-- `bots-ingest`, el worker de ingesta, sin puerto. Identifica al contacto, guarda el historial y pasa cada mensaje al motor.
+- `hive-webhook`, en el 5003. Comprueba la firma y publica en Bifröst (ADR-0021). El túnel lo publica como
+  `hive-webhook.higerotech.com`.
+- `hive-api`, la API de gestión, en el 5002 (ADR-0018). El túnel la publica como `hive-api.higerotech.com`
+  (ADR-0024).
+- `hive-ingest`, el worker de ingesta, sin puerto. Identifica al contacto, guarda el historial y pasa cada mensaje al motor.
 
 El webhook arranca cuando la gestión está sana, así que el `health_url` del receptor, el del webhook, responde por los dos.
 

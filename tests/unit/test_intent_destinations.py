@@ -49,7 +49,7 @@ REFUSED = {
     "IPv6 unique local": "https://[fd00::1]/admin",
     "IPv6 link local": "https://[fe80::1]/admin",
     "a host of the platform's network": "https://andvari:8200/v1/sys/mounts",
-    "the management API": "https://bots-gateway:5002/clients",
+    "the management API": "https://hive-api:5002/clients",
     "a name without a dot": "https://hermod/api",
     "mDNS": "https://printer.local/status",
     "an internal name": "https://api.internal/orders",

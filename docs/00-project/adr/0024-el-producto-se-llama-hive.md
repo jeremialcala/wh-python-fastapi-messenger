@@ -4,19 +4,21 @@
 * **Fecha:** 2026-10-20
 * **Decisores:** Jeremi Alcala
 * **Fase AI-DLC:** 00-project
-* **Versión:** 0.2.0
+* **Versión:** 0.3.0
 * **ID:** ADR-0024
 * **Supersede:** —
 * **Controles OWASP afectados:** A05 (cada superficie con sus propias reglas en Cloudflare), A07 (la audiencia de los
   tokens es el dominio de la API)
 
 Decisiones de Jeremi del 2026-10-20. La primera versión (PR #72) ponía la API en `hive.higerotech.com` y dejaba el
-webhook para el E7. Ese mismo día Jeremi separó los dos en subdominios propios, y esta versión lo recoge.
+webhook para el E7. Ese mismo día Jeremi separó los dos en subdominios propios (versión 0.2.0). El 2026-10-22 decidió
+renombrar también lo que ya existía, el repositorio, las imágenes y los contenedores (versión 0.3.0, punto 6), y
+describir el producto como «la plataforma para la gestión automatizada de tus bots y agentes».
 
 ## Contexto
 
 El gateway y el motor de respuestas son un solo producto: un BaaS de chatbots para WhatsApp, Messenger e Instagram,
-multi-cliente. Hasta ahora no tenía nombre. El repositorio se llama `wh-python-fastapi-messenger`, los contenedores
+multi-cliente. Hasta el 2026-10-20 no tenía nombre. El repositorio se llama `wh-python-fastapi-messenger`, los contenedores
 de midgard `bots-*`, y los documentos dicen «el gateway» y «el motor».
 
 En el E7 el producto se publica por primera vez, y tiene dos superficies distintas:
@@ -48,8 +50,25 @@ Heimdall, Thor, Odín.
    Cloudflare cubre `*.higerotech.com`, no `*.hive.higerotech.com`. Si hace falta publicar desarrollo:
    `hive-api-dev` y `hive-webhook-dev`.
 5. **`hive.higerotech.com` queda reservado para el producto**, por ejemplo para su página. No se publica en el E7.
-6. **No se renombra lo que ya existe:** el repositorio, la imagen `chatbot-engine`, los contenedores `bots-*` ni los
-   paquetes. Cambiarlos no aporta nada al cliente y rompería el despliegue continuo y los enlaces.
+6. **Todo lo técnico lleva el nombre de Hive** (versión 0.3.0, 2026-10-22). Hasta entonces este punto decía que no se
+   renombraba lo que ya existía; el gateway no está bajo el despliegue continuo de midgard, y GitHub redirige el
+   nombre viejo del repositorio, así que el cambio no rompe enlaces:
+
+   | Qué | Antes | Ahora |
+   |---|---|---|
+   | Repositorio | `jeremialcala/wh-python-fastapi-messenger` | `jeremialcala/hive` |
+   | Imagen del gateway | `ghcr.io/jeremialcala/wh-python-fastapi-messenger` | `ghcr.io/jeremialcala/hive-gateway` |
+   | Imagen del motor | `ghcr.io/jeremialcala/chatbot-engine` | `ghcr.io/jeremialcala/hive-engine` |
+   | Proyecto compose del gateway | `bots-gateway`, en `/srv/apps/bots-gateway` | `hive-gateway`, en `/srv/apps/hive-gateway` |
+   | Contenedores del gateway | `bots-webhook`, `bots-gateway`, `bots-ingest` | `hive-webhook`, `hive-api`, `hive-ingest` |
+
+   - El de la API de gestión se llama `hive-api`, como su subdominio.
+   - **No cambian** los nombres de servicio de las trazas (`gateway-webhook`, `engine-*`), que nombran el componente y
+     dan la continuidad de Saga; ni los paquetes de Python; ni los usuarios de Bifröst ni los roles de Andvari, que
+     nombran su función.
+   - **El traslado no corta nada:** la API y el webhook responden también a sus nombres viejos, como alias de red,
+     hasta que los nombres públicos del túnel apuntan a los nuevos en Cloudflare.
+   - Supera lo que la ADR-0023 decía de los nombres de las imágenes.
 
 ## Alternativas consideradas
 
@@ -78,6 +97,8 @@ Heimdall, Thor, Odín.
   del notificador (`GATEWAY_AUDIENCE`).
 - **Los documentos para clientes** dicen Hive. Los de diseño siguen diciendo «el gateway» y «el motor», que son sus
   partes.
+- **Los documentos históricos** (mediciones, el charter del motor, su modelo de amenazas) conservan los nombres de su
+  fecha.
 - **Si Hive llega a ser una marca propia**, con su propio dominio o un registro de marca, se revisa el nombre: es
   entonces cuando pesa que sea un nombre tan usado.
 

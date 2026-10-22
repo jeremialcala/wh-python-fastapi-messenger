@@ -236,6 +236,15 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   Instagram se conecta con Facebook Login a través de la página del cliente.
 
 ### Cambiado
+- **Todo pasa a llamarse Hive** (ADR-0024, versión 0.3.0; decisión de Jeremi del 2026-10-22): «la plataforma para la
+  gestión automatizada de tus bots y agentes».
+  - El repositorio es `jeremialcala/hive`; GitHub redirige `wh-python-fastapi-messenger`.
+  - Las imágenes, `ghcr.io/jeremialcala/hive-gateway` y `hive-engine`. `build` ya no toma el nombre del repositorio.
+  - **Incompatible para el despliegue:** el proyecto compose del gateway es `hive-gateway`, en
+    `/srv/apps/hive-gateway`, y sus contenedores `hive-webhook`, `hive-api` y `hive-ingest`. La API y el webhook
+    responden también a los nombres viejos (`bots-gateway`, `bots-webhook`) como alias de red, hasta que el túnel
+    apunte a los nuevos en Cloudflare.
+  - El vigía, el runbook del motor y la documentación de operación usan los nombres nuevos.
 - **`GET /chat/{bot_id}/rules` devuelve datos, no un prompt** (E4 del plan de los workers del motor; decisión de
   Jeremi del 2026-10-20). Antes armaba un prompt para Llama 2 (`<s> <<SYS>> Tu nombre es… <</SYS>>`), pensado para el
   motor de antes, con Ollama. Ahora `data` es `{"name", "role", "tone", "description", "rules": [...]}`, y el motor

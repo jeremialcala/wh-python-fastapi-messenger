@@ -132,6 +132,9 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
 - `.ai-dlc/scripts/`: generadores del contrato AsyncAPI y del historial del repo.
 
 ### Cambiado
+- **La imagen del motor es `ghcr.io/jeremialcala/hive-engine`**, no `chatbot-engine`, y el coordinador y el
+  notificador llegan a la API de gestión como `hive-api` (ADR-0024 del gateway, versión 0.3.0; decisión de Jeremi del
+  2026-10-22).
 - **El sobre interno pasa a `schemaVersion` 2** y su contrato a la 2.0.0: donde decía `claude`
   (`pedido.respuesta`, `respuesta.fuente`), dice `modelo`. Todos los workers se despliegan juntos.
 - **El clasificador y el de respuesta ya no usan Andvari:** solo Bifröst y la clave del LLM, de `keys/llm-api-key`.
