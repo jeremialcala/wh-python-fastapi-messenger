@@ -241,9 +241,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   - El repositorio es `jeremialcala/hive`; GitHub redirige `wh-python-fastapi-messenger`.
   - Las imágenes, `ghcr.io/jeremialcala/hive-gateway` y `hive-engine`. `build` ya no toma el nombre del repositorio.
   - **Incompatible para el despliegue:** el proyecto compose del gateway es `hive-gateway`, en
-    `/srv/apps/hive-gateway`, y sus contenedores `hive-webhook`, `hive-api` y `hive-ingest`. La API y el webhook
-    responden también a los nombres viejos (`bots-gateway`, `bots-webhook`) como alias de red, hasta que el túnel
-    apunte a los nuevos en Cloudflare.
+    `/srv/apps/hive-gateway`, y sus contenedores `hive-webhook`, `hive-api` y `hive-ingest`. Los nombres públicos del
+    túnel apuntan a `http://hive-webhook:5002` y `http://hive-api:5002`. Los alias de red con los nombres viejos, que
+    cubrieron el traslado, se quitaron el mismo día.
   - El vigía, el runbook del motor y la documentación de operación usan los nombres nuevos.
 - **`GET /chat/{bot_id}/rules` devuelve datos, no un prompt** (E4 del plan de los workers del motor; decisión de
   Jeremi del 2026-10-20). Antes armaba un prompt para Llama 2 (`<s> <<SYS>> Tu nombre es… <</SYS>>`), pensado para el

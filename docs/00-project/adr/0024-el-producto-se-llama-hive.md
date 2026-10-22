@@ -66,8 +66,10 @@ Heimdall, Thor, Odín.
    - **No cambian** los nombres de servicio de las trazas (`gateway-webhook`, `engine-*`), que nombran el componente y
      dan la continuidad de Saga; ni los paquetes de Python; ni los usuarios de Bifröst ni los roles de Andvari, que
      nombran su función.
-   - **El traslado no corta nada:** la API y el webhook responden también a sus nombres viejos, como alias de red,
-     hasta que los nombres públicos del túnel apuntan a los nuevos en Cloudflare.
+   - **El traslado, el 2026-10-22:** los nombres públicos del túnel pasaron a `hive-webhook` y `hive-api` en
+     Cloudflare antes que los contenedores. El webhook estuvo caído unos minutos y la API desapareció del DNS hasta
+     que se volvió a crear su nombre público. Unos alias de red temporales lo cubrieron hasta el traslado, que dejó
+     el webhook fuera 69 s; ese mismo día se quitaron. Hive siguió respondiendo por la red interna.
    - Supera lo que la ADR-0023 decía de los nombres de las imágenes.
 
 ## Alternativas consideradas
