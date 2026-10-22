@@ -267,6 +267,9 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
   (`motor/retirar-anthropic.sh` de andvari).
 
 ### Seguridad
+- **OpenTelemetry sube a 1.45.1** (y sus paquetes `0.66b0` a `0.66b1`) en los locks del gateway: CVE-2026-114603 de
+  `opentelemetry-api`, que pip-audit marcó en el CI el 2026-10-22. La 1.45.1 es del 2026-10-06 y ya tenía las dos
+  semanas que se esperan antes de tomar una versión.
 - **`certifi` sube a 2026.10.19** en los locks del gateway (GHSA-6q48-6c7w-9gw2, crítica, publicada el 2026-10-20).
   Las versiones anteriores confían en las raíces de emSign, de las que dependen ocho intermedias cuyas claves privadas
   se comprometieron: quien tenga una y esté en el camino puede suplantar cualquier sitio HTTPS ante `requests` y `pip`.
