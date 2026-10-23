@@ -18,8 +18,8 @@ a este fichero está en `docs/03-implementation/repo-history.md`.
   respuesta, 6,7 s en vez de 1,3. Si el clasificador o el de respuesta llevan `LLM_CALENTAR_CADA` segundos (600) sin
   usar el LLM, le mandan una consulta mínima con su propio `system`, de un token de salida. El de respuesta usa el del
   último bot al que contestó, que es el que tiene su ranura. Un candado impide que coincida con una consulta de verdad
-  del mismo worker, y un fallo queda en un aviso. El log solo dice «calentado» cuando de verdad se llamó al LLM: el de respuesta, antes
-  de su primera respuesta, no tiene prefijo y no manda nada (visto en midgard el 2026-10-23).
+  del mismo worker, y un fallo queda en un aviso. El log solo dice «calentado» cuando de verdad se llamó al LLM: el de
+  respuesta, antes de su primera respuesta, no tiene prefijo y no manda nada (visto en midgard el 2026-10-23).
 - **[ADR-0011](docs/02-design/adr/ADR-0011-leido-y-escribiendo.md) (aceptada): leído y «escribiendo…» en WhatsApp**
   (E11; decisiones de Jeremi del 2026-10-21). El notificador atiende dos consumidores más, a la vez que el suyo
   (`src/workers/presencia.py`):
