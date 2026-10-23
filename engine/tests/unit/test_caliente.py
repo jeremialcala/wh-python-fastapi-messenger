@@ -102,12 +102,24 @@ def test_si_el_llm_no_responde_queda_en_un_aviso_y_no_se_insiste_en_cada_mirada(
     assert len(llama.pedidos) == 1
 
 
-def test_sin_prefijo_no_hay_nada_que_calentar():
+def test_sin_prefijo_no_hay_nada_que_calentar_ni_lo_dice_el_log(caplog):
     llama, reloj = Llama(), Reloj()
 
-    asyncio.run(unas_miradas(Caliente(llama, reloj), reloj, [600]))
+    with caplog.at_level("INFO"):
+        asyncio.run(unas_miradas(Caliente(llama, reloj), reloj, [600]))
 
-    assert llama.pedidos == []
+    assert llama.pedidos == [] and "calentado" not in caplog.text
+
+
+def test_lo_que_si_se_calienta_queda_en_el_log(caplog):
+    llama, reloj = Llama(), Reloj()
+    caliente = Caliente(llama, reloj)
+    caliente.prefijo = prefijo("s")
+
+    with caplog.at_level("INFO"):
+        asyncio.run(unas_miradas(caliente, reloj, [600]))
+
+    assert "calentado tras 600 s sin uso" in caplog.text
 
 
 def test_nunca_a_la_vez_que_una_consulta_de_verdad():
