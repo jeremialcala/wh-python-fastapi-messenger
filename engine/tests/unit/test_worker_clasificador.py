@@ -266,7 +266,7 @@ def test_al_arrancar_lee_la_clave_del_llm_y_lo_configura_como_dice_su_configurac
         atender, cerrar = await preparar(ajustes(clave, classifier_timeout=5.0), 4)
         clasificador = atender._clasificador
         try:
-            cliente = clasificador._cliente
+            cliente = clasificador.llm._cliente
             return (cliente.modelo, cliente._url, cliente._clave, cliente._timeout, clasificador._max_tokens,
                     atender._max_deliver)
         finally:

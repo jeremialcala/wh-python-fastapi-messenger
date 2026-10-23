@@ -102,6 +102,7 @@ Del entorno del contenedor. Ningún secreto va en ella:
 | `ANDVARI_ADDR`, `ANDVARI_CA_FILE` | Andvari, para el coordinador y el notificador |
 | `ENGINE_ROLE_ID`, `ENGINE_SECRET_ID_FILE` | El rol AppRole `motor-<worker>` y el fichero con su `secret_id` |
 | `LLM_URL`, `LLM_API_KEY_FILE`, `LLM_MODEL` | El LLM de Hive, para el clasificador y el de respuesta. Por defecto el modelo es `gemma-4-26b-a4b` |
+| `LLM_CALENTAR_CADA` | Segundos sin usar el LLM tras los que el clasificador y el de respuesta lo calientan con su `system`. 600 por defecto; 0, nunca |
 | `CLASSIFIER_MAX_TOKENS`, `CLASSIFIER_TIMEOUT` | El clasificador. Por defecto: 256 y 20 s |
 | `GATEWAY_URL`, `GATEWAY_AUDIENCE`, `GATEWAY_PUBLIC_KEYS_FILE`, `GATEWAY_CA_FILE`, `COORDINATOR_TIMEOUT` | El coordinador: la API del gateway, como para `ops.engine_keys`. El timeout, 10 s por llamada |
 | `RESPONDER_MAX_TOKENS`, `RESPONDER_TIMEOUT` | El de respuesta. Por defecto: 1024 y 90 s |

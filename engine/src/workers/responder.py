@@ -23,6 +23,7 @@ from shared.workers import Worker
 from src.domain.models.sobre import Contestacion, MensajePedido, MensajeRespondido, subject_respuesta
 from src.domain.ports.redactor import RedaccionFallida, Redactor
 from src.infrastructure.llm import ClienteLlm, LlmRedactor
+from src.infrastructure.llm import caliente
 from src.infrastructure.llm.cliente import leer_clave
 from src.workers.runtime import Descartado, Resultado, ejecutar, entregas, leer_del_motor, publicador
 from src.workers.settings import ResponderSettings
@@ -118,8 +119,11 @@ async def preparar(settings: ResponderSettings, max_deliver: int):
                          settings.responder_timeout)
     publisher = publicador(settings, NOMBRE)
     redactor = LlmRedactor(cliente, settings.responder_max_tokens)
+    # Que el LLM no se enfríe mientras no llegan mensajes.
+    parar = caliente.arrancar(redactor.llm, settings.llm_calentar_cada)
 
     async def cerrar() -> None:
+        parar()
         await publisher.close()
 
     return Responder(redactor, publisher, max_deliver), cerrar
