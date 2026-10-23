@@ -30,8 +30,8 @@ class Calentable(Protocol):
     """Lo que se puede mantener caliente: sabe cuándo se usó por última vez, y cómo calentarse."""
     ultimo_uso: float
 
-    async def calentar(self) -> None:
-        """Le manda al LLM lo que lo mantiene caliente."""
+    async def calentar(self) -> bool:
+        """Le manda al LLM lo que lo mantiene caliente. Devuelve si había algo que mandar."""
 
 
 class Caliente:
@@ -60,10 +60,15 @@ class Caliente:
             finally:
                 self.ultimo_uso = self._reloj()
 
-    async def calentar(self) -> None:
-        """Un token de salida: lo que importa es que el modelo vuelva a leer el prefijo."""
-        if self.prefijo:
-            await self.preguntar(self.prefijo, 1)
+    async def calentar(self) -> bool:
+        """
+            Un token de salida: lo que importa es que el modelo vuelva a leer el prefijo. Sin prefijo (el de respuesta
+            antes de su primera respuesta) no manda nada, y lo dice.
+        """
+        if not self.prefijo:
+            return False
+        await self.preguntar(self.prefijo, 1)
+        return True
 
 
 def prefijo(system: str) -> list[dict]:
@@ -79,8 +84,8 @@ async def mantener(calentable: Calentable, cada: int, reloj: Callable[[], float]
         if reloj() - calentable.ultimo_uso < cada:
             continue
         try:
-            await calentable.calentar()
-            log.info("El LLM, calentado tras %d s sin uso", cada)
+            if await calentable.calentar():
+                log.info("El LLM, calentado tras %d s sin uso", cada)
         except LlmNoDisponible as e:
             log.warning("No se pudo calentar el LLM: %s", e)
         # Pase lo que pase, la próxima vez dentro de `cada`, no en la siguiente mirada.
